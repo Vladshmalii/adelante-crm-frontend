@@ -1,0 +1,139 @@
+'use client';
+
+import { ChevronLeft, ChevronRight, Search, Bell, User } from 'lucide-react';
+import { format } from 'date-fns';
+import { uk } from 'date-fns/locale';
+import clsx from 'clsx';
+import { CalendarView } from '@/features/calendar/types';
+
+interface TopBarProps {
+    currentDate: Date;
+    onDateChange: (date: Date) => void;
+    view: CalendarView;
+    onViewChange: (view: CalendarView) => void;
+}
+
+export function TopBar({
+    currentDate,
+    onDateChange,
+    view,
+    onViewChange
+}: TopBarProps) {
+    const goToToday = () => {
+        onDateChange(new Date());
+    };
+
+    const goToPrevious = () => {
+        const newDate = new Date(currentDate);
+        if (view === 'day') {
+            newDate.setDate(newDate.getDate() - 1);
+        } else if (view === 'week') {
+            newDate.setDate(newDate.getDate() - 7);
+        } else {
+            newDate.setMonth(newDate.getMonth() - 1);
+        }
+        onDateChange(newDate);
+    };
+
+    const goToNext = () => {
+        const newDate = new Date(currentDate);
+        if (view === 'day') {
+            newDate.setDate(newDate.getDate() + 1);
+        } else if (view === 'week') {
+            newDate.setDate(newDate.getDate() + 7);
+        } else {
+            newDate.setMonth(newDate.getMonth() + 1);
+        }
+        onDateChange(newDate);
+    };
+
+    const formattedDate = format(currentDate, 'd MMMM, EEEE', { locale: uk });
+
+    return (
+        <div className="h-16 bg-background/80 backdrop-blur-md border-b border-border flex items-center justify-between px-3 sm:px-6 sticky top-0 z-30 transition-all">
+            {/* Date Controls */}
+            <div className="flex items-center gap-2 sm:gap-4 animate-fade-in-down">
+                <button
+                    onClick={goToToday}
+                    className="px-2 sm:px-4 py-2 text-xs sm:text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-accent hover:text-accent-foreground transition-all shadow-sm hover:shadow-md active:scale-95"
+                >
+                    <span className="hidden sm:inline">Сьогодні</span>
+                    <span className="sm:hidden">Сьог.</span>
+                </button>
+
+                <div className="flex items-center gap-1 sm:gap-2">
+                    <button
+                        onClick={goToPrevious}
+                        className="p-1.5 sm:p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground rounded-lg transition-all active:scale-95"
+                        aria-label="Попередній"
+                    >
+                        <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+                    </button>
+
+                    <button
+                        onClick={goToNext}
+                        className="p-1.5 sm:p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground rounded-lg transition-all active:scale-95"
+                        aria-label="Наступний"
+                    >
+                        <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
+                    </button>
+                </div>
+
+                <h1 className="text-sm sm:text-lg font-bold text-foreground capitalize font-heading tracking-tight">
+                    <span className="hidden md:inline">{formattedDate}</span>
+                    <span className="md:hidden">{format(currentDate, 'd MMM', { locale: uk })}</span>
+                </h1>
+            </div>
+
+            {/* Right Section */}
+            <div className="flex items-center gap-2 sm:gap-4 animate-fade-in-down" style={{ animationDelay: '0.1s' }}>
+                {/* View Switcher */}
+                <div className="flex items-center bg-muted rounded-lg p-0.5 sm:p-1">
+                    {(['day', 'week', 'month'] as CalendarView[]).map((v) => (
+                        <button
+                            key={v}
+                            onClick={() => onViewChange(v)}
+                            className={clsx(
+                                'px-2 sm:px-4 py-1 sm:py-1.5 text-xs sm:text-sm font-medium rounded-md transition-all duration-200',
+                                view === v
+                                    ? 'bg-background text-foreground shadow-sm scale-105'
+                                    : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
+                            )}
+                        >
+                            <span className="hidden sm:inline">
+                                {v === 'day' && 'День'}
+                                {v === 'week' && 'Тиждень'}
+                                {v === 'month' && 'Місяць'}
+                            </span>
+                            <span className="sm:hidden">
+                                {v === 'day' && 'Д'}
+                                {v === 'week' && 'Т'}
+                                {v === 'month' && 'М'}
+                            </span>
+                        </button>
+                    ))}
+                </div>
+
+                {/* Search - Hidden on mobile */}
+                <div className="relative group hidden lg:block">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                    <input
+                        type="text"
+                        placeholder="Пошук..."
+                        className="pl-9 pr-4 py-2 w-64 text-sm bg-card border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition-all shadow-sm group-hover:shadow-md"
+                    />
+                </div>
+
+                {/* Icons */}
+                <button className="relative p-1.5 sm:p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground rounded-lg transition-all active:scale-95">
+                    <Bell className="w-4 h-4 sm:w-5 sm:h-5" />
+                    <span className="absolute top-1 right-1 sm:top-1.5 sm:right-1.5 w-2 h-2 bg-destructive rounded-full ring-2 ring-background animate-pulse" />
+                </button>
+
+                <button className="hidden sm:block p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground rounded-lg transition-all active:scale-95">
+                    <User className="w-5 h-5" />
+                </button>
+            </div>
+        </div>
+    );
+}
