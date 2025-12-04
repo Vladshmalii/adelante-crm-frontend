@@ -7,7 +7,7 @@ import {
     Calendar,
     Users,
     LayoutDashboard,
-    DollarSign,
+    Banknote,
     Package,
     Gift,
     Plug,
@@ -16,6 +16,7 @@ import {
     ChevronLeft,
     Mail,
     User,
+    Briefcase,
 } from 'lucide-react';
 import { DatePicker } from '@/shared/components/ui/DatePicker';
 
@@ -31,6 +32,7 @@ const navItems: NavItem[] = [
     { id: 'calendar', label: 'Розклад', icon: Calendar, href: '/calendar' },
     { id: 'staff', label: 'Співробітники', icon: Users, href: '/staff' },
     { id: 'clients', label: 'Клієнти', icon: User, href: '/clients' },
+    { id: 'services', label: 'Послуги', icon: Briefcase, href: '/services' },
     {
         id: 'overview',
         label: 'Огляд',
@@ -42,12 +44,22 @@ const navItems: NavItem[] = [
             { label: 'Зміни', href: '/overview?tab=changes', tab: 'changes' },
         ]
     },
-    { id: 'finances', label: 'Фінанси', icon: DollarSign, href: '/finances' },
+    { id: 'finances', label: 'Фінанси', icon: Banknote, href: '/finances' },
     { id: 'inventory', label: 'Склад', icon: Package, href: '/inventory' },
-    { id: 'loyalty', label: 'Лояльність', icon: Gift, href: '/loyalty' },
-    { id: 'integrations', label: 'Інтеграції', icon: Plug, href: '/integrations' },
-    { id: 'settings', label: 'Налаштування', icon: Settings, href: '/settings' },
+    {
+        id: 'settings',
+        label: 'Налаштування',
+        icon: Settings,
+        href: '/settings',
+        subItems: [
+            { label: 'Салону', href: '/settings?tab=salon', tab: 'salon' },
+            { label: 'Профілю', href: '/settings?tab=profile', tab: 'profile' },
+            { label: 'Ролі та доступи', href: '/settings?tab=roles', tab: 'roles' },
+            { label: 'Загальні', href: '/settings?tab=general', tab: 'general' },
+        ],
+    },
 ];
+
 
 interface SidebarProps {
     activeSection?: string;
@@ -130,8 +142,9 @@ export function Sidebar({ activeSection = 'calendar', isMobileMenuOpen = false, 
                                     onClick={() => onMobileMenuClose?.()}
                                     className={clsx(
                                         'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group relative overflow-hidden',
-                                        'hover:bg-white/5',
-                                        isActive ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20' : 'text-gray-400 hover:text-white',
+                                        isActive
+                                            ? 'bg-primary hover:bg-primary/90 text-primary-foreground shadow-md shadow-primary/20'
+                                            : 'text-gray-400 hover:text-white hover:bg-white/5',
                                         isCollapsed && 'justify-center'
                                     )}
                                     title={isCollapsed ? item.label : undefined}
@@ -139,9 +152,6 @@ export function Sidebar({ activeSection = 'calendar', isMobileMenuOpen = false, 
                                     <Icon className={clsx("w-5 h-5 flex-shrink-0 transition-transform duration-200", !isActive && "group-hover:scale-110")} />
                                     {!isCollapsed && (
                                         <span className="text-sm font-medium animate-fade-in">{item.label}</span>
-                                    )}
-                                    {isActive && !isCollapsed && !hasSubItems && (
-                                        <div className="absolute right-0 top-0 bottom-0 w-1 bg-white/20" />
                                     )}
                                 </a>
 
@@ -151,15 +161,18 @@ export function Sidebar({ activeSection = 'calendar', isMobileMenuOpen = false, 
                                             const isSubActive = currentTab === subItem.tab || (!currentTab && subItem.tab === 'records' && item.id === 'overview');
                                             return (
                                                 <li key={subItem.href}>
-                                                    <a
-                                                        href={subItem.href}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => router.push(subItem.href, { scroll: false })}
                                                         className={clsx(
-                                                            "block px-3 py-2 text-sm rounded-lg transition-colors",
-                                                            isSubActive ? "text-white bg-white/10 font-medium" : "text-gray-400 hover:text-white hover:bg-white/5"
+                                                            'w-full text-left block px-3 py-2 text-sm rounded-lg transition-colors',
+                                                            isSubActive
+                                                                ? 'text-white bg-white/10 font-medium'
+                                                                : 'text-gray-400 hover:text-white hover:bg-white/5'
                                                         )}
                                                     >
                                                         {subItem.label}
-                                                    </a>
+                                                    </button>
                                                 </li>
                                             );
                                         })}

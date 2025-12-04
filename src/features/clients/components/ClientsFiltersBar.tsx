@@ -1,5 +1,5 @@
-import { ChevronDown, X } from 'lucide-react';
-import { useState } from 'react';
+import { X } from 'lucide-react';
+import { Dropdown } from '@/shared/components/ui/Dropdown';
 import type { ClientFilters } from '../types';
 
 interface ClientsFiltersBarProps {
@@ -13,11 +13,8 @@ export function ClientsFiltersBar({
     onFiltersChange,
     onClearFilters,
 }: ClientsFiltersBarProps) {
-    const [openDropdown, setOpenDropdown] = useState<string | null>(null);
-
-    const handleFilterChange = (key: keyof ClientFilters, value: string) => {
-        onFiltersChange({ ...filters, [key]: value });
-        setOpenDropdown(null);
+    const handleFilterChange = (key: keyof ClientFilters, value: string | number) => {
+        onFiltersChange({ ...filters, [key]: value || undefined } as ClientFilters);
     };
 
     const hasActiveFilters = Object.values(filters).some((v) => v);
@@ -26,81 +23,48 @@ export function ClientsFiltersBar({
         <div className="flex items-center gap-4 mb-6 pb-4 border-b border-border">
             <span className="text-sm font-medium text-foreground">Фільтри:</span>
 
-            <div className="relative">
-                <button
-                    onClick={() =>
-                        setOpenDropdown(openDropdown === 'visits' ? null : 'visits')
-                    }
-                    className="flex items-center gap-2 px-4 py-2 text-sm bg-secondary hover:bg-secondary/80 rounded-lg transition-colors"
-                >
-                    За візитами
-                    <ChevronDown size={16} />
-                </button>
-                {openDropdown === 'visits' && (
-                    <div className="absolute top-full left-0 mt-1 w-48 bg-card border border-border rounded-lg shadow-lg z-10">
-                        {['Всі', 'Більше 10', '5-10', 'Менше 5'].map((option) => (
-                            <button
-                                key={option}
-                                onClick={() => handleFilterChange('visits', option)}
-                                className="w-full px-4 py-2 text-left text-sm hover:bg-secondary transition-colors first:rounded-t-lg last:rounded-b-lg"
-                            >
-                                {option}
-                            </button>
-                        ))}
-                    </div>
-                )}
-            </div>
+            <div className="flex items-center gap-3">
+                <div className="w-48">
+                    <Dropdown
+                        placeholder="За візитами"
+                        value={filters.visits || ''}
+                        options={[
+                            { value: '', label: 'Всі' },
+                            { value: 'Більше 10', label: 'Більше 10' },
+                            { value: '5-10', label: '5-10' },
+                            { value: 'Менше 5', label: 'Менше 5' },
+                        ]}
+                        onChange={(value) => handleFilterChange('visits', value)}
+                    />
+                </div>
 
-            <div className="relative">
-                <button
-                    onClick={() =>
-                        setOpenDropdown(openDropdown === 'clients' ? null : 'clients')
-                    }
-                    className="flex items-center gap-2 px-4 py-2 text-sm bg-secondary hover:bg-secondary/80 rounded-lg transition-colors"
-                >
-                    За клієнтами
-                    <ChevronDown size={16} />
-                </button>
-                {openDropdown === 'clients' && (
-                    <div className="absolute top-full left-0 mt-1 w-48 bg-card border border-border rounded-lg shadow-lg z-10">
-                        {['Всі', 'VIP', 'Зі знижкою', 'Без знижки'].map((option) => (
-                            <button
-                                key={option}
-                                onClick={() => handleFilterChange('clients', option)}
-                                className="w-full px-4 py-2 text-left text-sm hover:bg-secondary transition-colors first:rounded-t-lg last:rounded-b-lg"
-                            >
-                                {option}
-                            </button>
-                        ))}
-                    </div>
-                )}
-            </div>
+                <div className="w-48">
+                    <Dropdown
+                        placeholder="За клієнтами"
+                        value={filters.clients || ''}
+                        options={[
+                            { value: '', label: 'Всі' },
+                            { value: 'VIP', label: 'VIP' },
+                            { value: 'Зі знижкою', label: 'Зі знижкою' },
+                            { value: 'Без знижки', label: 'Без знижки' },
+                        ]}
+                        onChange={(value) => handleFilterChange('clients', value)}
+                    />
+                </div>
 
-            <div className="relative">
-                <button
-                    onClick={() =>
-                        setOpenDropdown(openDropdown === 'sales' ? null : 'sales')
-                    }
-                    className="flex items-center gap-2 px-4 py-2 text-sm bg-secondary hover:bg-secondary/80 rounded-lg transition-colors"
-                >
-                    За продажами
-                    <ChevronDown size={16} />
-                </button>
-                {openDropdown === 'sales' && (
-                    <div className="absolute top-full left-0 mt-1 w-48 bg-card border border-border rounded-lg shadow-lg z-10">
-                        {['Всі', 'Більше 20000₴', '10000-20000₴', 'Менше 10000₴'].map(
-                            (option) => (
-                                <button
-                                    key={option}
-                                    onClick={() => handleFilterChange('sales', option)}
-                                    className="w-full px-4 py-2 text-left text-sm hover:bg-secondary transition-colors first:rounded-t-lg last:rounded-b-lg"
-                                >
-                                    {option}
-                                </button>
-                            )
-                        )}
-                    </div>
-                )}
+                <div className="w-56">
+                    <Dropdown
+                        placeholder="За продажами"
+                        value={filters.sales || ''}
+                        options={[
+                            { value: '', label: 'Всі' },
+                            { value: 'Більше 20000₴', label: 'Більше 20000₴' },
+                            { value: '10000-20000₴', label: '10000-20000₴' },
+                            { value: 'Менше 10000₴', label: 'Менше 10000₴' },
+                        ]}
+                        onChange={(value) => handleFilterChange('sales', value)}
+                    />
+                </div>
             </div>
 
             {hasActiveFilters && (

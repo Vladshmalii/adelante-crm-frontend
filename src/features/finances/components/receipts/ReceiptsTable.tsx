@@ -3,9 +3,11 @@ import { ReceiptRow } from './ReceiptRow';
 
 interface ReceiptsTableProps {
     receipts: FinanceReceipt[];
+    onView: (receipt: FinanceReceipt) => void;
+    onEdit: (receipt: FinanceReceipt) => void;
 }
 
-export function ReceiptsTable({ receipts }: ReceiptsTableProps) {
+export function ReceiptsTable({ receipts, onView, onEdit }: ReceiptsTableProps) {
     return (
         <div className="overflow-x-auto">
             <table className="w-full">
@@ -41,11 +43,19 @@ export function ReceiptsTable({ receipts }: ReceiptsTableProps) {
                     <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                         Джерело
                     </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                        Дії
+                    </th>
                 </tr>
                 </thead>
                 <tbody>
                 {receipts.map((receipt) => (
-                    <ReceiptRow key={receipt.id} receipt={receipt} />
+                    <ReceiptRow
+                        key={receipt.id}
+                        receipt={receipt}
+                        onView={onView}
+                        onEdit={onEdit}
+                    />
                 ))}
                 </tbody>
             </table>

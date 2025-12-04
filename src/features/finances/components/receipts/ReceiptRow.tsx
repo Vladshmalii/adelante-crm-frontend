@@ -1,11 +1,13 @@
-import { Monitor, Smartphone, Tablet } from 'lucide-react';
+import { Eye, Monitor, Pencil, Smartphone, Tablet } from 'lucide-react';
 import { FinanceReceipt } from '../../types';
 
 interface ReceiptRowProps {
     receipt: FinanceReceipt;
+    onView: (receipt: FinanceReceipt) => void;
+    onEdit: (receipt: FinanceReceipt) => void;
 }
 
-export function ReceiptRow({ receipt }: ReceiptRowProps) {
+export function ReceiptRow({ receipt, onView, onEdit }: ReceiptRowProps) {
     const formatDate = (dateStr: string) => {
         const date = new Date(dateStr);
         return date.toLocaleString('uk-UA', {
@@ -30,8 +32,8 @@ export function ReceiptRow({ receipt }: ReceiptRowProps) {
         };
         return (
             <span className={`px-2 py-1 text-xs font-medium rounded ${styles[status]}`}>
-        {labels[status]}
-      </span>
+                {labels[status]}
+            </span>
         );
     };
 
@@ -53,7 +55,7 @@ export function ReceiptRow({ receipt }: ReceiptRowProps) {
             <td className="px-4 py-3 text-sm text-foreground whitespace-nowrap">
                 {formatDate(receipt.date)}
             </td>
-            <td className="px-4 py-3 text-sm text-primary font-medium hover:underline cursor-pointer">
+            <td className="px-4 py-3 text-sm text-primary font-medium hover:underline cursor-pointer" onClick={() => onView(receipt)}>
                 {receipt.receiptNumber}
             </td>
             <td className="px-4 py-3 text-sm text-muted-foreground">
@@ -79,6 +81,24 @@ export function ReceiptRow({ receipt }: ReceiptRowProps) {
             </td>
             <td className="px-4 py-3">
                 {getSourceIcon(receipt.source)}
+            </td>
+            <td className="px-4 py-3">
+                <div className="flex items-center gap-1">
+                    <button
+                        type="button"
+                        className="p-1 hover:bg-accent hover:text-accent-foreground rounded transition-colors"
+                        onClick={() => onView(receipt)}
+                    >
+                        <Eye size={16} />
+                    </button>
+                    <button
+                        type="button"
+                        className="p-1 hover:bg-accent hover:text-accent-foreground rounded transition-colors"
+                        onClick={() => onEdit(receipt)}
+                    >
+                        <Pencil size={16} />
+                    </button>
+                </div>
             </td>
         </tr>
     );

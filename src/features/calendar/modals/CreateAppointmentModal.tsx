@@ -1,12 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Modal } from '@/shared/components/ui/Modal';
 import { Button } from '@/shared/components/ui/Button';
 import { Dropdown } from '@/shared/components/ui/Dropdown';
 import { DatePicker } from '@/shared/components/ui/DatePicker';
+import { TimePicker } from '@/shared/components/ui/TimePicker';
+import { Input } from '@/shared/components/ui/Input';
+import { Textarea } from '@/shared/components/ui/Textarea';
+import { Card } from '../components/ui/Card';
+import { Radio, RadioGroup } from '@/shared/components/ui/Radio';
+import { useToast } from '@/shared/hooks/useToast';
+
 import { StaffMember, AppointmentType } from '../types';
-import clsx from 'clsx';
 
 interface CreateAppointmentModalProps {
     isOpen: boolean;
@@ -46,40 +52,85 @@ export function CreateAppointmentModal({
     initialTime,
     initialDate,
 }: CreateAppointmentModalProps) {
-    const [formData, setFormData] = useState<CreateAppointmentData>({
-        staffId: initialStaffId || staff[0]?.id || '',
-        clientName: '',
-        clientPhone: '',
-        service: '',
-        startTime: initialTime || '10:00',
-        endTime: '11:00',
-        date: initialDate || new Date().toISOString().split('T')[0],
-        type: 'standard',
-        notes: '',
-        price: 0,
-    });
+    const toast = useToast();
+
+    const addMinutes = (time: string, minutes: number) => {
+        const [h, m] = time.split(':').map(Number);
+        const total = h * 60 + m + minutes;
+        const hh = Math.floor(total / 60).toString().padStart(2, '0');
+        const mm = (total % 60).toString().padStart(2, '0');
+        return `${hh}:${mm}`;
+    };
+
+    const buildInitialFormData = (): CreateAppointmentData => {
+        const baseStaffId = initialStaffId || staff[0]?.id || '';
+        const baseStart = initialTime || '10:00';
+        const baseEnd = addMinutes(baseStart, 30);
+
+        return {
+            staffId: baseStaffId,
+            clientName: '',
+            clientPhone: '',
+            service: '',
+            startTime: baseStart,
+            endTime: baseEnd,
+            date: initialDate || new Date().toISOString().split('T')[0],
+            type: 'standard',
+            notes: '',
+            price: 0,
+        };
+    };
+
+    const [formData, setFormData] = useState<CreateAppointmentData>(buildInitialFormData);
+
+    useEffect(() => {
+        if (isOpen) {
+            setFormData(buildInitialFormData());
+        }
+    }, [isOpen, initialTime, initialDate, initialStaffId, staff.length]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         onSave(formData);
         onClose();
-        // Reset form
-        setFormData({
-            staffId: initialStaffId || staff[0]?.id || '',
-            clientName: '',
-            clientPhone: '',
-            service: '',
-            startTime: initialTime || '10:00',
-            endTime: '11:00',
-            date: initialDate || new Date().toISOString().split('T')[0],
-            type: 'standard',
-            notes: '',
-            price: 0,
-        });
+        setFormData(buildInitialFormData());
+        toast.success('Запис створено', 'Успіх');
     };
 
     const handleChange = (field: keyof CreateAppointmentData, value: any) => {
         setFormData(prev => ({ ...prev, [field]: value }));
+    };
+
+    const handleStartTimeChange = (time: string) => {
+        setFormData(prev => {
+            const next = { ...prev, startTime: time };
+
+            const [sh, sm] = time.split(':').map(Number);
+            const [eh, em] = prev.endTime.split(':').map(Number);
+            const startTotal = sh * 60 + sm;
+            const endTotal = eh * 60 + em;
+
+            if (endTotal <= startTotal) {
+                next.endTime = addMinutes(time, 30);
+            }
+
+            return next;
+        });
+    };
+
+    const handleEndTimeChange = (time: string) => {
+        setFormData(prev => {
+            const [sh, sm] = prev.startTime.split(':').map(Number);
+            const [eh, em] = time.split(':').map(Number);
+            const startTotal = sh * 60 + sm;
+            const endTotal = eh * 60 + em;
+
+            if (endTotal <= startTotal) {
+                return { ...prev, endTime: addMinutes(prev.startTime, 15) };
+            }
+
+            return { ...prev, endTime: time };
+        });
     };
 
     const staffOptions = staff.map(s => ({
@@ -87,17 +138,13 @@ export function CreateAppointmentModal({
         label: `${s.name} — ${s.role}`
     }));
 
-    const inputClasses = "w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition-all shadow-sm hover:border-primary/50";
-    const labelClasses = "block text-sm font-medium text-foreground mb-1";
-
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="Створити запис" size="lg">
             <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
-                    {/* Staff */}
                     <div>
                         <Dropdown
-                            label="Майстер *"
+                            label="Майстер"
                             value={formData.staffId}
                             options={staffOptions}
                             onChange={(val) => handleChange('staffId', val)}
@@ -105,128 +152,100 @@ export function CreateAppointmentModal({
                         />
                     </div>
 
-                    {/* Date */}
                     <div>
                         <DatePicker
-                            label="Дата *"
+                            label="Дата"
                             value={formData.date}
                             onChange={(val) => handleChange('date', val)}
                         />
                     </div>
 
-                    {/* Start Time */}
                     <div>
-                        <label className={labelClasses}>
-                            Час початку *
-                        </label>
-                        <input
-                            type="time"
+                        <TimePicker
+                            label="Час початку"
                             value={formData.startTime}
-                            onChange={(e) => handleChange('startTime', e.target.value)}
-                            className={inputClasses}
-                            required
+                            onChange={handleStartTimeChange}
                         />
                     </div>
 
-                    {/* End Time */}
                     <div>
-                        <label className={labelClasses}>
-                            Час закінчення *
-                        </label>
-                        <input
-                            type="time"
+                        <TimePicker
+                            label="Час закінчення"
                             value={formData.endTime}
-                            onChange={(e) => handleChange('endTime', e.target.value)}
-                            className={inputClasses}
-                            required
+                            onChange={handleEndTimeChange}
                         />
                     </div>
 
-                    {/* Client Name */}
                     <div>
-                        <label className={labelClasses}>
-                            Ім'я клієнта *
-                        </label>
-                        <input
+                        <Input
+                            label="Ім'я клієнта"
                             type="text"
+                            required
                             value={formData.clientName}
                             onChange={(e) => handleChange('clientName', e.target.value)}
-                            className={inputClasses}
                             placeholder="Введіть ім'я"
-                            required
                         />
                     </div>
 
-                    {/* Client Phone */}
                     <div>
-                        <label className={labelClasses}>
-                            Телефон
-                        </label>
-                        <input
+                        <Input
+                            label="Телефон"
                             type="tel"
                             value={formData.clientPhone}
                             onChange={(e) => handleChange('clientPhone', e.target.value)}
-                            className={inputClasses}
                             placeholder="+380 XX XXX XXXX"
                         />
                     </div>
 
-                    {/* Service */}
                     <div className="col-span-2">
-                        <label className={labelClasses}>
-                            Послуга *
-                        </label>
-                        <input
+                        <Input
+                            label="Послуга"
                             type="text"
+                            required
                             value={formData.service}
                             onChange={(e) => handleChange('service', e.target.value)}
-                            className={inputClasses}
                             placeholder="Назва послуги"
-                            required
                         />
                     </div>
 
-                    {/* Type */}
                     <div>
-                        <Dropdown
-                            label="Тип запису"
-                            value={formData.type}
-                            options={APPOINTMENT_TYPES}
-                            onChange={(val) => handleChange('type', val)}
-                        />
+                        <label className="block text-sm font-medium text-foreground mb-3">Тип запису</label>
+                        <RadioGroup orientation="horizontal">
+                            {APPOINTMENT_TYPES.map((type) => (
+                                <Radio
+                                    key={type.value}
+                                    name="appointment-type"
+                                    value={type.value}
+                                    checked={formData.type === type.value}
+                                    onChange={() => handleChange('type', type.value)}
+                                    label={type.label}
+                                />
+                            ))}
+                        </RadioGroup>
                     </div>
 
-                    {/* Price */}
                     <div>
-                        <label className={labelClasses}>
-                            Ціна (грн)
-                        </label>
-                        <input
+                        <Input
+                            label="Ціна (грн)"
                             type="number"
                             value={formData.price}
                             onChange={(e) => handleChange('price', Number(e.target.value))}
-                            className={inputClasses}
                             placeholder="0"
                             min="0"
                         />
                     </div>
 
-                    {/* Notes */}
                     <div className="col-span-2">
-                        <label className={labelClasses}>
-                            Коментар
-                        </label>
-                        <textarea
+                        <Textarea
+                            label="Коментар"
                             value={formData.notes}
                             onChange={(e) => handleChange('notes', e.target.value)}
-                            className={clsx(inputClasses, "resize-none")}
                             placeholder="Додаткова інформація..."
                             rows={3}
                         />
                     </div>
                 </div>
 
-                {/* Actions */}
                 <div className="flex justify-end gap-3 pt-4 border-t border-border">
                     <Button type="button" variant="secondary" onClick={onClose}>
                         Скасувати

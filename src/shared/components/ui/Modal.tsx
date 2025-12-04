@@ -9,7 +9,12 @@ interface ModalProps {
     onClose: () => void;
     title?: string;
     children: ReactNode;
-    size?: 'sm' | 'md' | 'lg' | 'xl';
+    /**
+     * sm, md, lg, xl - центрированная модалка фиксированной ширины
+     * xs - компактная модалка
+     * full - полноэкранная модалка (desktop тоже занимает всю ширину/высоту)
+     */
+    size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'full';
 }
 
 export function Modal({
@@ -59,10 +64,15 @@ export function Modal({
                     'max-h-[95vh] sm:max-h-[90vh] flex flex-col',
                     'rounded-t-2xl sm:rounded-xl',
                     {
+                        // Размеры
+                        'sm:max-w-sm': size === 'xs',
                         'sm:max-w-md': size === 'sm',
                         'sm:max-w-2xl': size === 'md',
                         'sm:max-w-4xl': size === 'lg',
                         'sm:max-w-6xl': size === 'xl',
+
+                        // Полноэкранный режим
+                        'sm:max-w-none sm:h-screen sm:max-h-screen sm:rounded-none sm:border-0': size === 'full',
                     }
                 )}
             >

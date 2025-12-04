@@ -5,6 +5,7 @@ import type { ExportExcelOptions } from '../types';
 import { Modal } from '@/shared/components/ui/Modal';
 import { Button } from '@/shared/components/ui/Button';
 import { DatePicker } from '@/shared/components/ui/DatePicker';
+import { Checkbox } from '@/shared/components/ui/Checkbox';
 
 interface ExportExcelModalProps {
     isOpen: boolean;
@@ -30,7 +31,7 @@ export function ExportExcelModal({ isOpen, onClose, onExport }: ExportExcelModal
     };
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title="Вивантажити в Excel">
+        <Modal isOpen={isOpen} onClose={onClose} title="Вивантажити в Excel" size="sm">
             <div className="space-y-4">
                 <div>
                     <label className="block text-sm font-medium text-foreground mb-3">
@@ -38,50 +39,38 @@ export function ExportExcelModal({ isOpen, onClose, onExport }: ExportExcelModal
                     </label>
 
                     <div className="space-y-3">
-                        <label className="flex items-start gap-3 p-3 rounded-lg border border-border hover:bg-secondary/50 cursor-pointer transition-colors">
-                            <input
-                                type="checkbox"
+                        <div className="p-3 rounded-lg border border-border bg-secondary/30">
+                            <Checkbox
+                                label="Основні дані клієнтів"
                                 checked={true}
                                 disabled
-                                className="mt-0.5 w-4 h-4 rounded border-border text-primary focus:ring-2 focus:ring-ring"
                             />
-                            <div>
-                                <p className="text-sm font-medium text-foreground">Основні дані клієнтів</p>
-                                <p className="text-xs text-muted-foreground mt-0.5">
-                                    Ім'я, телефон, email, знижка тощо
-                                </p>
-                            </div>
-                        </label>
+                            <p className="text-xs text-muted-foreground mt-1 ml-7">
+                                Ім'я, телефон, email, знижка тощо
+                            </p>
+                        </div>
 
-                        <label className="flex items-start gap-3 p-3 rounded-lg border border-border hover:bg-secondary/50 cursor-pointer transition-colors">
-                            <input
-                                type="checkbox"
+                        <div className="p-3 rounded-lg border border-border hover:bg-secondary/50 transition-colors">
+                            <Checkbox
+                                label="Історія візитів"
                                 checked={options.includeVisits}
                                 onChange={() => handleToggle('includeVisits')}
-                                className="mt-0.5 w-4 h-4 rounded border-border text-primary focus:ring-2 focus:ring-ring"
                             />
-                            <div>
-                                <p className="text-sm font-medium text-foreground">Історія візитів</p>
-                                <p className="text-xs text-muted-foreground mt-0.5">
-                                    Дати, послуги, майстри
-                                </p>
-                            </div>
-                        </label>
+                            <p className="text-xs text-muted-foreground mt-1 ml-7">
+                                Дати, послуги, майстри
+                            </p>
+                        </div>
 
-                        <label className="flex items-start gap-3 p-3 rounded-lg border border-border hover:bg-secondary/50 cursor-pointer transition-colors">
-                            <input
-                                type="checkbox"
+                        <div className="p-3 rounded-lg border border-border hover:bg-secondary/50 transition-colors">
+                            <Checkbox
+                                label="Продані товари та послуги"
                                 checked={options.includeProducts}
                                 onChange={() => handleToggle('includeProducts')}
-                                className="mt-0.5 w-4 h-4 rounded border-border text-primary focus:ring-2 focus:ring-ring"
                             />
-                            <div>
-                                <p className="text-sm font-medium text-foreground">Продані товари та послуги</p>
-                                <p className="text-xs text-muted-foreground mt-0.5">
-                                    Назва, кількість, сума
-                                </p>
-                            </div>
-                        </label>
+                            <p className="text-xs text-muted-foreground mt-1 ml-7">
+                                Назва, кількість, сума
+                            </p>
+                        </div>
                     </div>
                 </div>
 

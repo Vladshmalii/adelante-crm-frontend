@@ -10,7 +10,10 @@ export type ClientImportance = 'high' | 'medium' | 'low';
 
 export interface Client {
     id: string;
-    name: string;
+    firstName: string;
+    middleName?: string;
+    lastName?: string;
+
     phone: string;
     email?: string;
     totalSpent: number;
@@ -35,7 +38,9 @@ export interface PaginationState {
 
 export interface AddClientFormData {
     firstName: string;
+    middleName?: string;
     lastName?: string;
+
     phone: string;
     additionalPhone?: string;
     email?: string;

@@ -1,11 +1,13 @@
-import { Eye } from 'lucide-react';
+import { Eye, Pencil } from 'lucide-react';
 import { FinanceDocument } from '../../types';
 
 interface DocumentRowProps {
     document: FinanceDocument;
+    onView: (document: FinanceDocument) => void;
+    onEdit: (document: FinanceDocument) => void;
 }
 
-export function DocumentRow({ document }: DocumentRowProps) {
+export function DocumentRow({ document, onView, onEdit }: DocumentRowProps) {
     const formatDate = (dateStr: string) => {
         const date = new Date(dateStr);
         return date.toLocaleDateString('uk-UA', {
@@ -48,8 +50,8 @@ export function DocumentRow({ document }: DocumentRowProps) {
         };
         return (
             <span className={`px-2 py-1 text-xs font-medium rounded ${styles[status]}`}>
-        {labels[status]}
-      </span>
+                {labels[status]}
+            </span>
         );
     };
 
@@ -89,9 +91,22 @@ export function DocumentRow({ document }: DocumentRowProps) {
                 {getStatusBadge(document.status)}
             </td>
             <td className="px-4 py-3">
-                <button className="p-1 hover:bg-accent hover:text-accent-foreground rounded transition-colors">
-                    <Eye size={16} />
-                </button>
+                <div className="flex items-center gap-1">
+                    <button
+                        type="button"
+                        className="p-1 hover:bg-accent hover:text-accent-foreground rounded transition-colors"
+                        onClick={() => onView(document)}
+                    >
+                        <Eye size={16} />
+                    </button>
+                    <button
+                        type="button"
+                        className="p-1 hover:bg-accent hover:text-accent-foreground rounded transition-colors"
+                        onClick={() => onEdit(document)}
+                    >
+                        <Pencil size={16} />
+                    </button>
+                </div>
             </td>
         </tr>
     );

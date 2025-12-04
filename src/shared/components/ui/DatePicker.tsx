@@ -35,6 +35,23 @@ export function DatePicker({
     const pickerRef = useRef<HTMLDivElement>(null);
     const buttonRef = useRef<HTMLButtonElement>(null);
 
+    const updatePosition = () => {
+        if (buttonRef.current) {
+            const rect = buttonRef.current.getBoundingClientRect();
+
+            // Check if calendar fits below, otherwise show above
+            const spaceBelow = window.innerHeight - rect.bottom;
+            const showAbove = spaceBelow < 350; // approximate calendar height
+
+            setPosition({
+                top: showAbove
+                    ? rect.top - 320 // approximate height + offset
+                    : rect.bottom + 4,
+                left: rect.left,
+            });
+        }
+    };
+
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (
@@ -44,23 +61,6 @@ export function DatePicker({
                 !buttonRef.current.contains(event.target as Node)
             ) {
                 setIsOpen(false);
-            }
-        };
-
-        const updatePosition = () => {
-            if (buttonRef.current && isOpen) {
-                const rect = buttonRef.current.getBoundingClientRect();
-
-                // Check if calendar fits below, otherwise show above
-                const spaceBelow = window.innerHeight - rect.bottom;
-                const showAbove = spaceBelow < 350; // approximate calendar height
-
-                setPosition({
-                    top: showAbove
-                        ? rect.top - 320 // approximate height + offset
-                        : rect.bottom + 4,
-                    left: rect.left
-                });
             }
         };
 
@@ -193,8 +193,11 @@ export function DatePicker({
                 {DAYS.map(day => (
                     <div
                         key={day}
-                        className={`text-${isDark ? '[10px]' : 'xs'} text-center font-medium py-1 ${isDark ? 'text-gray-400' : 'text-muted-foreground'
-                            }`}
+                        className={`text-center font-medium py-1 ${
+                            isDark
+                                ? 'text-[10px] text-gray-400'
+                                : 'text-xs text-muted-foreground'
+                        }`}
                     >
                         {day}
                     </div>
@@ -202,31 +205,52 @@ export function DatePicker({
             </div>
 
             <div className="grid grid-cols-7 gap-1">
-                {getDaysInMonth(viewDate).map((date, index) => (
-                    <button
-                        key={index}
-                        type="button"
-                        onClick={() => date && handleSelectDate(date)}
-                        disabled={!date}
-                        className={`
-                            aspect-square text-${isDark ? 'xs' : 'sm'} rounded transition-colors
-                            ${!date ? 'invisible' : ''}
-                            ${isSelectedDate(date)
-                                ? 'bg-primary text-primary-foreground font-medium'
-                                : isToday(date)
-                                    ? isDark
-                                        ? 'bg-primary text-primary-foreground font-semibold'
-                                        : 'border border-primary text-primary'
-                                    : isDark
-                                        ? 'text-gray-300 hover:bg-white/10 hover:text-white'
-                                        : 'hover:bg-secondary'
-                            }
-                        `}
-                    >
-                        {date?.getDate()}
-                    </button>
-                ))}
+                {getDaysInMonth(viewDate).map((date, index) => {
+                    const baseClasses = 'aspect-square rounded transition-colors ' + (isDark ? 'text-xs' : 'text-sm');
+                    const invisible = !date ? ' invisible' : '';
+
+                    let stateClasses = '';
+                    if (date && isSelectedDate(date)) {
+                        stateClasses = ' bg-primary text-primary-foreground font-medium';
+                    } else if (date && isToday(date)) {
+                        stateClasses = isDark
+                            ? ' bg-primary text-primary-foreground font-semibold'
+                            : ' border border-primary text-primary';
+                    } else if (date) {
+                        stateClasses = isDark
+                            ? ' text-gray-300 hover:bg-white/10 hover:text-white'
+                            : ' hover:bg-secondary';
+                    }
+
+                    return (
+                        <button
+                            key={index}
+                            type="button"
+                            onClick={() => date && handleSelectDate(date)}
+                            disabled={!date}
+                            className={baseClasses + invisible + stateClasses}
+                        >
+                            {date?.getDate()}
+                        </button>
+                    );
+                })}
             </div>
+
+            {!inline && (
+                <div className="mt-3 flex justify-end">
+                    <button
+                        type="button"
+                        onClick={() => {
+                            const today = new Date();
+                            setViewDate(today);
+                            handleSelectDate(today);
+                        }}
+                        className="px-3 py-1.5 text-xs font-medium rounded-lg border border-border text-muted-foreground hover:text-primary hover:border-primary/60 hover:bg-primary/5 transition-colors"
+                    >
+                        сьогодні
+                    </button>
+                </div>
+            )}
         </div>
     );
 
@@ -234,8 +258,17 @@ export function DatePicker({
         return calendarContent;
     }
 
+    const handleToggle = () => {
+        if (disabled) return;
+        if (!isOpen) {
+            updatePosition();
+        }
+        setIsOpen(!isOpen);
+    };
+
     return (
         <div className="relative">
+
             {label && (
                 <label className="block text-sm font-medium text-foreground mb-1.5">
                     {label}
@@ -245,10 +278,10 @@ export function DatePicker({
             <button
                 ref={buttonRef}
                 type="button"
-                onClick={() => !disabled && setIsOpen(!isOpen)}
+                onClick={handleToggle}
                 disabled={disabled}
-                className={`
-          w-full flex items-center gap-2 px-3 py-2 text-sm
+
+                className={`w-full flex items-center gap-2 px-3 py-2 text-sm
           bg-background border rounded-lg transition-colors
           ${disabled
                         ? 'opacity-50 cursor-not-allowed'

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import '@/styles/global.css';
+import { ToastProvider } from '@/shared/providers/ToastProvider';
 
 export const metadata: Metadata = {
     title: 'Adelante CRM — Розклад',
@@ -13,7 +14,9 @@ export default function RootLayout({
 }) {
     return (
         <html lang="uk">
-        <body>{children}</body>
+        <body>
+        <ToastProvider>{children}</ToastProvider>
+        </body>
         </html>
     );
 }

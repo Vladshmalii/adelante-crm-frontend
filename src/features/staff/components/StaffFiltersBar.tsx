@@ -1,7 +1,7 @@
 'use client';
 
-import { ChevronDown, X } from 'lucide-react';
-import { useState } from 'react';
+import { X } from 'lucide-react';
+import { Dropdown } from '@/shared/components/ui/Dropdown';
 import type { StaffFilters } from '../types';
 
 interface StaffFiltersBarProps {
@@ -15,11 +15,8 @@ export function StaffFiltersBar({
     onFiltersChange,
     onClearFilters,
 }: StaffFiltersBarProps) {
-    const [openDropdown, setOpenDropdown] = useState<string | null>(null);
-
-    const handleFilterChange = (key: keyof StaffFilters, value: string) => {
-        onFiltersChange({ ...filters, [key]: value });
-        setOpenDropdown(null);
+    const handleFilterChange = (key: keyof StaffFilters, value: string | number) => {
+        onFiltersChange({ ...filters, [key]: value || undefined } as StaffFilters);
     };
 
     const hasActiveFilters = Object.values(filters).some((v) => v);
@@ -28,56 +25,34 @@ export function StaffFiltersBar({
         <div className="flex items-center gap-4 mb-6 pb-4 border-b border-border">
             <span className="text-sm font-medium text-foreground">Фільтри:</span>
 
-            <div className="relative">
-                <button
-                    onClick={() =>
-                        setOpenDropdown(openDropdown === 'role' ? null : 'role')
-                    }
-                    className="flex items-center gap-2 px-4 py-2 text-sm bg-secondary hover:bg-secondary/80 rounded-lg transition-colors"
-                >
-                    За посадою
-                    <ChevronDown size={16} />
-                </button>
-                {openDropdown === 'role' && (
-                    <div className="absolute top-full left-0 mt-1 w-48 bg-card border border-border rounded-lg shadow-lg z-10">
-                        {['Всі', 'Майстри', 'Адміністратори', 'Менеджери'].map((option) => (
-                            <button
-                                key={option}
-                                onClick={() => handleFilterChange('role', option)}
-                                className="w-full px-4 py-2 text-left text-sm hover:bg-secondary transition-colors first:rounded-t-lg last:rounded-b-lg"
-                            >
-                                {option}
-                            </button>
-                        ))}
-                    </div>
-                )}
-            </div>
+            <div className="flex items-center gap-3">
+                <div className="w-48">
+                    <Dropdown
+                        placeholder="За посадою"
+                        value={filters.role || ''}
+                        options={[
+                            { value: '', label: 'Всі' },
+                            { value: 'Майстри', label: 'Майстри' },
+                            { value: 'Адміністратори', label: 'Адміністратори' },
+                            { value: 'Менеджери', label: 'Менеджери' },
+                        ]}
+                        onChange={(value) => handleFilterChange('role', value)}
+                    />
+                </div>
 
-            <div className="relative">
-                <button
-                    onClick={() =>
-                        setOpenDropdown(openDropdown === 'salary' ? null : 'salary')
-                    }
-                    className="flex items-center gap-2 px-4 py-2 text-sm bg-secondary hover:bg-secondary/80 rounded-lg transition-colors"
-                >
-                    За зарплатою
-                    <ChevronDown size={16} />
-                </button>
-                {openDropdown === 'salary' && (
-                    <div className="absolute top-full left-0 mt-1 w-48 bg-card border border-border rounded-lg shadow-lg z-10">
-                        {['Всі', 'Більше 20000₴', '15000-20000₴', 'Менше 15000₴'].map(
-                            (option) => (
-                                <button
-                                    key={option}
-                                    onClick={() => handleFilterChange('salary', option)}
-                                    className="w-full px-4 py-2 text-left text-sm hover:bg-secondary transition-colors first:rounded-t-lg last:rounded-b-lg"
-                                >
-                                    {option}
-                                </button>
-                            )
-                        )}
-                    </div>
-                )}
+                <div className="w-56">
+                    <Dropdown
+                        placeholder="За зарплатою"
+                        value={filters.salary || ''}
+                        options={[
+                            { value: '', label: 'Всі' },
+                            { value: 'Більше 20000₴', label: 'Більше 20000₴' },
+                            { value: '15000-20000₴', label: '15000-20000₴' },
+                            { value: 'Менше 15000₴', label: 'Менше 15000₴' },
+                        ]}
+                        onChange={(value) => handleFilterChange('salary', value)}
+                    />
+                </div>
             </div>
 
             {hasActiveFilters && (

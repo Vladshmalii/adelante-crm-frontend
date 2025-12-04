@@ -13,6 +13,7 @@ interface StaffColumnProps {
     startHour: number;
     onAppointmentClick: (appointment: Appointment) => void;
     onSlotClick: (staffId: string, time: string) => void;
+    isAdmin: boolean;
 }
 
 export function StaffColumn({
@@ -23,6 +24,7 @@ export function StaffColumn({
     startHour,
     onAppointmentClick,
     onSlotClick,
+    isAdmin,
 }: StaffColumnProps) {
     const currentTime = useCurrentTime();
     const currentHour = currentTime.getHours();
@@ -101,6 +103,7 @@ export function StaffColumn({
                         appointment={appointment}
                         onClick={onAppointmentClick}
                         style={getAppointmentStyle(appointment)}
+                        isAdmin={isAdmin}
                     />
                 ))}
             </div>

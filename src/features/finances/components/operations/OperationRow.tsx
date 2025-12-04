@@ -1,11 +1,13 @@
-import { Eye } from 'lucide-react';
+import { Eye, Pencil } from 'lucide-react';
 import { FinanceOperation } from '../../types';
 
 interface OperationRowProps {
     operation: FinanceOperation;
+    onView: (operation: FinanceOperation) => void;
+    onEdit: (operation: FinanceOperation) => void;
 }
 
-export function OperationRow({ operation }: OperationRowProps) {
+export function OperationRow({ operation, onView, onEdit }: OperationRowProps) {
     const formatDate = (dateStr: string) => {
         const date = new Date(dateStr);
         return date.toLocaleString('uk-UA', {
@@ -41,8 +43,8 @@ export function OperationRow({ operation }: OperationRowProps) {
         };
         return (
             <span className={`px-2 py-1 text-xs font-medium rounded ${styles[status]}`}>
-        {labels[status]}
-      </span>
+                {labels[status]}
+            </span>
         );
     };
 
@@ -76,9 +78,22 @@ export function OperationRow({ operation }: OperationRowProps) {
                 {operation.author}
             </td>
             <td className="px-4 py-3">
-                <button className="p-1 hover:bg-accent hover:text-accent-foreground rounded transition-colors">
-                    <Eye size={16} />
-                </button>
+                <div className="flex items-center gap-1">
+                    <button
+                        type="button"
+                        className="p-1 hover:bg-accent hover:text-accent-foreground rounded transition-colors"
+                        onClick={() => onView(operation)}
+                    >
+                        <Eye size={16} />
+                    </button>
+                    <button
+                        type="button"
+                        className="p-1 hover:bg-accent hover:text-accent-foreground rounded transition-colors"
+                        onClick={() => onEdit(operation)}
+                    >
+                        <Pencil size={16} />
+                    </button>
+                </div>
             </td>
         </tr>
     );

@@ -1,13 +1,14 @@
-import { Edit, Power } from 'lucide-react';
+import { Edit, Power, Trash2 } from 'lucide-react';
 import { PaymentMethod } from '../../types';
 
 interface PaymentMethodRowProps {
     method: PaymentMethod;
     onEdit: (method: PaymentMethod) => void;
     onToggle: (method: PaymentMethod) => void;
+    onDelete: (method: PaymentMethod) => void;
 }
 
-export function PaymentMethodRow({ method, onEdit, onToggle }: PaymentMethodRowProps) {
+export function PaymentMethodRow({ method, onEdit, onToggle, onDelete }: PaymentMethodRowProps) {
     const getTypeLabel = (type: string) => {
         const types: Record<string, string> = {
             cash: 'Офлайн',
@@ -94,6 +95,13 @@ export function PaymentMethodRow({ method, onEdit, onToggle }: PaymentMethodRowP
                         title={method.isActive ? 'Вимкнути' : 'Увімкнути'}
                     >
                         <Power size={16} />
+                    </button>
+                    <button
+                        onClick={() => onDelete(method)}
+                        className="p-1.5 hover:bg-red-100 hover:text-red-700 rounded transition-colors"
+                        title="Видалити"
+                    >
+                        <Trash2 size={16} />
                     </button>
                 </div>
             </td>

@@ -58,7 +58,7 @@ export function ImportExcelModal({ isOpen, onClose, onImport }: ImportExcelModal
     };
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title="Завантажити з Excel">
+        <Modal isOpen={isOpen} onClose={onClose} title="Завантажити з Excel" size="sm">
             <div className="space-y-4">
                 <div
                     onDragEnter={handleDrag}

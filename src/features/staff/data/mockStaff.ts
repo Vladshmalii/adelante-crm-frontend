@@ -3,7 +3,8 @@ import type { Staff } from '../types';
 export const STAFF_MOCK: Staff[] = [
     {
         id: '1',
-        name: 'Олена Коваленко',
+        firstName: 'Олена',
+        lastName: 'Коваленко',
         phone: '+380 67 123 45 67',
         email: 'olena.kovalenko@salon.ua',
         role: 'master',
@@ -16,7 +17,8 @@ export const STAFF_MOCK: Staff[] = [
     },
     {
         id: '2',
-        name: 'Марія Шевченко',
+        firstName: 'Марія',
+        lastName: 'Шевченко',
         phone: '+380 50 987 65 43',
         email: 'maria.shevchenko@salon.ua',
         role: 'master',
@@ -29,7 +31,8 @@ export const STAFF_MOCK: Staff[] = [
     },
     {
         id: '3',
-        name: 'Анна Петрова',
+        firstName: 'Анна',
+        lastName: 'Петрова',
         phone: '+380 93 456 78 90',
         email: 'anna.petrova@salon.ua',
         role: 'master',
@@ -42,7 +45,8 @@ export const STAFF_MOCK: Staff[] = [
     },
     {
         id: '4',
-        name: 'Ірина Мельник',
+        firstName: 'Ірина',
+        lastName: 'Мельник',
         phone: '+380 66 234 56 78',
         email: 'iryna.melnyk@salon.ua',
         role: 'administrator',
@@ -54,7 +58,8 @@ export const STAFF_MOCK: Staff[] = [
     },
     {
         id: '5',
-        name: 'Катерина Бондаренко',
+        firstName: 'Катерина',
+        lastName: 'Бондаренко',
         phone: '+380 99 876 54 32',
         email: 'kateryna.bondarenko@salon.ua',
         role: 'master',
@@ -67,7 +72,8 @@ export const STAFF_MOCK: Staff[] = [
     },
     {
         id: '6',
-        name: 'Тетяна Ткаченко',
+        firstName: 'Тетяна',
+        lastName: 'Ткаченко',
         phone: '+380 68 345 67 89',
         role: 'master',
         status: 'sick',
@@ -79,7 +85,8 @@ export const STAFF_MOCK: Staff[] = [
     },
     {
         id: '7',
-        name: 'Юлія Литвиненко',
+        firstName: 'Юлія',
+        lastName: 'Литвиненко',
         phone: '+380 95 123 45 67',
         email: 'yulia.lytvynenko@salon.ua',
         role: 'manager',
@@ -91,7 +98,8 @@ export const STAFF_MOCK: Staff[] = [
     },
     {
         id: '8',
-        name: 'Світлана Сидоренко',
+        firstName: 'Світлана',
+        lastName: 'Сидоренко',
         phone: '+380 97 765 43 21',
         role: 'master',
         status: 'fired',

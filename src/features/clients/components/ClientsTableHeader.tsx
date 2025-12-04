@@ -1,4 +1,5 @@
 import { Lock } from 'lucide-react';
+import { Checkbox } from '@/shared/components/ui/Checkbox';
 
 interface ClientsTableHeaderProps {
     allSelected: boolean;
@@ -13,15 +14,16 @@ export function ClientsTableHeader({
         <thead className="bg-secondary border-b border-border">
             <tr>
                 <th className="w-12 px-4 py-3">
-                    <input
-                        type="checkbox"
+                    <Checkbox
                         checked={allSelected}
                         onChange={onToggleAll}
-                        className="w-4 h-4 rounded border-border text-primary focus:ring-2 focus:ring-ring cursor-pointer"
                     />
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                     Ім'я
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Сегмент
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                     <div className="flex items-center gap-1.5">

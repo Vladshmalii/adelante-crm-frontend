@@ -15,8 +15,8 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ["Inter", "sans-serif"],
-        heading: ["Outfit", "sans-serif"],
+        sans: ["Montserrat", "system-ui", "sans-serif"],
+        heading: ["Montserrat", "system-ui", "sans-serif"],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -27,6 +27,8 @@ export default {
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
+          text: "hsl(var(--primary-text))",
+          textHover: "hsl(var(--primary-text-hover))",
         },
         secondary: {
           DEFAULT: "hsl(var(--secondary))",
@@ -52,7 +54,10 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        sidebar: "#111827", // Keep original hardcoded if needed, or move to vars
+        sidebar: "#212121", // Dark gray background for sidebar
+        gray: {
+          300: "#DEDEDE",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",

@@ -1,10 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+import { useToast } from '@/shared/hooks/useToast';
 import { Modal } from '@/shared/components/ui/Modal';
 import { Button } from '@/shared/components/ui/Button';
 import { DatePicker } from '@/shared/components/ui/DatePicker';
 import { Dropdown } from '@/shared/components/ui/Dropdown';
+import { Input } from '@/shared/components/ui/Input';
 import type { AddStaffFormData, StaffRole, StaffGender } from '../types';
 
 interface AddStaffModalProps {
@@ -26,6 +28,7 @@ const GENDER_OPTIONS = [
 ];
 
 export function AddStaffModal({ isOpen, onClose, onSave }: AddStaffModalProps) {
+    const toast = useToast();
     const [formData, setFormData] = useState<AddStaffFormData>({
         firstName: '',
         lastName: '',
@@ -44,8 +47,8 @@ export function AddStaffModal({ isOpen, onClose, onSave }: AddStaffModalProps) {
 
     const handleSubmit = () => {
         onSave(formData);
+        toast.success('Співробітника додано', 'Успіх');
         onClose();
-        // Reset form
         setFormData({
             firstName: '',
             lastName: '',
@@ -70,40 +73,30 @@ export function AddStaffModal({ isOpen, onClose, onSave }: AddStaffModalProps) {
     if (!isOpen) return null;
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title="Додати співробітника">
+        <Modal isOpen={isOpen} onClose={onClose} title="Додати співробітника" size="lg">
             <div className="space-y-4">
-                {/* Основна інформація */}
                 <div className="space-y-4">
                     <h3 className="text-sm font-medium text-foreground border-b border-border pb-2">
                         Особиста інформація
                     </h3>
 
                     <div className="grid grid-cols-2 gap-3">
-                        <div>
-                            <label className="block text-sm font-medium text-foreground mb-1.5">
-                                Ім'я *
-                            </label>
-                            <input
-                                type="text"
-                                value={formData.firstName}
-                                onChange={(e) => handleChange('firstName', e.target.value)}
-                                className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
-                                placeholder="Введіть ім'я"
-                            />
-                        </div>
+                        <Input
+                            label="Ім'я"
+                            type="text"
+                            required
+                            value={formData.firstName}
+                            onChange={(e) => handleChange('firstName', e.target.value)}
+                            placeholder="Введіть ім'я"
+                        />
 
-                        <div>
-                            <label className="block text-sm font-medium text-foreground mb-1.5">
-                                Прізвище
-                            </label>
-                            <input
-                                type="text"
-                                value={formData.lastName}
-                                onChange={(e) => handleChange('lastName', e.target.value)}
-                                className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
-                                placeholder="Введіть прізвище"
-                            />
-                        </div>
+                        <Input
+                            label="Прізвище"
+                            type="text"
+                            value={formData.lastName}
+                            onChange={(e) => handleChange('lastName', e.target.value)}
+                            placeholder="Введіть прізвище"
+                        />
                     </div>
 
                     <Dropdown
@@ -114,121 +107,87 @@ export function AddStaffModal({ isOpen, onClose, onSave }: AddStaffModalProps) {
                     />
 
                     <div className="grid grid-cols-2 gap-3">
-                        <div>
-                            <label className="block text-sm font-medium text-foreground mb-1.5">
-                                Телефон *
-                            </label>
-                            <input
-                                type="tel"
-                                value={formData.phone}
-                                onChange={(e) => handleChange('phone', e.target.value)}
-                                className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
-                                placeholder="+380"
-                            />
-                        </div>
+                        <Input
+                            label="Телефон"
+                            type="tel"
+                            required
+                            value={formData.phone}
+                            onChange={(e) => handleChange('phone', e.target.value)}
+                            placeholder="+380"
+                        />
 
-                        <div>
-                            <label className="block text-sm font-medium text-foreground mb-1.5">
-                                Додатковий телефон
-                            </label>
-                            <input
-                                type="tel"
-                                value={formData.additionalPhone}
-                                onChange={(e) => handleChange('additionalPhone', e.target.value)}
-                                className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
-                                placeholder="+380"
-                            />
-                        </div>
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-foreground mb-1.5">
-                            Email
-                        </label>
-                        <input
-                            type="email"
-                            value={formData.email}
-                            onChange={(e) => handleChange('email', e.target.value)}
-                            className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
-                            placeholder="example@salon.ua"
+                        <Input
+                            label="Додатковий телефон"
+                            type="tel"
+                            value={formData.additionalPhone}
+                            onChange={(e) => handleChange('additionalPhone', e.target.value)}
+                            placeholder="+380"
                         />
                     </div>
+
+                    <Input
+                        label="Email"
+                        type="email"
+                        value={formData.email}
+                        onChange={(e) => handleChange('email', e.target.value)}
+                        placeholder="example@salon.ua"
+                    />
                 </div>
 
-                {/* Робоча інформація */}
                 <div className="space-y-4">
                     <h3 className="text-sm font-medium text-foreground border-b border-border pb-2">
                         Робоча інформація
                     </h3>
 
                     <Dropdown
-                        label="Посада *"
+                        label="Посада"
                         value={formData.role}
                         onChange={(value) => handleChange('role', value as StaffRole)}
                         options={ROLE_OPTIONS}
                     />
 
-                    <div>
-                        <label className="block text-sm font-medium text-foreground mb-1.5">
-                            Спеціалізація
-                        </label>
-                        <input
-                            type="text"
-                            value={formData.specialization}
-                            onChange={(e) => handleChange('specialization', e.target.value)}
-                            className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
-                            placeholder="Наприклад: Перукар-стиліст"
-                        />
-                    </div>
+                    <Input
+                        label="Спеціалізація"
+                        type="text"
+                        value={formData.specialization}
+                        onChange={(e) => handleChange('specialization', e.target.value)}
+                        placeholder="Наприклад: Перукар-стиліст"
+                    />
 
                     <DatePicker
-                        label="Дата прийому на роботу *"
+                        label="Дата прийому на роботу"
                         value={formData.hireDate}
                         onChange={(value) => handleChange('hireDate', value)}
                     />
 
-                    <div>
-                        <label className="block text-sm font-medium text-foreground mb-1.5">
-                            Робочий графік
-                        </label>
-                        <input
-                            type="text"
-                            value={formData.workSchedule}
-                            onChange={(e) => handleChange('workSchedule', e.target.value)}
-                            className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
-                            placeholder="Наприклад: Пн-Пт 9:00-18:00"
-                        />
-                    </div>
+                    <Input
+                        label="Робочий графік"
+                        type="text"
+                        value={formData.workSchedule}
+                        onChange={(e) => handleChange('workSchedule', e.target.value)}
+                        placeholder="Наприклад: Пн-Пт 9:00-18:00"
+                    />
 
                     <div className="grid grid-cols-2 gap-3">
-                        <div>
-                            <label className="block text-sm font-medium text-foreground mb-1.5">
-                                Зарплата (₴) *
-                            </label>
-                            <input
-                                type="number"
-                                value={formData.salary || ''}
-                                onChange={(e) => handleChange('salary', Number(e.target.value))}
-                                className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
-                                placeholder="15000"
-                                min="0"
-                            />
-                        </div>
+                        <Input
+                            label="Зарплата (₴)"
+                            type="number"
+                            required
+                            value={formData.salary || ''}
+                            onChange={(e) => handleChange('salary', Number(e.target.value))}
+                            placeholder="15000"
+                            min="0"
+                        />
 
-                        <div>
-                            <label className="block text-sm font-medium text-foreground mb-1.5">
-                                Комісія (%)
-                            </label>
-                            <input
-                                type="number"
-                                value={formData.commission || ''}
-                                onChange={(e) => handleChange('commission', Number(e.target.value))}
-                                className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
-                                placeholder="30"
-                                min="0"
-                                max="100"
-                            />
-                        </div>
+                        <Input
+                            label="Комісія (%)"
+                            type="number"
+                            value={formData.commission || ''}
+                            onChange={(e) => handleChange('commission', Number(e.target.value))}
+                            placeholder="30"
+                            min="0"
+                            max="100"
+                        />
                     </div>
                 </div>
             </div>

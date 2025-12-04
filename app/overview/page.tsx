@@ -3,6 +3,9 @@
 import { useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { AppShell } from '@/shared/components/layout/AppShell';
+import { FeatureHeader } from '@/shared/components/layout/FeatureHeader';
+import { useHeaderActions } from '@/shared/hooks/useHeaderActions';
+import { ProfileModal } from '@/features/profile/modals/ProfileModal';
 import { RecordsFilters } from '@/features/overview/components/records/RecordsFilters';
 import { RecordsTable } from '@/features/overview/components/records/RecordsTable';
 import { ReviewsFilters } from '@/features/overview/components/reviews/ReviewsFilters';
@@ -22,13 +25,38 @@ export default function OverviewPage() {
     const [reviewsFilters, setReviewsFilters] = useState<ReviewsFiltersType>({});
     const [changesFilters, setChangesFilters] = useState<ChangesFiltersType>({});
 
+    const {
+        notifications,
+        isProfileModalOpen,
+        setIsProfileModalOpen,
+        handleMarkNotificationAsRead,
+        handleMarkAllNotificationsAsRead,
+        handleDeleteNotification,
+        handleProfileClick,
+        handleSettingsClick,
+        handleLogout,
+        handleSaveProfile,
+        userProfile,
+    } = useHeaderActions();
+
     return (
         <AppShell activeSection="overview">
-            <div className="p-6">
-                <div className="mb-6">
-                    <h1 className="text-2xl font-semibold text-foreground">Огляд</h1>
-                </div>
+            <FeatureHeader
+                title="Огляд"
+                subtitle="Загальний огляд записів, відгуків та змін"
+                notifications={notifications}
+                onMarkNotificationAsRead={handleMarkNotificationAsRead}
+                onMarkAllNotificationsAsRead={handleMarkAllNotificationsAsRead}
+                onDeleteNotification={handleDeleteNotification}
+                userName={`${userProfile.firstName} ${userProfile.lastName}`}
+                userRole={userProfile.role}
+                userAvatar={userProfile.avatar}
+                onProfileClick={handleProfileClick}
+                onSettingsClick={handleSettingsClick}
+                onLogout={handleLogout}
+            />
 
+            <div className="p-6">
                 {activeTab === 'records' && (
                     <div>
                         <RecordsFilters
@@ -59,6 +87,13 @@ export default function OverviewPage() {
                     </div>
                 )}
             </div>
+
+            <ProfileModal
+                isOpen={isProfileModalOpen}
+                onClose={() => setIsProfileModalOpen(false)}
+                profile={userProfile}
+                onSave={handleSaveProfile}
+            />
         </AppShell>
     );
 }

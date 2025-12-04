@@ -1,10 +1,14 @@
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
+import { useToast } from '@/shared/hooks/useToast';
 import type { AddClientFormData, ClientCategory, ClientGender, ClientImportance } from '../types';
 import { Modal } from '@/shared/components/ui/Modal';
 import { Button } from '@/shared/components/ui/Button';
 import { DatePicker } from '@/shared/components/ui/DatePicker';
 import { Dropdown } from '@/shared/components/ui/Dropdown';
+import { Input } from '@/shared/components/ui/Input';
+import { Checkbox } from '@/shared/components/ui/Checkbox';
+import { FileUpload } from '@/shared/components/ui/FileUpload';
 
 interface AddClientModalProps {
     isOpen: boolean;
@@ -38,6 +42,8 @@ const COLOR_LABELS = [
 ];
 
 export function AddClientModal({ isOpen, onClose, onSave }: AddClientModalProps) {
+    const toast = useToast();
+
     const [showLastName, setShowLastName] = useState(false);
     const [formData, setFormData] = useState<AddClientFormData>({
         firstName: '',
@@ -55,6 +61,7 @@ export function AddClientModal({ isOpen, onClose, onSave }: AddClientModalProps)
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         onSave(formData);
+        toast.success("Клієнта збережено", "Успіх");
         onClose();
     };
 
@@ -83,22 +90,17 @@ export function AddClientModal({ isOpen, onClose, onSave }: AddClientModalProps)
         }));
     };
 
-    const inputClasses = "w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring";
-
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="Додати клієнта" size="lg">
             <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                     <div className="col-span-2">
-                        <label className="block text-sm font-medium text-foreground mb-1.5">
-                            Ім'я <span className="text-destructive">*</span>
-                        </label>
-                        <input
+                        <Input
+                            label="Ім'я"
                             type="text"
                             required
                             value={formData.firstName}
                             onChange={(e) => handleChange('firstName', e.target.value)}
-                            className={inputClasses}
                         />
                     </div>
 
@@ -117,53 +119,41 @@ export function AddClientModal({ isOpen, onClose, onSave }: AddClientModalProps)
 
                     {showLastName && (
                         <div className="col-span-2">
-                            <label className="block text-sm font-medium text-foreground mb-1.5">
-                                Прізвище
-                            </label>
-                            <input
+                            <Input
+                                label="Прізвище"
                                 type="text"
                                 value={formData.lastName || ''}
                                 onChange={(e) => handleChange('lastName', e.target.value)}
-                                className={inputClasses}
                             />
                         </div>
                     )}
 
                     <div>
-                        <label className="block text-sm font-medium text-foreground mb-1.5">
-                            Телефон <span className="text-destructive">*</span>
-                        </label>
-                        <input
+                        <Input
+                            label="Телефон"
                             type="tel"
                             required
                             value={formData.phone}
                             onChange={(e) => handleChange('phone', e.target.value)}
                             placeholder="+380"
-                            className={inputClasses}
                         />
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-foreground mb-1.5">
-                            Додатковий телефон
-                        </label>
-                        <input
+                        <Input
+                            label="Додатковий телефон"
                             type="tel"
                             value={formData.additionalPhone || ''}
                             onChange={(e) => handleChange('additionalPhone', e.target.value)}
-                            className={inputClasses}
                         />
                     </div>
 
                     <div className="col-span-2">
-                        <label className="block text-sm font-medium text-foreground mb-1.5">
-                            Email
-                        </label>
-                        <input
+                        <Input
+                            label="Email"
                             type="email"
                             value={formData.email || ''}
                             onChange={(e) => handleChange('email', e.target.value)}
-                            className={inputClasses}
                         />
                     </div>
 
@@ -195,28 +185,22 @@ export function AddClientModal({ isOpen, onClose, onSave }: AddClientModalProps)
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-foreground mb-1.5">
-                            Знижка (%)
-                        </label>
-                        <input
+                        <Input
+                            label="Знижка (%)"
                             type="number"
                             min="0"
                             max="100"
                             value={formData.discount}
                             onChange={(e) => handleChange('discount', Number(e.target.value))}
-                            className={inputClasses}
                         />
                     </div>
 
                     <div className="col-span-2">
-                        <label className="block text-sm font-medium text-foreground mb-1.5">
-                            Номер картки
-                        </label>
-                        <input
+                        <Input
+                            label="Номер картки"
                             type="text"
                             value={formData.cardNumber || ''}
                             onChange={(e) => handleChange('cardNumber', e.target.value)}
-                            className={inputClasses}
                         />
                     </div>
 
@@ -248,40 +232,45 @@ export function AddClientModal({ isOpen, onClose, onSave }: AddClientModalProps)
                     </div>
 
                     <div className="col-span-2">
-                        <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                                type="checkbox"
-                                checked={formData.noOnlineBooking}
-                                onChange={(e) => handleChange('noOnlineBooking', e.target.checked)}
-                                className="w-4 h-4 rounded border-border text-primary focus:ring-2 focus:ring-ring"
-                            />
-                            <span className="text-sm text-foreground">Заборонити записуватись онлайн</span>
-                        </label>
+                        <FileUpload
+                            label="Фото клієнта"
+                            accept="image/*"
+                            maxSize={5 * 1024 * 1024}
+                            multiple={false}
+                            onFilesChange={(files) => {
+                                // Обробка завантаження фото
+                                console.log('Фото клієнта:', files);
+                            }}
+                            helperText="Завантажте фото клієнта (макс. 5 МБ)"
+                            showPreview={true}
+                        />
                     </div>
 
-                    <div>
-                        <label className="block text-sm font-medium text-foreground mb-1.5">
-                            Продано (₴)
-                        </label>
-                        <input
-                            type="number"
-                            min="0"
-                            value={formData.totalSpent}
-                            onChange={(e) => handleChange('totalSpent', Number(e.target.value))}
-                            className={inputClasses}
+                    <div className="col-span-2">
+                        <Checkbox
+                            label="Заборонити записуватись онлайн"
+                            checked={formData.noOnlineBooking}
+                            onChange={(e) => handleChange('noOnlineBooking', e.target.checked)}
                         />
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-foreground mb-1.5">
-                            Сплачено (₴)
-                        </label>
-                        <input
+                        <Input
+                            label="Продано (₴)"
+                            type="number"
+                            min="0"
+                            value={formData.totalSpent}
+                            onChange={(e) => handleChange('totalSpent', Number(e.target.value))}
+                        />
+                    </div>
+
+                    <div>
+                        <Input
+                            label="Сплачено (₴)"
                             type="number"
                             min="0"
                             value={formData.totalPaid}
                             onChange={(e) => handleChange('totalPaid', Number(e.target.value))}
-                            className={inputClasses}
                         />
                     </div>
                 </div>

@@ -5,9 +5,10 @@ interface PaymentMethodsListProps {
     methods: PaymentMethod[];
     onEdit: (method: PaymentMethod) => void;
     onToggle: (method: PaymentMethod) => void;
+    onDelete: (method: PaymentMethod) => void;
 }
 
-export function PaymentMethodsList({ methods, onEdit, onToggle }: PaymentMethodsListProps) {
+export function PaymentMethodsList({ methods, onEdit, onToggle, onDelete }: PaymentMethodsListProps) {
     return (
         <div className="overflow-x-auto">
             <table className="w-full">
@@ -46,6 +47,7 @@ export function PaymentMethodsList({ methods, onEdit, onToggle }: PaymentMethods
                         method={method}
                         onEdit={onEdit}
                         onToggle={onToggle}
+                        onDelete={onDelete}
                     />
                 ))}
                 </tbody>

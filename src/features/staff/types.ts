@@ -6,7 +6,9 @@ export type StaffGender = 'male' | 'female' | 'other';
 
 export interface Staff {
     id: string;
-    name: string;
+    firstName: string;
+    middleName?: string;
+    lastName?: string;
     phone: string;
     email?: string;
     role: StaffRole;
@@ -33,6 +35,7 @@ export interface PaginationState {
 
 export interface AddStaffFormData {
     firstName: string;
+    middleName?: string;
     lastName?: string;
     phone: string;
     additionalPhone?: string;

@@ -1,20 +1,30 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { useToast } from '@/shared/hooks/useToast';
 import { StaffHeader } from './StaffHeader';
 import { StaffSegments } from './StaffSegments';
 import { StaffFiltersBar } from './StaffFiltersBar';
+import { StaffStats } from './StaffStats';
 import { StaffTable } from './StaffTable';
 import { StaffPagination } from './StaffPagination';
 import { AddStaffModal } from '../modals/AddStaffModal';
+import { EditStaffModal } from '../modals/EditStaffModal';
+import { StaffDetailsModal } from '../modals/StaffDetailsModal';
 import { ImportExcelModal } from '@/features/clients/modals/ImportExcelModal';
 import { ExportExcelModal } from '@/features/clients/modals/ExportExcelModal';
+import { ConfirmDialog } from '@/shared/components/ui/ConfirmDialog';
+import { Skeleton } from '@/shared/components/ui/Skeleton';
 import { STAFF_MOCK } from '../data/mockStaff';
 import { DEFAULT_ITEMS_PER_PAGE } from '../constants';
 import type { StaffStatus, StaffFilters, Staff, AddStaffFormData } from '../types';
 import type { ExportExcelOptions } from '@/features/clients/types';
 
 export function StaffLayout() {
+    const toast = useToast();
+    // Демонстрація завантаження
+    const [isLoading, setIsLoading] = useState(false);
+    
     const [searchQuery, setSearchQuery] = useState('');
     const [activeStatus, setActiveStatus] = useState<StaffStatus>('active');
     const [filters, setFilters] = useState<StaffFilters>({});
@@ -23,8 +33,13 @@ export function StaffLayout() {
     const [itemsPerPage, setItemsPerPage] = useState(DEFAULT_ITEMS_PER_PAGE);
 
     const [isAddStaffModalOpen, setIsAddStaffModalOpen] = useState(false);
+    const [isEditStaffModalOpen, setIsEditStaffModalOpen] = useState(false);
+    const [isStaffDetailsModalOpen, setIsStaffDetailsModalOpen] = useState(false);
+    const [isDeleteStaffModalOpen, setIsDeleteStaffModalOpen] = useState(false);
     const [isImportExcelModalOpen, setIsImportExcelModalOpen] = useState(false);
     const [isExportExcelModalOpen, setIsExportExcelModalOpen] = useState(false);
+
+    const [selectedStaffMember, setSelectedStaffMember] = useState<Staff | null>(null);
 
     const filteredStaff = useMemo(() => {
         let result = STAFF_MOCK.filter(
@@ -35,7 +50,7 @@ export function StaffLayout() {
             const query = searchQuery.toLowerCase();
             result = result.filter(
                 (staff) =>
-                    staff.name.toLowerCase().includes(query) ||
+                    `${staff.firstName} ${staff.middleName || ''} ${staff.lastName || ''}`.toLowerCase().includes(query) ||
                     staff.phone.includes(query) ||
                     staff.email?.toLowerCase().includes(query)
             );
@@ -89,22 +104,44 @@ export function StaffLayout() {
     };
 
     const handleStaffClick = (staff: Staff) => {
-        console.log('Відкрити картку співробітника:', staff);
+        setSelectedStaffMember(staff);
+        setIsStaffDetailsModalOpen(true);
+    };
+
+    const handleEditStaff = (staff: Staff) => {
+        setSelectedStaffMember(staff);
+        setIsEditStaffModalOpen(true);
+    };
+
+    const handleDeleteStaff = (staff: Staff) => {
+        setSelectedStaffMember(staff);
+        setIsDeleteStaffModalOpen(true);
     };
 
     const handleSaveStaff = (data: AddStaffFormData) => {
         console.log('Зберегти співробітника:', data);
-        // TODO: Implement actual save logic
+    };
+
+    const handleUpdateStaff = (id: string, data: AddStaffFormData) => {
+        console.log('Оновити співробітника:', id, data);
+    };
+
+    const handleConfirmDelete = () => {
+        if (selectedStaffMember) {
+            console.log('Видалити співробітника:', selectedStaffMember.id);
+            toast.success('Співробітника видалено', 'Успіх');
+            setIsDeleteStaffModalOpen(false);
+            setSelectedStaffMember(null);
+            setIsStaffDetailsModalOpen(false);
+        }
     };
 
     const handleImportExcel = (file: File) => {
         console.log('Імпорт Excel файлу:', file.name);
-        // TODO: Implement actual import logic
     };
 
     const handleExportExcel = (options: ExportExcelOptions) => {
         console.log('Експорт в Excel з опціями:', options);
-        // TODO: Implement actual export logic
     };
 
     return (
@@ -117,6 +154,8 @@ export function StaffLayout() {
                 onExportExcel={() => setIsExportExcelModalOpen(true)}
             />
 
+            <StaffStats staff={filteredStaff} />
+
             <StaffSegments
                 activeStatus={activeStatus}
                 onStatusChange={handleStatusChange}
@@ -128,13 +167,28 @@ export function StaffLayout() {
                 onClearFilters={handleClearFilters}
             />
 
-            <StaffTable
-                staff={paginatedStaff}
-                selectedStaff={selectedStaff}
-                onToggleStaff={handleToggleStaff}
-                onToggleAll={handleToggleAll}
-                onStaffClick={handleStaffClick}
-            />
+            {isLoading ? (
+                <div className="space-y-4">
+                    <div className="grid grid-cols-11 gap-4 p-4">
+                        {Array.from({ length: 5 }).map((_, index) => (
+                            <Skeleton key={index} variant="rectangle" height="60px" />
+                        ))}
+                    </div>
+                    <div className="flex justify-center">
+                        <Skeleton variant="rectangle" width="300px" height="40px" />
+                    </div>
+                </div>
+            ) : (
+                <StaffTable
+                    staff={paginatedStaff}
+                    selectedStaff={selectedStaff}
+                    onToggleStaff={handleToggleStaff}
+                    onToggleAll={handleToggleAll}
+                    onStaffClick={handleStaffClick}
+                    onEditStaff={handleEditStaff}
+                    onDeleteStaff={handleDeleteStaff}
+                />
+            )}
 
             <StaffPagination
                 pagination={{
@@ -150,6 +204,38 @@ export function StaffLayout() {
                 isOpen={isAddStaffModalOpen}
                 onClose={() => setIsAddStaffModalOpen(false)}
                 onSave={handleSaveStaff}
+            />
+
+            <EditStaffModal
+                isOpen={isEditStaffModalOpen}
+                onClose={() => setIsEditStaffModalOpen(false)}
+                onSave={handleUpdateStaff}
+                staff={selectedStaffMember}
+            />
+
+            <StaffDetailsModal
+                isOpen={isStaffDetailsModalOpen}
+                onClose={() => setIsStaffDetailsModalOpen(false)}
+                onEdit={() => {
+                    setIsStaffDetailsModalOpen(false);
+                    setIsEditStaffModalOpen(true);
+                }}
+                onDelete={() => {
+                    setIsStaffDetailsModalOpen(false);
+                    setIsDeleteStaffModalOpen(true);
+                }}
+                staff={selectedStaffMember}
+            />
+
+            <ConfirmDialog
+                isOpen={isDeleteStaffModalOpen}
+                onClose={() => setIsDeleteStaffModalOpen(false)}
+                onConfirm={handleConfirmDelete}
+                title="Видалити співробітника?"
+                message={`Ви впевнені, що хочете видалити співробітника "${selectedStaffMember?.firstName} ${selectedStaffMember?.middleName || ''} ${selectedStaffMember?.lastName || ''}"? Цю дію неможливо скасувати.`}
+                confirmText="Видалити"
+                cancelText="Скасувати"
+                variant="danger"
             />
 
             <ImportExcelModal

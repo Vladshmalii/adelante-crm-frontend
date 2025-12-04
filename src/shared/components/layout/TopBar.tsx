@@ -1,23 +1,46 @@
 'use client';
 
-import { ChevronLeft, ChevronRight, Search, Bell, User } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import { uk } from 'date-fns/locale';
 import clsx from 'clsx';
 import { CalendarView } from '@/features/calendar/types';
+import { NotificationsDropdown, Notification } from '@/shared/components/ui/NotificationsDropdown';
+import { ProfileDropdown } from '@/shared/components/ui/ProfileDropdown';
+import { StaffRole } from '@/features/staff/types';
 
 interface TopBarProps {
     currentDate: Date;
     onDateChange: (date: Date) => void;
     view: CalendarView;
     onViewChange: (view: CalendarView) => void;
+    notifications: Notification[];
+    onMarkNotificationAsRead: (id: string) => void;
+    onMarkAllNotificationsAsRead: () => void;
+    onDeleteNotification: (id: string) => void;
+    userName: string;
+    userRole: StaffRole;
+    userAvatar?: string;
+    onProfileClick: () => void;
+    onSettingsClick: () => void;
+    onLogout: () => void;
 }
 
 export function TopBar({
     currentDate,
     onDateChange,
     view,
-    onViewChange
+    onViewChange,
+    notifications,
+    onMarkNotificationAsRead,
+    onMarkAllNotificationsAsRead,
+    onDeleteNotification,
+    userName,
+    userRole,
+    userAvatar,
+    onProfileClick,
+    onSettingsClick,
+    onLogout,
 }: TopBarProps) {
     const goToToday = () => {
         onDateChange(new Date());
@@ -51,7 +74,6 @@ export function TopBar({
 
     return (
         <div className="h-16 bg-background/80 backdrop-blur-md border-b border-border flex items-center justify-between px-3 sm:px-6 sticky top-0 z-30 transition-all">
-            {/* Date Controls */}
             <div className="flex items-center gap-2 sm:gap-4 animate-fade-in-down">
                 <button
                     onClick={goToToday}
@@ -85,9 +107,7 @@ export function TopBar({
                 </h1>
             </div>
 
-            {/* Right Section */}
             <div className="flex items-center gap-2 sm:gap-4 animate-fade-in-down" style={{ animationDelay: '0.1s' }}>
-                {/* View Switcher */}
                 <div className="flex items-center bg-muted rounded-lg p-0.5 sm:p-1">
                     {(['day', 'week', 'month'] as CalendarView[]).map((v) => (
                         <button
@@ -114,7 +134,6 @@ export function TopBar({
                     ))}
                 </div>
 
-                {/* Search - Hidden on mobile */}
                 <div className="relative group hidden lg:block">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
                     <input
@@ -124,15 +143,21 @@ export function TopBar({
                     />
                 </div>
 
-                {/* Icons */}
-                <button className="relative p-1.5 sm:p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground rounded-lg transition-all active:scale-95">
-                    <Bell className="w-4 h-4 sm:w-5 sm:h-5" />
-                    <span className="absolute top-1 right-1 sm:top-1.5 sm:right-1.5 w-2 h-2 bg-destructive rounded-full ring-2 ring-background animate-pulse" />
-                </button>
+                <NotificationsDropdown
+                    notifications={notifications}
+                    onMarkAsRead={onMarkNotificationAsRead}
+                    onMarkAllAsRead={onMarkAllNotificationsAsRead}
+                    onDelete={onDeleteNotification}
+                />
 
-                <button className="hidden sm:block p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground rounded-lg transition-all active:scale-95">
-                    <User className="w-5 h-5" />
-                </button>
+                <ProfileDropdown
+                    userName={userName}
+                    userRole={userRole}
+                    userAvatar={userAvatar}
+                    onProfileClick={onProfileClick}
+                    onSettingsClick={onSettingsClick}
+                    onLogout={onLogout}
+                />
             </div>
         </div>
     );

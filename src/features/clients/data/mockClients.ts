@@ -3,7 +3,9 @@ import type { Client } from '../types';
 export const CLIENTS_MOCK: Client[] = [
     {
         id: '1',
-        name: 'Анна Петрова',
+        firstName: 'Анна',
+        lastName: 'Петрова',
+
         phone: '+380 67 123 45 67',
         email: 'anna.petrova@gmail.com',
         totalSpent: 15420,
@@ -15,7 +17,9 @@ export const CLIENTS_MOCK: Client[] = [
     },
     {
         id: '2',
-        name: 'Ольга Іваненко',
+        firstName: 'Ольга',
+        lastName: 'Іваненко',
+
         phone: '+380 50 987 65 43',
         email: 'olga.ivanenko@ukr.net',
         totalSpent: 8900,
@@ -27,7 +31,9 @@ export const CLIENTS_MOCK: Client[] = [
     },
     {
         id: '3',
-        name: 'Марія Коваленко',
+        firstName: 'Марія',
+        lastName: 'Коваленко',
+
         phone: '+380 93 456 78 90',
         totalSpent: 2300,
         visits: 1,
@@ -38,7 +44,9 @@ export const CLIENTS_MOCK: Client[] = [
     },
     {
         id: '4',
-        name: 'Наталія Бондаренко',
+        firstName: 'Наталія',
+        lastName: 'Бондаренко',
+
         phone: '+380 66 234 56 78',
         email: 'natalia.bond@gmail.com',
         totalSpent: 23500,
@@ -50,7 +58,9 @@ export const CLIENTS_MOCK: Client[] = [
     },
     {
         id: '5',
-        name: 'Катерина Мельник',
+        firstName: 'Катерина',
+        lastName: 'Мельник',
+
         phone: '+380 99 876 54 32',
         email: 'kateryna.melnyk@ukr.net',
         totalSpent: 19800,
@@ -62,7 +72,9 @@ export const CLIENTS_MOCK: Client[] = [
     },
     {
         id: '6',
-        name: 'Тетяна Шевченко',
+        firstName: 'Тетяна',
+        lastName: 'Шевченко',
+
         phone: '+380 68 345 67 89',
         totalSpent: 5600,
         visits: 4,
@@ -73,7 +85,9 @@ export const CLIENTS_MOCK: Client[] = [
     },
     {
         id: '7',
-        name: 'Юлія Ткаченко',
+        firstName: 'Юлія',
+        lastName: 'Ткаченко',
+
         phone: '+380 95 123 45 67',
         email: 'yulia.tkachenko@gmail.com',
         totalSpent: 12400,
@@ -85,7 +99,9 @@ export const CLIENTS_MOCK: Client[] = [
     },
     {
         id: '8',
-        name: 'Ірина Литвиненко',
+        firstName: 'Ірина',
+        lastName: 'Литвиненко',
+
         phone: '+380 97 765 43 21',
         totalSpent: 3200,
         visits: 2,
@@ -96,7 +112,9 @@ export const CLIENTS_MOCK: Client[] = [
     },
     {
         id: '9',
-        name: 'Віра Сидоренко',
+        firstName: 'Віра',
+        lastName: 'Сидоренко',
+
         phone: '+380 63 456 78 90',
         email: 'vira.sydorenko@ukr.net',
         totalSpent: 28700,
@@ -108,7 +126,9 @@ export const CLIENTS_MOCK: Client[] = [
     },
     {
         id: '10',
-        name: 'Світлана Гончарова',
+        firstName: 'Світлана',
+        lastName: 'Гончарова',
+
         phone: '+380 91 234 56 78',
         totalSpent: 7800,
         visits: 6,
@@ -119,7 +139,9 @@ export const CLIENTS_MOCK: Client[] = [
     },
     {
         id: '11',
-        name: 'Оксана Козлова',
+        firstName: 'Оксана',
+        lastName: 'Козлова',
+
         phone: '+380 67 890 12 34',
         email: 'oksana.kozlova@gmail.com',
         totalSpent: 16200,
@@ -131,7 +153,9 @@ export const CLIENTS_MOCK: Client[] = [
     },
     {
         id: '12',
-        name: 'Лариса Павленко',
+        firstName: 'Лариса',
+        lastName: 'Павленко',
+
         phone: '+380 50 678 90 12',
         totalSpent: 4100,
         visits: 3,
@@ -142,7 +166,9 @@ export const CLIENTS_MOCK: Client[] = [
     },
     {
         id: '13',
-        name: 'Алла Кравченко',
+        firstName: 'Алла',
+        lastName: 'Кравченко',
+
         phone: '+380 93 567 89 01',
         email: 'alla.kravchenko@ukr.net',
         totalSpent: 1850,
@@ -154,7 +180,9 @@ export const CLIENTS_MOCK: Client[] = [
     },
     {
         id: '14',
-        name: 'Валентина Романенко',
+        firstName: 'Валентина',
+        lastName: 'Романенко',
+
         phone: '+380 66 789 01 23',
         totalSpent: 21300,
         visits: 17,
@@ -165,7 +193,9 @@ export const CLIENTS_MOCK: Client[] = [
     },
     {
         id: '15',
-        name: 'Ганна Білоус',
+        firstName: 'Ганна',
+        lastName: 'Білоус',
+
         phone: '+380 99 012 34 56',
         email: 'hanna.bilous@gmail.com',
         totalSpent: 9500,

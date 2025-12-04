@@ -1,5 +1,3 @@
-'use client';
-
 import { FileSpreadsheet, Upload, Download } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
@@ -28,6 +26,10 @@ export function ExcelDropdown({ onImport, onExport }: ExcelDropdownProps) {
         };
     }, [isOpen]);
 
+    const toggleDropdown = () => {
+        setIsOpen(prev => !prev);
+    };
+
     const handleImport = () => {
         setIsOpen(false);
         onImport();
@@ -39,17 +41,16 @@ export function ExcelDropdown({ onImport, onExport }: ExcelDropdownProps) {
     };
 
     return (
-        <div ref={dropdownRef} className="relative">
+        <div ref={dropdownRef} className="relative inline-block">
             <button
-                onClick={() => setIsOpen(!isOpen)}
+                onClick={toggleDropdown}
                 className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-foreground bg-secondary hover:bg-secondary/80 rounded-lg transition-colors"
             >
                 <FileSpreadsheet size={18} />
                 Операції з Excel
             </button>
-
             {isOpen && (
-                <div className="absolute top-full right-0 mt-2 w-56 bg-card border border-border rounded-lg shadow-lg z-10 overflow-hidden">
+                <div className="absolute right-0 mt-2 w-56 bg-card border border-border rounded-lg shadow-lg z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
                     <button
                         onClick={handleImport}
                         className="w-full flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-secondary transition-colors"

@@ -1,4 +1,5 @@
-import { MoreVertical } from 'lucide-react';
+import { StaffActionsMenu } from './StaffActionsMenu';
+import { Checkbox } from '@/shared/components/ui/Checkbox';
 import type { Staff } from '../types';
 
 interface StaffTableRowProps {
@@ -6,6 +7,8 @@ interface StaffTableRowProps {
     isSelected: boolean;
     onToggleSelect: () => void;
     onStaffClick: () => void;
+    onEdit: () => void;
+    onDelete: () => void;
     isEven: boolean;
 }
 
@@ -20,6 +23,8 @@ export function StaffTableRow({
     isSelected,
     onToggleSelect,
     onStaffClick,
+    onEdit,
+    onDelete,
     isEven,
 }: StaffTableRowProps) {
     const formatDate = (dateString: string) => {
@@ -30,6 +35,21 @@ export function StaffTableRow({
         return `${day}.${month}.${year}`;
     };
 
+    const getMaskedPhone = (phone?: string) => {
+        if (!phone) return '';
+        const digits = phone.replace(/\D/g, '');
+        if (digits.length <= 4) return digits;
+        const last4 = digits.slice(-4);
+        return `•••• ${last4}`;
+    };
+
+    const getPublicName = (firstName: string, middleName?: string) => {
+        if (middleName) {
+            return `${firstName} ${middleName}`;
+        }
+        return firstName;
+    };
+
     return (
         <tr
             className={`
@@ -38,11 +58,9 @@ export function StaffTableRow({
       `}
         >
             <td className="px-4 py-3">
-                <input
-                    type="checkbox"
+                <Checkbox
                     checked={isSelected}
                     onChange={onToggleSelect}
-                    className="w-4 h-4 rounded border-border text-primary focus:ring-2 focus:ring-ring cursor-pointer"
                 />
             </td>
             <td className="px-4 py-3">
@@ -50,12 +68,12 @@ export function StaffTableRow({
                     onClick={onStaffClick}
                     className="text-sm font-medium text-primary hover:text-primary/80 transition-colors"
                 >
-                    {staff.name}
+                    {getPublicName(staff.firstName, staff.middleName)}
                 </button>
             </td>
-            <td className="px-4 py-3 text-sm text-foreground">{staff.phone}</td>
+            <td className="px-4 py-3 text-sm text-foreground">{getMaskedPhone(staff.phone)}</td>
             <td className="px-4 py-3 text-sm text-muted-foreground">
-                {staff.email || '—'}
+                {staff.email ? 'Приховано' : '—'}
             </td>
             <td className="px-4 py-3 text-sm text-foreground">
                 {ROLE_LABELS[staff.role]}
@@ -71,12 +89,11 @@ export function StaffTableRow({
                 {formatDate(staff.hireDate)}
             </td>
             <td className="px-4 py-3">
-                <button
-                    className="p-1 text-muted-foreground hover:text-foreground transition-colors"
-                    aria-label="Дії"
-                >
-                    <MoreVertical size={18} />
-                </button>
+                <StaffActionsMenu
+                    onView={onStaffClick}
+                    onEdit={onEdit}
+                    onDelete={onDelete}
+                />
             </td>
         </tr>
     );

@@ -8,19 +8,20 @@ interface AppointmentCardProps {
     appointment: Appointment;
     onClick: (appointment: Appointment) => void;
     style?: React.CSSProperties;
+    isAdmin: boolean;
 }
 
-export function AppointmentCard({ appointment, onClick, style }: AppointmentCardProps) {
+export function AppointmentCard({ appointment, onClick, style, isAdmin }: AppointmentCardProps) {
     const getCardColor = () => {
         switch (appointment.type) {
             case 'standard':
-                return 'bg-primary/10 border-primary/20 hover:bg-primary/20 text-primary-foreground';
+                return 'bg-primary/10 border-primary/40 hover:bg-primary/20 hover:border-primary/60';
             case 'important':
-                return 'bg-accent/10 border-accent/20 hover:bg-accent/20 text-accent-foreground';
+                return 'bg-accent/10 border-accent/40 hover:bg-accent/20 hover:border-accent/60';
             case 'special':
-                return 'bg-destructive/10 border-destructive/20 hover:bg-destructive/20 text-destructive-foreground';
+                return 'bg-destructive/10 border-destructive/40 hover:bg-destructive/20 hover:border-destructive/60';
             default:
-                return 'bg-muted border-muted-foreground/20 hover:bg-muted/80 text-muted-foreground';
+                return 'bg-muted border-border/60 hover:border-border hover:bg-muted/80';
         }
     };
 
@@ -39,6 +40,25 @@ export function AppointmentCard({ appointment, onClick, style }: AppointmentCard
         }
     };
 
+    const numericHeight =
+        typeof style?.height === 'string'
+            ? parseFloat(style.height as string)
+            : typeof style?.height === 'number'
+            ? style.height
+            : undefined;
+
+    const showClientRow = !numericHeight || numericHeight >= 80;
+    const showPhoneRow = !numericHeight || numericHeight >= 120;
+    const showNotesRow = !numericHeight || numericHeight >= 160;
+
+    const getMaskedPhone = (phone?: string) => {
+        if (!phone) return '';
+        const digits = phone.replace(/\D/g, '');
+        if (digits.length <= 4) return digits;
+        const last4 = digits.slice(-4);
+        return `•••• ${last4}`;
+    };
+
     return (
         <div
             className={clsx(
@@ -53,35 +73,37 @@ export function AppointmentCard({ appointment, onClick, style }: AppointmentCard
         >
             {/* Time */}
             <div className="flex items-center gap-1 mb-1">
-                <Clock className="w-3 h-3 opacity-70" />
-                <span className="text-xs font-semibold opacity-90">
+                <Clock className="w-3 h-3 text-muted-foreground" />
+                <span className="text-xs font-semibold text-foreground">
                     {appointment.startTime}—{appointment.endTime}
                 </span>
                 <div className="ml-auto">{getStatusIcon()}</div>
             </div>
 
             {/* Service */}
-            <div className="text-sm font-medium mb-1 line-clamp-2 font-heading opacity-100 text-foreground">
+            <div className="text-sm font-semibold mb-1 line-clamp-2 font-heading text-foreground">
                 {appointment.service}
             </div>
 
             {/* Client */}
-            <div className="flex items-center gap-1 text-xs opacity-80 mb-1 text-foreground">
-                <User className="w-3 h-3" />
-                <span className="truncate">{appointment.clientName}</span>
-            </div>
+            {showClientRow && (
+                <div className="flex items-center gap-1 text-xs mb-1 text-foreground">
+                    <User className="w-3 h-3" />
+                    <span className="truncate">{appointment.clientName}</span>
+                </div>
+            )}
 
             {/* Phone */}
-            {appointment.clientPhone && (
-                <div className="flex items-center gap-1 text-xs opacity-70 text-foreground">
+            {appointment.clientPhone && showPhoneRow && (
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
                     <Phone className="w-3 h-3" />
-                    <span className="truncate">{appointment.clientPhone}</span>
+                    <span className="truncate">{getMaskedPhone(appointment.clientPhone)}</span>
                 </div>
             )}
 
             {/* Notes */}
-            {appointment.notes && (
-                <div className="flex items-start gap-1 text-xs opacity-70 mt-1 pt-1 border-t border-black/5 text-foreground">
+            {appointment.notes && showNotesRow && (
+                <div className="flex items-start gap-1 text-xs mt-1 pt-1 border-t border-border/60 text-muted-foreground">
                     <FileText className="w-3 h-3 mt-0.5 flex-shrink-0" />
                     <span className="line-clamp-2">{appointment.notes}</span>
                 </div>

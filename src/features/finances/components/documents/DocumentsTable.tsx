@@ -3,9 +3,11 @@ import { DocumentRow } from './DocumentRow';
 
 interface DocumentsTableProps {
     documents: FinanceDocument[];
+    onView: (document: FinanceDocument) => void;
+    onEdit: (document: FinanceDocument) => void;
 }
 
-export function DocumentsTable({ documents }: DocumentsTableProps) {
+export function DocumentsTable({ documents, onView, onEdit }: DocumentsTableProps) {
     return (
         <div className="overflow-x-auto">
             <table className="w-full">
@@ -51,7 +53,12 @@ export function DocumentsTable({ documents }: DocumentsTableProps) {
                 </thead>
                 <tbody>
                 {documents.map((document) => (
-                    <DocumentRow key={document.id} document={document} />
+                    <DocumentRow
+                        key={document.id}
+                        document={document}
+                        onView={onView}
+                        onEdit={onEdit}
+                    />
                 ))}
                 </tbody>
             </table>

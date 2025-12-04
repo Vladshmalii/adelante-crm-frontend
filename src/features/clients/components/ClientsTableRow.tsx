@@ -1,4 +1,6 @@
-import { MoreVertical } from 'lucide-react';
+import { ClientActionsMenu } from './ClientActionsMenu';
+import { Checkbox } from '@/shared/components/ui/Checkbox';
+import { ClientTag } from '../ui/ClientTag';
 import type { Client } from '../types';
 
 interface ClientsTableRowProps {
@@ -6,6 +8,8 @@ interface ClientsTableRowProps {
     isSelected: boolean;
     onToggleSelect: () => void;
     onClientClick: () => void;
+    onEdit: () => void;
+    onDelete: () => void;
     isEven: boolean;
 }
 
@@ -14,6 +18,8 @@ export function ClientsTableRow({
     isSelected,
     onToggleSelect,
     onClientClick,
+    onEdit,
+    onDelete,
     isEven,
 }: ClientsTableRowProps) {
     const formatDate = (dateString: string) => {
@@ -26,6 +32,21 @@ export function ClientsTableRow({
         return `${day}.${month}.${year} ${hours}:${minutes}`;
     };
 
+    const getMaskedPhone = (phone?: string) => {
+        if (!phone) return '';
+        const digits = phone.replace(/\D/g, '');
+        if (digits.length <= 4) return digits;
+        const last4 = digits.slice(-4);
+        return `•••• ${last4}`;
+    };
+
+    const getPublicName = (firstName: string, middleName?: string) => {
+        if (middleName) {
+            return `${firstName} ${middleName}`;
+        }
+        return firstName;
+    };
+
     return (
         <tr
             className={`
@@ -34,11 +55,9 @@ export function ClientsTableRow({
       `}
         >
             <td className="px-4 py-3">
-                <input
-                    type="checkbox"
+                <Checkbox
                     checked={isSelected}
                     onChange={onToggleSelect}
-                    className="w-4 h-4 rounded border-border text-primary focus:ring-2 focus:ring-ring cursor-pointer"
                 />
             </td>
             <td className="px-4 py-3">
@@ -46,12 +65,15 @@ export function ClientsTableRow({
                     onClick={onClientClick}
                     className="text-sm font-medium text-primary hover:text-primary/80 transition-colors"
                 >
-                    {client.name}
+                    {getPublicName(client.firstName, client.middleName)}
                 </button>
             </td>
-            <td className="px-4 py-3 text-sm text-foreground">{client.phone}</td>
+            <td className="px-4 py-3">
+                <ClientTag segment={client.segment} />
+            </td>
+            <td className="px-4 py-3 text-sm text-foreground">{getMaskedPhone(client.phone)}</td>
             <td className="px-4 py-3 text-sm text-muted-foreground">
-                {client.email || '—'}
+                {client.email ? 'Приховано' : '—'}
             </td>
             <td className="px-4 py-3 text-sm font-medium text-foreground">
                 {client.totalSpent.toLocaleString('uk-UA')} ₴
@@ -65,12 +87,11 @@ export function ClientsTableRow({
                 {formatDate(client.firstVisit)}
             </td>
             <td className="px-4 py-3">
-                <button
-                    className="p-1 text-muted-foreground hover:text-foreground transition-colors"
-                    aria-label="Дії"
-                >
-                    <MoreVertical size={18} />
-                </button>
+                <ClientActionsMenu
+                    onView={onClientClick}
+                    onEdit={onEdit}
+                    onDelete={onDelete}
+                />
             </td>
         </tr>
     );

@@ -1,10 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+import { useToast } from '@/shared/hooks/useToast';
 import { Modal } from '@/shared/components/ui/Modal';
 import { Button } from '@/shared/components/ui/Button';
+import { Card } from '../components/ui/Card';
 import { Appointment, AppointmentStatus, StaffMember } from '@/features/calendar/types';
-import { Clock, User, Phone, FileText, DollarSign, Calendar as CalendarIcon } from 'lucide-react';
+import { Clock, User, Phone, FileText, Banknote, Eye, EyeOff, Calendar as CalendarIcon } from 'lucide-react';
 import clsx from 'clsx';
 
 interface AppointmentDetailsModalProps {
@@ -14,6 +16,8 @@ interface AppointmentDetailsModalProps {
     staff: StaffMember[];
     onUpdate: (id: string, updates: Partial<Appointment>) => void;
     onDelete: (id: string) => void;
+    onEdit: () => void;
+    isAdmin: boolean;
 }
 
 export function AppointmentDetailsModal({
@@ -23,9 +27,13 @@ export function AppointmentDetailsModal({
     staff,
     onUpdate,
     onDelete,
+    onEdit,
+    isAdmin,
 }: AppointmentDetailsModalProps) {
+    const toast = useToast();
     const [isEditing, setIsEditing] = useState(false);
     const [editedData, setEditedData] = useState<Partial<Appointment>>({});
+    const [isPhoneVisible, setIsPhoneVisible] = useState(false);
 
     if (!appointment) return null;
 
@@ -41,6 +49,7 @@ export function AppointmentDetailsModal({
     const handleDelete = () => {
         if (confirm('Ви впевнені, що хочете видалити цей запис?')) {
             onDelete(appointment.id);
+            toast.success('Запис видалено', 'Успіх');
             onClose();
         }
     };
@@ -77,6 +86,14 @@ export function AppointmentDetailsModal({
     const labelClass = "flex items-center gap-2 text-sm text-muted-foreground mb-1";
     const valueClass = "font-semibold text-foreground font-heading";
 
+    const getMaskedPhone = (phone?: string) => {
+        if (!phone) return '';
+        const digits = phone.replace(/\D/g, '');
+        if (digits.length <= 4) return digits;
+        const last4 = digits.slice(-4);
+        return `•••• ${last4}`;
+    };
+
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="Деталі запису" size="lg">
             <div className="space-y-6">
@@ -101,7 +118,7 @@ export function AppointmentDetailsModal({
                 {/* Details Grid */}
                 <div className="grid grid-cols-2 gap-4">
                     {/* Staff */}
-                    <div className={clsx(detailItemClass, "col-span-2")}>
+                    <Card className="col-span-2">
                         <div className={labelClass}>
                             <User className="w-4 h-4" />
                             <span>Майстер</span>
@@ -109,10 +126,10 @@ export function AppointmentDetailsModal({
                         <div className={valueClass}>
                             {currentStaff?.name} — {currentStaff?.role}
                         </div>
-                    </div>
+                    </Card>
 
                     {/* Date */}
-                    <div className={detailItemClass}>
+                    <Card>
                         <div className={labelClass}>
                             <CalendarIcon className="w-4 h-4" />
                             <span>Дата</span>
@@ -124,10 +141,10 @@ export function AppointmentDetailsModal({
                                 year: 'numeric',
                             })}
                         </div>
-                    </div>
+                    </Card>
 
                     {/* Time */}
-                    <div className={detailItemClass}>
+                    <Card>
                         <div className={labelClass}>
                             <Clock className="w-4 h-4" />
                             <span>Час</span>
@@ -135,58 +152,70 @@ export function AppointmentDetailsModal({
                         <div className={valueClass}>
                             {appointment.startTime} — {appointment.endTime}
                         </div>
-                    </div>
+                    </Card>
 
                     {/* Service */}
-                    <div className={clsx(detailItemClass, "col-span-2")}>
+                    <Card className="col-span-2">
                         <div className={labelClass}>Послуга</div>
                         <div className={valueClass}>{appointment.service}</div>
-                    </div>
+                    </Card>
 
                     {/* Client Name */}
-                    <div className={detailItemClass}>
+                    <Card>
                         <div className={labelClass}>
                             <User className="w-4 h-4" />
                             <span>Клієнт</span>
                         </div>
                         <div className={valueClass}>{appointment.clientName}</div>
-                    </div>
+                    </Card>
 
                     {/* Client Phone */}
                     {appointment.clientPhone && (
-                        <div className={detailItemClass}>
+                        <Card>
                             <div className={labelClass}>
                                 <Phone className="w-4 h-4" />
                                 <span>Телефон</span>
+                                {isAdmin && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsPhoneVisible((prev) => !prev)}
+                                        className="ml-auto inline-flex items-center justify-center rounded-full p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                                        aria-label={isPhoneVisible ? 'Приховати номер' : 'Показати номер'}
+                                    >
+                                        {isPhoneVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                    </button>
+                                )}
                             </div>
                             <div className={valueClass}>
                                 <a href={`tel:${appointment.clientPhone}`} className="hover:text-primary transition-colors">
-                                    {appointment.clientPhone}
+                                    {isAdmin && isPhoneVisible
+                                        ? appointment.clientPhone
+                                        : getMaskedPhone(appointment.clientPhone)}
                                 </a>
                             </div>
-                        </div>
+                        </Card>
                     )}
 
                     {/* Price */}
                     {appointment.price && (
-                        <div className={detailItemClass}>
+                        <Card>
                             <div className={labelClass}>
-                                <DollarSign className="w-4 h-4" />
+                                <Banknote className="w-4 h-4" />
                                 <span>Вартість</span>
                             </div>
                             <div className={valueClass}>{appointment.price} грн</div>
-                        </div>
+                        </Card>
                     )}
 
                     {/* Notes */}
                     {appointment.notes && (
-                        <div className={clsx(detailItemClass, "col-span-2")}>
+                        <Card className="col-span-2">
                             <div className={labelClass}>
                                 <FileText className="w-4 h-4" />
                                 <span>Коментар</span>
                             </div>
                             <div className="text-foreground">{appointment.notes}</div>
-                        </div>
+                        </Card>
                     )}
                 </div>
 
@@ -196,11 +225,11 @@ export function AppointmentDetailsModal({
                         Видалити
                     </Button>
                     <div className="flex gap-3">
-                        <Button variant="secondary" onClick={onClose}>
-                            Закрити
+                        <Button variant="secondary" onClick={onEdit}>
+                            Редагувати
                         </Button>
                         <Button variant="primary" onClick={onClose}>
-                            Зберегти
+                            Закрити
                         </Button>
                     </div>
                 </div>

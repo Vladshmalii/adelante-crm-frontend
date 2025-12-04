@@ -6,8 +6,14 @@ import { CalendarFilters } from './CalendarFilters';
 import { CalendarGrid } from './grid/CalendarGrid';
 import { CreateAppointmentModal, CreateAppointmentData } from '../modals/CreateAppointmentModal';
 import { AppointmentDetailsModal } from '../modals/AppointmentDetailsModal';
+import { EditAppointmentModal } from '../modals/EditAppointmentModal';
+import { ProfileModal } from '@/features/profile/modals/ProfileModal';
 import { mockStaff, mockAppointments } from '../data/mockAppointments';
+import { mockNotifications } from '../data/mockNotifications';
+import { mockUserProfile } from '@/features/profile/data/mockProfile';
 import { Appointment, CalendarView } from '../types';
+import { Notification } from '@/shared/components/ui/NotificationsDropdown';
+import { ProfileFormData } from '@/features/profile/types';
 
 export function DailyCalendar() {
     const [currentDate, setCurrentDate] = useState(new Date());
@@ -16,10 +22,14 @@ export function DailyCalendar() {
         mockStaff.map((s) => s.id)
     );
     const [appointments, setAppointments] = useState<Appointment[]>(mockAppointments);
+    const isAdmin = mockUserProfile.role === 'administrator';
+    const [notifications, setNotifications] = useState<Notification[]>(mockNotifications);
 
     // Modal states
     const [createModalOpen, setCreateModalOpen] = useState(false);
     const [detailsModalOpen, setDetailsModalOpen] = useState(false);
+    const [editModalOpen, setEditModalOpen] = useState(false);
+    const [profileModalOpen, setProfileModalOpen] = useState(false);
     const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
     const [newAppointmentData, setNewAppointmentData] = useState<{
         staffId?: string;
@@ -65,6 +75,43 @@ export function DailyCalendar() {
 
     const handleDeleteAppointment = (id: string) => {
         setAppointments(appointments.filter((apt) => apt.id !== id));
+        setDetailsModalOpen(false);
+        setEditModalOpen(false);
+    };
+
+    const handleEditAppointment = () => {
+        setDetailsModalOpen(false);
+        setEditModalOpen(true);
+    };
+
+    const handleMarkNotificationAsRead = (id: string) => {
+        setNotifications(notifications.map(n =>
+            n.id === id ? { ...n, isRead: true } : n
+        ));
+    };
+
+    const handleMarkAllNotificationsAsRead = () => {
+        setNotifications(notifications.map(n => ({ ...n, isRead: true })));
+    };
+
+    const handleDeleteNotification = (id: string) => {
+        setNotifications(notifications.filter(n => n.id !== id));
+    };
+
+    const handleProfileClick = () => {
+        setProfileModalOpen(true);
+    };
+
+    const handleSettingsClick = () => {
+        console.log('Відкрити налаштування');
+    };
+
+    const handleLogout = () => {
+        console.log('Вийти з системи');
+    };
+
+    const handleSaveProfile = (data: ProfileFormData) => {
+        console.log('Зберегти профіль:', data);
     };
 
     return (
@@ -75,6 +122,15 @@ export function DailyCalendar() {
                 onDateChange={setCurrentDate}
                 view={view}
                 onViewChange={setView}
+                notifications={notifications}
+                onMarkNotificationAsRead={handleMarkNotificationAsRead}
+                onMarkAllNotificationsAsRead={handleMarkAllNotificationsAsRead}
+                onDeleteNotification={handleDeleteNotification}
+                userName="Марія Іванова"
+                userRole="master"
+                onProfileClick={handleProfileClick}
+                onSettingsClick={handleSettingsClick}
+                onLogout={handleLogout}
             />
 
             {/* Filters */}
@@ -91,6 +147,7 @@ export function DailyCalendar() {
                     appointments={filteredAppointments}
                     onAppointmentClick={handleAppointmentClick}
                     onSlotClick={handleSlotClick}
+                    isAdmin={isAdmin}
                 />
             </div>
 
@@ -118,6 +175,27 @@ export function DailyCalendar() {
                 staff={mockStaff}
                 onUpdate={handleUpdateAppointment}
                 onDelete={handleDeleteAppointment}
+                onEdit={handleEditAppointment}
+                isAdmin={isAdmin}
+            />
+
+            <EditAppointmentModal
+                isOpen={editModalOpen}
+                onClose={() => {
+                    setEditModalOpen(false);
+                    setSelectedAppointment(null);
+                }}
+                onSave={handleUpdateAppointment}
+                onDelete={() => handleDeleteAppointment(selectedAppointment?.id || '')}
+                appointment={selectedAppointment}
+                staff={mockStaff}
+            />
+
+            <ProfileModal
+                isOpen={profileModalOpen}
+                onClose={() => setProfileModalOpen(false)}
+                profile={mockUserProfile}
+                onSave={handleSaveProfile}
             />
         </div>
     );

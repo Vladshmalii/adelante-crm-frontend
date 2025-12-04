@@ -1,6 +1,7 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { ITEMS_PER_PAGE_OPTIONS } from '../constants';
 import type { PaginationState } from '../types';
+import { Dropdown } from '@/shared/components/ui/Dropdown';
 
 interface StaffPaginationProps {
     pagination: PaginationState;
@@ -55,17 +56,16 @@ export function StaffPagination({
                     <span className="text-sm text-muted-foreground">
                         Результатів на сторінці:
                     </span>
-                    <select
-                        value={itemsPerPage}
-                        onChange={(e) => onItemsPerPageChange(Number(e.target.value))}
-                        className="px-3 py-1.5 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring cursor-pointer"
-                    >
-                        {ITEMS_PER_PAGE_OPTIONS.map((option) => (
-                            <option key={option} value={option}>
-                                {option}
-                            </option>
-                        ))}
-                    </select>
+                    <div className="w-[72px]">
+                        <Dropdown
+                            value={itemsPerPage}
+                            onChange={(value) => onItemsPerPageChange(Number(value))}
+                            options={ITEMS_PER_PAGE_OPTIONS.map((option) => ({
+                                value: option,
+                                label: String(option),
+                            }))}
+                        />
+                    </div>
                 </div>
 
                 <span className="text-sm text-muted-foreground">

@@ -6,6 +6,7 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
     variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
     size?: 'sm' | 'md' | 'lg';
     fullWidth?: boolean;
+    isLoading?: boolean;
 }
 
 export function Button({
@@ -14,10 +15,14 @@ export function Button({
     size = 'md',
     fullWidth = false,
     className,
+    isLoading = false,
     ...props
 }: ButtonProps) {
+    const { disabled, ...restProps } = props;
+
     return (
         <button
+            disabled={disabled || isLoading}
             className={clsx(
                 'inline-flex items-center justify-center font-medium rounded-lg transition-all duration-200',
                 'focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-ring',
@@ -25,7 +30,7 @@ export function Button({
                 'active:scale-95',
                 {
                     // Variants
-                    'bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm hover:shadow-md': variant === 'primary',
+                    'bg-primary text-primary-foreground hover:bg-[hsl(var(--primary-hover))] active:bg-[hsl(var(--primary-active))] shadow-sm hover:shadow-md': variant === 'primary',
                     'bg-secondary text-secondary-foreground hover:bg-secondary/80 shadow-sm': variant === 'secondary',
                     'bg-transparent text-foreground hover:bg-accent hover:text-accent-foreground': variant === 'ghost',
                     'bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-sm': variant === 'danger',
@@ -40,8 +45,14 @@ export function Button({
                 },
                 className
             )}
-            {...props}
+            {...restProps}
         >
+            {isLoading && (
+                <span
+                    className="mr-2 inline-flex h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
+                    aria-hidden="true"
+                />
+            )}
             {children}
         </button>
     );

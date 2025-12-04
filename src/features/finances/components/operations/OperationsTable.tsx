@@ -3,9 +3,11 @@ import { OperationRow } from './OperationRow';
 
 interface OperationsTableProps {
     operations: FinanceOperation[];
+    onView: (operation: FinanceOperation) => void;
+    onEdit: (operation: FinanceOperation) => void;
 }
 
-export function OperationsTable({ operations }: OperationsTableProps) {
+export function OperationsTable({ operations, onView, onEdit }: OperationsTableProps) {
     return (
         <div className="overflow-x-auto">
             <table className="w-full">
@@ -45,7 +47,12 @@ export function OperationsTable({ operations }: OperationsTableProps) {
                 </thead>
                 <tbody>
                 {operations.map((operation) => (
-                    <OperationRow key={operation.id} operation={operation} />
+                    <OperationRow
+                        key={operation.id}
+                        operation={operation}
+                        onView={onView}
+                        onEdit={onEdit}
+                    />
                 ))}
                 </tbody>
             </table>
