@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useToast } from '@/shared/hooks/useToast';
 import { ClientsHeader } from './ClientsHeader';
 import { ClientsSegments } from './ClientsSegments';
@@ -13,14 +13,13 @@ import { ExportExcelModal } from '../modals/ExportExcelModal';
 import { ConfirmDialog } from '@/shared/components/ui/ConfirmDialog';
 import { Loader } from '@/shared/components/ui/Loader';
 import { Skeleton } from '@/shared/components/ui/Skeleton';
+import { GlobalLoader } from '@/shared/components/ui/GlobalLoader';
 import { CLIENTS_MOCK } from '../data/mockClients';
 import { DEFAULT_ITEMS_PER_PAGE } from '../constants';
 import type { ClientSegment, ClientFilters, Client, AddClientFormData, ExportExcelOptions } from '../types';
 
 export function ClientsLayout() {
     const toast = useToast();
-    // ⚠️ ДЕМОНСТРАЦИЯ LOADER: Установите isLoading = false, чтобы скрыть loader
-    // Место для отключения loader: строка 20
     const [isLoading, setIsLoading] = useState(false);
 
     const [searchQuery, setSearchQuery] = useState('');
@@ -144,6 +143,8 @@ export function ClientsLayout() {
 
     return (
         <div className="p-6">
+            <GlobalLoader isLoading={isLoading} />
+
             <ClientsHeader
                 searchQuery={searchQuery}
                 onSearchChange={setSearchQuery}

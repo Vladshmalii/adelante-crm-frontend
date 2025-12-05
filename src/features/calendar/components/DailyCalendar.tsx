@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { TopBar } from '@/shared/components/layout/TopBar';
 import { CalendarFilters } from './CalendarFilters';
 import { CalendarGrid } from './grid/CalendarGrid';
+import { WeeklyCalendar } from './WeeklyCalendar';
+import { MonthlyCalendar } from './MonthlyCalendar';
 import { CreateAppointmentModal, CreateAppointmentData } from '../modals/CreateAppointmentModal';
 import { AppointmentDetailsModal } from '../modals/AppointmentDetailsModal';
 import { EditAppointmentModal } from '../modals/EditAppointmentModal';
@@ -25,7 +27,6 @@ export function DailyCalendar() {
     const isAdmin = mockUserProfile.role === 'administrator';
     const [notifications, setNotifications] = useState<Notification[]>(mockNotifications);
 
-    // Modal states
     const [createModalOpen, setCreateModalOpen] = useState(false);
     const [detailsModalOpen, setDetailsModalOpen] = useState(false);
     const [editModalOpen, setEditModalOpen] = useState(false);
@@ -36,12 +37,10 @@ export function DailyCalendar() {
         time?: string;
     }>({});
 
-    // Фильтрация майстеров
     const filteredStaff = mockStaff.filter((staff) =>
         selectedStaffIds.includes(staff.id)
     );
 
-    // Фильтрация записей по дате и майстерам
     const currentDateStr = currentDate.toISOString().split('T')[0];
     const filteredAppointments = appointments.filter(
         (apt) =>
@@ -114,9 +113,49 @@ export function DailyCalendar() {
         console.log('Зберегти профіль:', data);
     };
 
+    const handleDayClick = (date: Date) => {
+        setCurrentDate(date);
+        setView('day');
+    };
+
+    const renderCalendarContent = () => {
+        switch (view) {
+            case 'week':
+                return (
+                    <WeeklyCalendar
+                        currentDate={currentDate}
+                        staff={mockStaff}
+                        appointments={appointments}
+                        selectedStaffIds={selectedStaffIds}
+                        onAppointmentClick={handleAppointmentClick}
+                    />
+                );
+            case 'month':
+                return (
+                    <MonthlyCalendar
+                        currentDate={currentDate}
+                        staff={mockStaff}
+                        appointments={appointments}
+                        selectedStaffIds={selectedStaffIds}
+                        onAppointmentClick={handleAppointmentClick}
+                        onDayClick={handleDayClick}
+                    />
+                );
+            default:
+                return (
+                    <CalendarGrid
+                        staff={filteredStaff}
+                        appointments={filteredAppointments}
+                        onAppointmentClick={handleAppointmentClick}
+                        onSlotClick={handleSlotClick}
+                        isAdmin={isAdmin}
+                    />
+                );
+        }
+    };
+
     return (
         <div className="h-screen flex flex-col">
-            {/* Top Bar */}
             <TopBar
                 currentDate={currentDate}
                 onDateChange={setCurrentDate}
@@ -133,25 +172,16 @@ export function DailyCalendar() {
                 onLogout={handleLogout}
             />
 
-            {/* Filters */}
             <CalendarFilters
                 staff={mockStaff}
                 selectedStaffIds={selectedStaffIds}
                 onStaffFilterChange={setSelectedStaffIds}
             />
 
-            {/* Calendar Grid */}
             <div className="flex-1 overflow-hidden">
-                <CalendarGrid
-                    staff={filteredStaff}
-                    appointments={filteredAppointments}
-                    onAppointmentClick={handleAppointmentClick}
-                    onSlotClick={handleSlotClick}
-                    isAdmin={isAdmin}
-                />
+                {renderCalendarContent()}
             </div>
 
-            {/* Modals */}
             <CreateAppointmentModal
                 isOpen={createModalOpen}
                 onClose={() => {

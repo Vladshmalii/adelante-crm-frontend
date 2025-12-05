@@ -9,15 +9,15 @@ interface CardProps {
 }
 
 export function Card({
-                         children,
-                         className,
-                         padding = 'md',
-                         shadow = 'sm'
-                     }: CardProps) {
+    children,
+    className,
+    padding = 'md',
+    shadow = 'sm'
+}: CardProps) {
     return (
         <div
             className={clsx(
-                'bg-white rounded-lg',
+                'bg-card rounded-lg border border-border',
                 {
                     'p-0': padding === 'none',
                     'p-3': padding === 'sm',

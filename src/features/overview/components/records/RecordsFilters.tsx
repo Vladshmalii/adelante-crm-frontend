@@ -1,5 +1,5 @@
 import { Dropdown } from '@/shared/components/ui/Dropdown';
-import { DatePicker } from '@/shared/components/ui/DatePicker';
+import { RangeDatePicker } from '@/shared/components/ui/RangeDatePicker';
 import { RECORD_STATUSES, PAYMENT_STATUSES, RECORD_SOURCES } from '../../constants';
 import type { RecordsFilters as Filters } from '../../types';
 
@@ -27,36 +27,37 @@ export function RecordsFilters({ filters, onFiltersChange }: RecordsFiltersProps
         onFiltersChange({ ...filters, [key]: value });
     };
 
+    const handleCreatedRangeChange = (range: { from: string; to: string }) => {
+        onFiltersChange({
+            ...filters,
+            createdFrom: range.from,
+            createdTo: range.to,
+        });
+    };
+
+    const handleVisitRangeChange = (range: { from: string; to: string }) => {
+        onFiltersChange({
+            ...filters,
+            visitFrom: range.from,
+            visitTo: range.to,
+        });
+    };
+
     return (
         <div className="space-y-4 mb-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <DatePicker
-                    label="Дата створення (з)"
-                    value={filters.createdFrom || ''}
-                    onChange={(value) => updateFilter('createdFrom', value)}
-                    placeholder="Обрати дату"
+                <RangeDatePicker
+                    label="Дата створення"
+                    value={{ from: filters.createdFrom || '', to: filters.createdTo || '' }}
+                    onChange={handleCreatedRangeChange}
+                    placeholder="Оберіть період"
                 />
-                <DatePicker
-                    label="Дата створення (до)"
-                    value={filters.createdTo || ''}
-                    onChange={(value) => updateFilter('createdTo', value)}
-                    placeholder="Обрати дату"
+                <RangeDatePicker
+                    label="Дата візиту"
+                    value={{ from: filters.visitFrom || '', to: filters.visitTo || '' }}
+                    onChange={handleVisitRangeChange}
+                    placeholder="Оберіть період"
                 />
-                <DatePicker
-                    label="Дата візиту (з)"
-                    value={filters.visitFrom || ''}
-                    onChange={(value) => updateFilter('visitFrom', value)}
-                    placeholder="Обрати дату"
-                />
-                <DatePicker
-                    label="Дата візиту (до)"
-                    value={filters.visitTo || ''}
-                    onChange={(value) => updateFilter('visitTo', value)}
-                    placeholder="Обрати дату"
-                />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <Dropdown
                     label="Співробітник"
                     value={filters.employee || ''}
@@ -69,6 +70,9 @@ export function RecordsFilters({ filters, onFiltersChange }: RecordsFiltersProps
                     options={SERVICE_CATEGORIES}
                     onChange={(value) => updateFilter('serviceCategory', value)}
                 />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <Dropdown
                     label="Статус візиту"
                     value={filters.visitStatus || ''}
@@ -78,9 +82,6 @@ export function RecordsFilters({ filters, onFiltersChange }: RecordsFiltersProps
                     ]}
                     onChange={(value) => updateFilter('visitStatus', value)}
                 />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <Dropdown
                     label="Статус оплати"
                     value={filters.paymentStatus || ''}
@@ -99,11 +100,12 @@ export function RecordsFilters({ filters, onFiltersChange }: RecordsFiltersProps
                     ]}
                     onChange={(value) => updateFilter('source', value)}
                 />
-                <div className="flex items-end">
-                    <button className="w-full px-4 py-2 text-sm font-medium text-accent-foreground bg-accent hover:bg-accent/90 rounded-lg transition-colors">
-                        Показати
-                    </button>
-                </div>
+            </div>
+
+            <div className="flex justify-end">
+                <button className="px-6 py-2 text-sm font-medium text-accent-foreground bg-accent hover:bg-accent/90 rounded-lg transition-colors">
+                    Показати
+                </button>
             </div>
         </div>
     );

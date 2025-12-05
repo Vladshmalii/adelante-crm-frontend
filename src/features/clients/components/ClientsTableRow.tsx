@@ -68,22 +68,22 @@ export function ClientsTableRow({
                     {getPublicName(client.firstName, client.middleName)}
                 </button>
             </td>
-            <td className="px-4 py-3">
+            <td className="px-4 py-3 hidden md:table-cell">
                 <ClientTag segment={client.segment} />
             </td>
             <td className="px-4 py-3 text-sm text-foreground">{getMaskedPhone(client.phone)}</td>
-            <td className="px-4 py-3 text-sm text-muted-foreground">
+            <td className="px-4 py-3 text-sm text-muted-foreground hidden xl:table-cell">
                 {client.email ? 'Приховано' : '—'}
             </td>
-            <td className="px-4 py-3 text-sm font-medium text-foreground">
+            <td className="px-4 py-3 text-sm font-medium text-foreground hidden lg:table-cell">
                 {client.totalSpent.toLocaleString('uk-UA')} ₴
             </td>
-            <td className="px-4 py-3 text-sm text-foreground">{client.visits}</td>
-            <td className="px-4 py-3 text-sm text-foreground">{client.discount}%</td>
-            <td className="px-4 py-3 text-sm text-muted-foreground">
+            <td className="px-4 py-3 text-sm text-foreground hidden lg:table-cell">{client.visits}</td>
+            <td className="px-4 py-3 text-sm text-foreground hidden xl:table-cell">{client.discount}%</td>
+            <td className="px-4 py-3 text-sm text-muted-foreground hidden lg:table-cell">
                 {formatDate(client.lastVisit)}
             </td>
-            <td className="px-4 py-3 text-sm text-muted-foreground">
+            <td className="px-4 py-3 text-sm text-muted-foreground hidden xl:table-cell">
                 {formatDate(client.firstVisit)}
             </td>
             <td className="px-4 py-3">

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { AppShell } from '@/shared/components/layout/AppShell';
 import { FeatureHeader } from '@/shared/components/layout/FeatureHeader';
@@ -17,7 +17,7 @@ import { MOCK_REVIEWS } from '@/features/overview/data/mockReviews';
 import { MOCK_CHANGES } from '@/features/overview/data/mockChanges';
 import type { RecordsFilters as RecordsFiltersType, ReviewsFilters as ReviewsFiltersType, ChangesFilters as ChangesFiltersType } from '@/features/overview/types';
 
-export default function OverviewPage() {
+function OverviewContent() {
     const searchParams = useSearchParams();
     const activeTab = searchParams.get('tab') || 'records';
 
@@ -25,6 +25,42 @@ export default function OverviewPage() {
     const [reviewsFilters, setReviewsFilters] = useState<ReviewsFiltersType>({});
     const [changesFilters, setChangesFilters] = useState<ChangesFiltersType>({});
 
+    return (
+        <div className="p-6">
+            {activeTab === 'records' && (
+                <div>
+                    <RecordsFilters
+                        filters={recordsFilters}
+                        onFiltersChange={setRecordsFilters}
+                    />
+                    <RecordsTable records={MOCK_RECORDS} />
+                </div>
+            )}
+
+            {activeTab === 'reviews' && (
+                <div>
+                    <ReviewsFilters
+                        filters={reviewsFilters}
+                        onFiltersChange={setReviewsFilters}
+                    />
+                    <ReviewsList reviews={MOCK_REVIEWS} />
+                </div>
+            )}
+
+            {activeTab === 'changes' && (
+                <div>
+                    <ChangesFilters
+                        filters={changesFilters}
+                        onFiltersChange={setChangesFilters}
+                    />
+                    <ChangesTable changes={MOCK_CHANGES} />
+                </div>
+            )}
+        </div>
+    );
+}
+
+export default function OverviewPage() {
     const {
         notifications,
         isProfileModalOpen,
@@ -56,37 +92,9 @@ export default function OverviewPage() {
                 onLogout={handleLogout}
             />
 
-            <div className="p-6">
-                {activeTab === 'records' && (
-                    <div>
-                        <RecordsFilters
-                            filters={recordsFilters}
-                            onFiltersChange={setRecordsFilters}
-                        />
-                        <RecordsTable records={MOCK_RECORDS} />
-                    </div>
-                )}
-
-                {activeTab === 'reviews' && (
-                    <div>
-                        <ReviewsFilters
-                            filters={reviewsFilters}
-                            onFiltersChange={setReviewsFilters}
-                        />
-                        <ReviewsList reviews={MOCK_REVIEWS} />
-                    </div>
-                )}
-
-                {activeTab === 'changes' && (
-                    <div>
-                        <ChangesFilters
-                            filters={changesFilters}
-                            onFiltersChange={setChangesFilters}
-                        />
-                        <ChangesTable changes={MOCK_CHANGES} />
-                    </div>
-                )}
-            </div>
+            <Suspense fallback={<div className="p-6 animate-pulse"><div className="h-64 bg-muted rounded-xl"></div></div>}>
+                <OverviewContent />
+            </Suspense>
 
             <ProfileModal
                 isOpen={isProfileModalOpen}

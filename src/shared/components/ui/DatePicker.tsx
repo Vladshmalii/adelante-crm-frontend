@@ -39,9 +39,8 @@ export function DatePicker({
         if (buttonRef.current) {
             const rect = buttonRef.current.getBoundingClientRect();
 
-            // Check if calendar fits below, otherwise show above
             const spaceBelow = window.innerHeight - rect.bottom;
-            const showAbove = spaceBelow < 350; // approximate calendar height
+            const showAbove = spaceBelow < 350;
 
             setPosition({
                 top: showAbove
@@ -168,21 +167,21 @@ export function DatePicker({
                     type="button"
                     onClick={handlePrevMonth}
                     className={`p-1 rounded transition-colors ${isDark
-                            ? 'hover:bg-white/10 text-gray-400 hover:text-white'
-                            : 'hover:bg-secondary'
+                        ? 'hover:bg-sidebar-active text-sidebar-foreground/60 hover:text-sidebar-foreground'
+                        : 'hover:bg-secondary'
                         }`}
                 >
                     <ChevronLeft size={isDark ? 16 : 18} />
                 </button>
-                <span className={`text-sm font-medium ${isDark ? 'text-white' : ''}`}>
+                <span className={`text-sm font-medium ${isDark ? 'text-sidebar-foreground' : ''}`}>
                     {MONTHS[viewDate.getMonth()]} {viewDate.getFullYear()}
                 </span>
                 <button
                     type="button"
                     onClick={handleNextMonth}
                     className={`p-1 rounded transition-colors ${isDark
-                            ? 'hover:bg-white/10 text-gray-400 hover:text-white'
-                            : 'hover:bg-secondary'
+                        ? 'hover:bg-sidebar-active text-sidebar-foreground/60 hover:text-sidebar-foreground'
+                        : 'hover:bg-secondary'
                         }`}
                 >
                     <ChevronRight size={isDark ? 16 : 18} />
@@ -193,11 +192,10 @@ export function DatePicker({
                 {DAYS.map(day => (
                     <div
                         key={day}
-                        className={`text-center font-medium py-1 ${
-                            isDark
-                                ? 'text-[10px] text-gray-400'
-                                : 'text-xs text-muted-foreground'
-                        }`}
+                        className={`text-center font-medium py-1 ${isDark
+                            ? 'text-[10px] text-sidebar-foreground/50'
+                            : 'text-xs text-muted-foreground'
+                            }`}
                     >
                         {day}
                     </div>
@@ -218,7 +216,7 @@ export function DatePicker({
                             : ' border border-primary text-primary';
                     } else if (date) {
                         stateClasses = isDark
-                            ? ' text-gray-300 hover:bg-white/10 hover:text-white'
+                            ? ' text-sidebar-foreground/80 hover:bg-sidebar-active hover:text-sidebar-foreground'
                             : ' hover:bg-secondary';
                     }
 

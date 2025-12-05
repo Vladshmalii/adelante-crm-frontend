@@ -1,6 +1,7 @@
 "use client";
 
 import { Clock, ChevronDown } from "lucide-react";
+import clsx from 'clsx';
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -13,6 +14,7 @@ interface TimePickerProps {
     max?: string;
     step?: number;
     error?: string;
+    disabled?: boolean;
 }
 
 export function TimePicker({
@@ -24,6 +26,7 @@ export function TimePicker({
     max,
     step = 300,
     error,
+    disabled,
 }: TimePickerProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [hour, minute] = useMemo(() => {
@@ -65,7 +68,6 @@ export function TimePicker({
     const openDropdown = () => {
         if (triggerRef.current) {
             const rect = triggerRef.current.getBoundingClientRect();
-            // фиксированная, чуть меньшая ширина для компактного дропдауна
             const width = Math.min(rect.width, 260);
             setCoords({
                 top: rect.bottom + 4,
@@ -108,7 +110,6 @@ export function TimePicker({
     }, [isOpen]);
 
     const handleSelectHour = (h: string) => {
-        // повторный клик по активному часу сбрасывает на первый в списке
         const isSame = h === hour;
         const newHour = isSame ? (hourOptions[0] || "00") : h;
         const newMinute = minute || "00";
@@ -116,7 +117,6 @@ export function TimePicker({
     };
 
     const handleSelectMinute = (m: string) => {
-        // повторный клик по активным хвилинам сбрасывает на первые в списке
         const isSame = m === minute;
         const newMinute = isSame ? (minuteOptions[0] || "00") : m;
         const newHour = hour || hourOptions[0] || "00";
@@ -141,11 +141,10 @@ export function TimePicker({
                                 key={h}
                                 type="button"
                                 onClick={() => handleSelectHour(h)}
-                                className={`w-full px-3 py-1.5 text-left text-sm transition-colors ${
-                                    isActive
-                                        ? "bg-primary text-primary-foreground hover:bg-primary/80"
-                                        : "hover:bg-primary/10 hover:text-primary"
-                                }`}
+                                className={`w-full px-3 py-1.5 text-left text-sm transition-colors ${isActive
+                                    ? "bg-primary text-primary-foreground hover:bg-primary/80"
+                                    : "hover:bg-primary/10 hover:text-primary"
+                                    }`}
                             >
                                 {h}
                             </button>
@@ -163,11 +162,10 @@ export function TimePicker({
                                 key={m}
                                 type="button"
                                 onClick={() => handleSelectMinute(m)}
-                                className={`w-full px-3 py-1.5 text-left text-sm transition-colors ${
-                                    isActive
-                                        ? "bg-primary text-primary-foreground hover:bg-primary/80"
-                                        : "hover:bg-primary/10 hover:text-primary"
-                                }`}
+                                className={`w-full px-3 py-1.5 text-left text-sm transition-colors ${isActive
+                                    ? "bg-primary text-primary-foreground hover:bg-primary/80"
+                                    : "hover:bg-primary/10 hover:text-primary"
+                                    }`}
                             >
                                 {m}
                             </button>
@@ -190,19 +188,24 @@ export function TimePicker({
                 <button
                     type="button"
                     ref={triggerRef}
-                    onClick={() => (isOpen ? closeDropdown() : openDropdown())}
-                    className={`w-full flex items-center justify-between gap-2 pl-9 pr-3 py-2 text-sm bg-background border rounded-lg transition-colors ${
-                        error ? "border-destructive" : "border-border hover:border-primary/50"
-                    } ${isOpen ? "ring-2 ring-ring border-transparent" : ""}`}
+                    onClick={() => (!disabled && (isOpen ? closeDropdown() : openDropdown()))}
+                    disabled={disabled}
+                    className={clsx(
+                        "w-full flex items-center justify-between gap-2 pl-9 pr-3 py-2 text-sm bg-background border rounded-lg transition-colors",
+                        error ? "border-destructive" : "border-border hover:border-primary/50",
+                        isOpen && "ring-2 ring-ring border-transparent",
+                        disabled && "opacity-50 cursor-not-allowed bg-muted"
+                    )}
                 >
                     <span className={formattedValue ? "text-foreground" : "text-muted-foreground"}>
                         {formattedValue || placeholder}
                     </span>
                     <ChevronDown
                         size={16}
-                        className={`text-muted-foreground transition-transform ${
-                            isOpen ? "rotate-180" : ""
-                        }`}
+                        className={clsx(
+                            "text-muted-foreground transition-transform",
+                            isOpen && "rotate-180"
+                        )}
                     />
                 </button>
             </div>

@@ -1,6 +1,6 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import clsx from 'clsx';
 import { Button } from './Button';
+import { ButtonGroup } from './ButtonGroup';
 
 interface PaginationProps {
     currentPage: number;
@@ -64,49 +64,39 @@ export function Pagination({
                 </div>
             )}
 
-            <div className="flex items-center gap-2">
+            <ButtonGroup variant="secondary" size="sm">
                 <Button
-                    variant="ghost"
-                    size="sm"
                     onClick={() => onPageChange(currentPage - 1)}
                     disabled={currentPage === 1}
-                    className="h-8 w-8 p-0"
+                    leftIcon={<ChevronLeft size={16} />}
                 >
-                    <ChevronLeft className="h-4 w-4" />
+                    Назад
                 </Button>
 
-                {getPageNumbers().map((page, index) => (
-                    <button
-                        key={index}
-                        onClick={() => typeof page === 'number' && onPageChange(page)}
-                        disabled={page === '...'}
-                        className={clsx(
-                            'h-8 min-w-[2rem] px-2 rounded-lg text-sm font-medium transition-all duration-200',
-                            'focus:outline-none focus:ring-2 focus:ring-ring',
-                            {
-                                'bg-primary text-primary-foreground shadow-sm':
-                                    page === currentPage,
-                                'hover:bg-accent hover:text-accent-foreground':
-                                    page !== currentPage && page !== '...',
-                                'cursor-not-allowed opacity-50': page === '...',
-                                'text-foreground': page !== currentPage,
-                            }
-                        )}
-                    >
-                        {page}
-                    </button>
-                ))}
+                {getPageNumbers().map((page, index) =>
+                    page === '...' ? (
+                        <Button key={`ellipsis-${index}`} disabled>
+                            ...
+                        </Button>
+                    ) : (
+                        <Button
+                            key={page}
+                            onClick={() => onPageChange(page as number)}
+                            variant={currentPage === page ? 'primary' : 'secondary'}
+                        >
+                            {page}
+                        </Button>
+                    )
+                )}
 
                 <Button
-                    variant="ghost"
-                    size="sm"
                     onClick={() => onPageChange(currentPage + 1)}
                     disabled={currentPage === totalPages}
-                    className="h-8 w-8 p-0"
+                    rightIcon={<ChevronRight size={16} />}
                 >
-                    <ChevronRight className="h-4 w-4" />
+                    Далі
                 </Button>
-            </div>
+            </ButtonGroup>
 
             {onItemsPerPageChange && (
                 <div className="flex items-center gap-2">

@@ -12,6 +12,8 @@ interface StaffTableProps {
     onStaffClick: (staff: Staff) => void;
     onEditStaff: (staff: Staff) => void;
     onDeleteStaff: (staff: Staff) => void;
+    onScheduleStaff: (staff: Staff) => void;
+    onStatisticsStaff: (staff: Staff) => void;
 }
 
 export function StaffTable({
@@ -22,6 +24,8 @@ export function StaffTable({
     onStaffClick,
     onEditStaff,
     onDeleteStaff,
+    onScheduleStaff,
+    onStatisticsStaff,
 }: StaffTableProps) {
     const allSelected = staff.length > 0 && selectedStaff.size === staff.length;
 
@@ -52,6 +56,8 @@ export function StaffTable({
                             onStaffClick={() => onStaffClick(staffMember)}
                             onEdit={() => onEditStaff(staffMember)}
                             onDelete={() => onDeleteStaff(staffMember)}
+                            onSchedule={() => onScheduleStaff(staffMember)}
+                            onStatistics={() => onStatisticsStaff(staffMember)}
                             isEven={index % 2 === 0}
                         />
                     ))}

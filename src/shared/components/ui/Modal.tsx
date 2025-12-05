@@ -51,32 +51,27 @@ export function Modal({
 
     return (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 animate-fade-in">
-            {/* Overlay */}
             <div
                 className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
                 onClick={onClose}
             />
 
-            {/* Modal */}
             <div
                 className={clsx(
                     'relative bg-card shadow-2xl w-full animate-scale-in border-t sm:border border-border',
                     'max-h-[95vh] sm:max-h-[90vh] flex flex-col',
                     'rounded-t-2xl sm:rounded-xl',
                     {
-                        // Размеры
                         'sm:max-w-sm': size === 'xs',
                         'sm:max-w-md': size === 'sm',
                         'sm:max-w-2xl': size === 'md',
                         'sm:max-w-4xl': size === 'lg',
                         'sm:max-w-6xl': size === 'xl',
 
-                        // Полноэкранный режим
                         'sm:max-w-none sm:h-screen sm:max-h-screen sm:rounded-none sm:border-0': size === 'full',
                     }
                 )}
             >
-                {/* Header */}
                 {title && (
                     <div className="flex items-center justify-between p-4 sm:p-6 border-b border-border flex-shrink-0">
                         <h2 className="text-lg sm:text-xl font-semibold text-foreground font-heading">{title}</h2>
@@ -89,7 +84,6 @@ export function Modal({
                     </div>
                 )}
 
-                {/* Content */}
                 <div className={clsx(
                     'overflow-y-auto scrollbar-thin flex-1',
                     title ? 'p-4 sm:p-6' : 'p-4 sm:p-6'

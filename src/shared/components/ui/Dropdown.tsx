@@ -1,21 +1,24 @@
-import { ChevronDown, Search } from 'lucide-react';
-import { useState, useRef, useEffect } from 'react';
+import { ChevronDown, Search, Check, X } from 'lucide-react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 
-interface DropdownOption {
+export interface DropdownOption {
     value: string | number;
     label: string;
+    group?: string;
 }
 
 interface DropdownProps {
     label?: string;
     placeholder?: string;
-    value: string | number;
+    value: string | number | (string | number)[];
     options: DropdownOption[];
-    onChange: (value: string | number) => void;
+    onChange: (value: any) => void;
     searchable?: boolean;
     disabled?: boolean;
     error?: string;
+    multiple?: boolean;
+    grouping?: boolean;
 }
 
 export function Dropdown({
@@ -27,6 +30,8 @@ export function Dropdown({
     searchable = false,
     disabled = false,
     error,
+    multiple = false,
+    grouping = false,
 }: DropdownProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [shouldRender, setShouldRender] = useState(false);
@@ -44,27 +49,33 @@ export function Dropdown({
             const rect = buttonRef.current.getBoundingClientRect();
             const spaceBelow = window.innerHeight - rect.bottom;
             const spaceAbove = rect.top;
-            
-            // Получаем реальную высоту контента если он уже отрендерен
-            let contentHeight = 240; // дефолтное значение
+
+            let contentHeight = 240;
             if (contentRef.current) {
                 contentHeight = contentRef.current.offsetHeight;
             } else {
-                // Оценка высоты
                 const itemHeight = 38;
                 const searchHeight = searchable ? 52 : 0;
-                const optionsCount = filteredOptions.length || options.length;
-                contentHeight = Math.min(searchHeight + (optionsCount * itemHeight), 240);
+
+                const optionsCount = filteredOptions.length;
+
+                let groupsHeight = 0;
+                if (grouping) {
+                    const groups = new Set(filteredOptions.map(o => o.group).filter(Boolean)).size;
+                    groupsHeight = groups * 30;
+                }
+
+                contentHeight = Math.min(searchHeight + (optionsCount * itemHeight) + groupsHeight, 300);
             }
-            
+
             let position: 'bottom' | 'top' = 'bottom';
             let topPosition = rect.bottom + 4;
-            
+
             if (spaceBelow < contentHeight + 10 && spaceAbove > contentHeight) {
                 position = 'top';
                 topPosition = rect.top - contentHeight - 4;
             }
-            
+
             setDropdownPosition(position);
             setCoords({
                 top: topPosition,
@@ -117,17 +128,51 @@ export function Dropdown({
         };
     }, [isOpen, searchable, label]);
 
-    const selectedOption = options.find(opt => opt.value === value);
+    const displayValue = useMemo(() => {
+        if (multiple && Array.isArray(value)) {
+            if (value.length === 0) return placeholder;
+            if (value.length === 1) {
+                return options.find(o => o.value === value[0])?.label || placeholder;
+            }
+            return `Обрано ${value.length}`;
+        }
+        const selectedOption = options.find(opt => opt.value === value);
+        return selectedOption?.label || placeholder;
+    }, [value, options, multiple, placeholder]);
 
-    const filteredOptions = searchable && searchQuery
-        ? options.filter(opt =>
-            opt.label.toLowerCase().includes(searchQuery.toLowerCase())
-        )
-        : options;
+    const filteredOptions = useMemo(() => {
+        return searchable && searchQuery
+            ? options.filter(opt =>
+                opt.label.toLowerCase().includes(searchQuery.toLowerCase())
+            )
+            : options;
+    }, [options, searchable, searchQuery]);
+
+    const groupedOptions = useMemo(() => {
+        if (!grouping) return { 'default': filteredOptions };
+
+        const groups: Record<string, DropdownOption[]> = {};
+        filteredOptions.forEach(opt => {
+            const groupName = opt.group || 'Інше';
+            if (!groups[groupName]) {
+                groups[groupName] = [];
+            }
+            groups[groupName].push(opt);
+        });
+        return groups;
+    }, [filteredOptions, grouping]);
 
     const handleSelect = (optionValue: string | number) => {
-        onChange(optionValue);
-        handleClose();
+        if (multiple) {
+            const currentValues = Array.isArray(value) ? value : [];
+            const newValue = currentValues.includes(optionValue)
+                ? currentValues.filter(v => v !== optionValue)
+                : [...currentValues, optionValue];
+            onChange(newValue);
+        } else {
+            onChange(optionValue);
+            handleClose();
+        }
     };
 
     const handleClose = () => {
@@ -153,18 +198,25 @@ export function Dropdown({
         }
     };
 
+    const isSelected = (val: string | number) => {
+        if (multiple && Array.isArray(value)) {
+            return value.includes(val);
+        }
+        return value === val;
+    };
+
     const dropdownContent = coords && shouldRender && (
         <div
             ref={contentRef}
             id={`dropdown-portal-${label || 'default'}`}
-            className="fixed bg-card border-2 border-border rounded-xl z-[9999] max-h-60 overflow-hidden flex flex-col backdrop-blur-sm"
+            className="fixed bg-card border-2 border-border rounded-xl z-[9999] max-h-[300px] overflow-hidden flex flex-col backdrop-blur-sm"
             style={{
                 top: coords.top,
                 left: coords.left,
                 width: coords.width,
                 opacity: isAnimating ? 1 : 0,
-                transform: isAnimating 
-                    ? 'translateY(0) scale(1)' 
+                transform: isAnimating
+                    ? 'translateY(0) scale(1)'
                     : dropdownPosition === 'bottom'
                         ? 'translateY(-12px) scale(0.92)'
                         : 'translateY(12px) scale(0.92)',
@@ -197,29 +249,49 @@ export function Dropdown({
             )}
 
             <div className="overflow-y-auto scrollbar-thin">
-                {filteredOptions.length > 0 ? (
-                    filteredOptions.map((option) => {
-                        const isActive = option.value === value;
-                        return (
-                            <button
-                                key={option.value}
-                                onClick={() => handleSelect(option.value)}
-                                className={`w-full px-3 py-2 text-left text-sm transition-colors ${
-                                    isActive
-                                        ? 'bg-primary text-primary-foreground font-medium hover:bg-primary/80'
-                                        : 'text-foreground hover:bg-primary/10 hover:text-primary'
-                                }`}
-                            >
-                                {option.label}
-                            </button>
-                        );
-                    })
+                {Object.keys(groupedOptions).length > 0 ? (
+                    Object.entries(groupedOptions).map(([groupName, groupOptions]) => (
+                        <div key={groupName}>
+                            {grouping && (
+                                <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/30 sticky top-0 backdrop-blur-sm">
+                                    {groupName}
+                                </div>
+                            )}
+                            {groupOptions.map((option) => {
+                                const active = isSelected(option.value);
+                                return (
+                                    <button
+                                        key={option.value}
+                                        onClick={() => handleSelect(option.value)}
+                                        className={`w-full px-3 py-2 text-left text-sm transition-colors flex items-center justify-between ${active
+                                            ? 'bg-primary/10 text-primary font-medium hover:bg-primary/20'
+                                            : 'text-foreground hover:bg-muted'
+                                            }`}
+                                    >
+                                        <span className="truncate">{option.label}</span>
+                                        {active && <Check size={16} className="flex-shrink-0 ml-2" />}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    ))
                 ) : (
                     <div className="px-3 py-2 text-sm text-muted-foreground text-center">
                         Нічого не знайдено
                     </div>
                 )}
             </div>
+
+            {multiple && (
+                <div className="p-2 border-t border-border bg-muted/10">
+                    <button
+                        onClick={() => { onChange([]); handleClose(); }}
+                        className="w-full py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                        Скинути вибір
+                    </button>
+                </div>
+            )}
         </div>
     );
 
@@ -247,12 +319,12 @@ export function Dropdown({
           ${isOpen ? 'ring-2 ring-ring border-transparent' : ''}
         `}
             >
-                <span className={selectedOption ? 'text-foreground' : 'text-muted-foreground'}>
-                    {selectedOption?.label || placeholder}
+                <span className={value && (Array.isArray(value) ? value.length > 0 : true) ? 'text-foreground truncate' : 'text-muted-foreground'}>
+                    {displayValue}
                 </span>
                 <ChevronDown
                     size={16}
-                    className={`text-muted-foreground transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                    className={`text-muted-foreground transition-transform flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`}
                 />
             </button>
 
@@ -265,28 +337,28 @@ export function Dropdown({
     );
 }
 
-// Demo
 export default function Demo() {
     const [value1, setValue1] = useState<string | number>('');
     const [value2, setValue2] = useState<string | number>('');
     const [value3, setValue3] = useState<string | number>('');
+    const [value4, setValue4] = useState<(string | number)[]>([]);
 
     const options = [
-        { value: '1', label: 'Опція 1' },
-        { value: '2', label: 'Опція 2' },
-        { value: '3', label: 'Опція 3' },
-        { value: '4', label: 'Опція 4' },
-        { value: '5', label: 'Опція 5' },
-        { value: '6', label: 'Опція 6' },
-        { value: '7', label: 'Опція 7' },
-        { value: '8', label: 'Опція 8' },
+        { value: '1', label: 'Червоний', group: 'Кольори' },
+        { value: '2', label: 'Синій', group: 'Кольори' },
+        { value: '3', label: 'Зелений', group: 'Кольори' },
+        { value: '4', label: 'Яблуко', group: 'Фрукти' },
+        { value: '5', label: 'Апельсин', group: 'Фрукти' },
+        { value: '6', label: 'Банан', group: 'Фрукти' },
+        { value: '7', label: 'Стіл', group: 'Меблі' },
+        { value: '8', label: 'Стілець', group: 'Меблі' },
     ];
 
     return (
         <div className="min-h-screen bg-background p-8">
             <div className="max-w-2xl mx-auto space-y-8">
                 <h1 className="text-2xl font-bold">Тест Dropdown</h1>
-                
+
                 <div className="space-y-4">
                     <Dropdown
                         label="Звичайний dropdown"
@@ -302,19 +374,25 @@ export default function Demo() {
                         onChange={setValue2}
                         searchable
                     />
-                </div>
 
-                <div style={{ height: '800px' }}>
-                    <p className="text-muted-foreground">Проскрольте вниз ↓</p>
-                </div>
+                    <Dropdown
+                        label="З групуванням"
+                        value={value3}
+                        options={options}
+                        onChange={setValue3}
+                        grouping
+                    />
 
-                <Dropdown
-                    label="Внизу сторінки"
-                    value={value3}
-                    options={options}
-                    onChange={setValue3}
-                    searchable
-                />
+                    <Dropdown
+                        label="Множинний вибір + Групування"
+                        value={value4}
+                        options={options}
+                        onChange={setValue4}
+                        multiple
+                        grouping
+                        searchable
+                    />
+                </div>
 
                 <div style={{ height: '400px' }} />
             </div>

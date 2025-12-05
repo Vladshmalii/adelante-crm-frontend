@@ -173,11 +173,10 @@ export function RolesSettings() {
                   key={role.id}
                   type="button"
                   onClick={() => setSelectedRoleId(role.id)}
-                  className={`w-full text-left rounded-lg border px-4 py-3 text-sm transition-colors ${
-                    isActive
+                  className={`w-full text-left rounded-lg border px-4 py-3 text-sm transition-colors ${isActive
                       ? 'bg-primary text-primary-foreground border-primary shadow-sm'
-                      : 'bg-background border-border text-foreground hover:bg-white/5'
-                  }`}
+                      : 'bg-background border-border text-foreground hover:bg-muted'
+                    }`}
                 >
                   <div className="flex items-center justify-between gap-2 mb-1">
                     <span className="font-medium">{role.name}</span>
@@ -203,14 +202,14 @@ export function RolesSettings() {
                 <button
                   type="button"
                   onClick={() => handleApplyTemplate('readonly')}
-                  className="px-3 py-1.5 text-xs rounded-lg border border-border text-muted-foreground hover:bg-white/5"
+                  className="px-3 py-1.5 text-xs rounded-lg border border-border text-muted-foreground hover:bg-muted"
                 >
                   Тільки перегляд
                 </button>
                 <button
                   type="button"
                   onClick={() => handleApplyTemplate('manager')}
-                  className="px-3 py-1.5 text-xs rounded-lg border border-border text-muted-foreground hover:bg-white/5"
+                  className="px-3 py-1.5 text-xs rounded-lg border border-border text-muted-foreground hover:bg-muted"
                 >
                   Повні права
                 </button>
@@ -243,11 +242,10 @@ export function RolesSettings() {
                               <button
                                 type="button"
                                 onClick={() => handleChangePermission(module.id, perm.value)}
-                                className={`w-full h-8 flex items-center justify-center text-xs rounded-md border px-2 transition-colors ${
-                                  isActive
+                                className={`w-full h-8 flex items-center justify-center text-xs rounded-md border px-2 transition-colors ${isActive
                                     ? 'bg-primary text-primary-foreground border-primary'
-                                    : 'bg-background border-border text-muted-foreground hover:bg-white/5'
-                                }`}
+                                    : 'bg-background border-border text-muted-foreground hover:bg-muted'
+                                  }`}
                               >
                                 {isActive ? '✓' : ''}
                               </button>
@@ -265,7 +263,7 @@ export function RolesSettings() {
       </section>
 
       <section className="bg-card border border-border rounded-lg p-6">
-        <h2 className="text-lg font-semibold mb-4">Прив'язка ролей до співробітників</h2>
+        <h2 className="text-lg font-semibold mb-4">Прив&apos;язка ролей до співробітників</h2>
         <p className="text-sm text-muted-foreground mb-4">
           Швидка зміна ролей для співробітників салону.
         </p>
@@ -282,7 +280,7 @@ export function RolesSettings() {
               {STAFF_MOCK.map((staff) => (
                 <tr key={staff.id} className="border-t border-border/70">
                   <td className="py-2 px-4 text-sm text-foreground whitespace-nowrap">
-                    {staff.name}
+                    {`${staff.firstName}${staff.middleName ? ' ' + staff.middleName : ''}${staff.lastName ? ' ' + staff.lastName : ''}`}
                   </td>
                   <td className="py-2 px-4 text-sm text-muted-foreground whitespace-nowrap">
                     {staff.phone}

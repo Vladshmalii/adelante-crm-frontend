@@ -1,16 +1,17 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { MoreVertical, Edit, Trash2, Eye, Calendar } from 'lucide-react';
+import { MoreVertical, Edit, Trash2, Eye, Calendar, BarChart } from 'lucide-react';
 
 interface StaffActionsMenuProps {
     onView: () => void;
     onEdit: () => void;
     onDelete: () => void;
     onSchedule?: () => void;
+    onStatistics?: () => void;
 }
 
-export function StaffActionsMenu({ onView, onEdit, onDelete, onSchedule }: StaffActionsMenuProps) {
+export function StaffActionsMenu({ onView, onEdit, onDelete, onSchedule, onStatistics }: StaffActionsMenuProps) {
     const [isOpen, setIsOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
 
@@ -69,6 +70,15 @@ export function StaffActionsMenu({ onView, onEdit, onDelete, onSchedule }: Staff
                             >
                                 <Calendar className="w-4 h-4" />
                                 Графік
+                            </button>
+                        )}
+                        {onStatistics && (
+                            <button
+                                onClick={() => handleAction(onStatistics)}
+                                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-foreground hover:bg-accent transition-colors"
+                            >
+                                <BarChart className="w-4 h-4" />
+                                Статистика
                             </button>
                         )}
                         <div className="border-t border-border my-1" />

@@ -2,6 +2,8 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { ITEMS_PER_PAGE_OPTIONS } from '../constants';
 import type { PaginationState } from '../types';
 import { Dropdown } from '@/shared/components/ui/Dropdown';
+import { Button } from '@/shared/components/ui/Button';
+import { ButtonGroup } from '@/shared/components/ui/ButtonGroup';
 
 interface ClientsPaginationProps {
     pagination: PaginationState;
@@ -75,48 +77,39 @@ export function ClientsPagination({
                 </span>
             </div>
 
-            <div className="flex items-center gap-1">
-                <button
+            <ButtonGroup variant="secondary" size="sm">
+                <Button
                     onClick={() => onPageChange(currentPage - 1)}
                     disabled={currentPage === 1}
-                    className="p-2 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+                    leftIcon={<ChevronLeft size={16} />}
                 >
-                    <ChevronLeft size={18} />
-                </button>
+                    Назад
+                </Button>
 
                 {getPageNumbers().map((page, index) =>
                     page === '...' ? (
-                        <span
-                            key={`ellipsis-${index}`}
-                            className="px-3 py-1.5 text-sm text-muted-foreground"
-                        >
+                        <Button key={`ellipsis-${index}`} disabled>
                             ...
-                        </span>
+                        </Button>
                     ) : (
-                        <button
+                        <Button
                             key={page}
                             onClick={() => onPageChange(page as number)}
-                            className={`
-                px-3 py-1.5 text-sm rounded-lg transition-colors
-                ${currentPage === page
-                                    ? 'bg-primary text-primary-foreground font-medium'
-                                    : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
-                                }
-              `}
+                            variant={currentPage === page ? 'primary' : 'secondary'}
                         >
                             {page}
-                        </button>
+                        </Button>
                     )
                 )}
 
-                <button
+                <Button
                     onClick={() => onPageChange(currentPage + 1)}
                     disabled={currentPage === totalPages}
-                    className="p-2 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+                    rightIcon={<ChevronRight size={16} />}
                 >
-                    <ChevronRight size={18} />
-                </button>
-            </div>
+                    Далі
+                </Button>
+            </ButtonGroup>
         </div>
     );
 }

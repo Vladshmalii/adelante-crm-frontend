@@ -3,6 +3,7 @@
 import { Filter, X } from 'lucide-react';
 import { StaffMember } from '../types';
 import { Button } from '@/shared/components/ui/Button';
+import { ButtonGroup } from '@/shared/components/ui/ButtonGroup';
 import clsx from 'clsx';
 
 interface CalendarFiltersProps {
@@ -60,15 +61,16 @@ export function CalendarFilters({
                     </div>
                 </div>
 
-                <div className="flex items-center gap-2 ml-auto">
-                    <Button size="sm" variant="ghost" onClick={selectAll}>
-                        <span className="hidden sm:inline">Всі</span>
-                        <span className="sm:hidden text-xs">Всі</span>
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={clearAll}>
-                        <X className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-1" />
-                        <span className="hidden sm:inline">Очистити</span>
-                    </Button>
+                <div className="ml-auto">
+                    <ButtonGroup variant="ghost" size="sm">
+                        <Button onClick={selectAll}>
+                            <span className="hidden sm:inline">Всі</span>
+                            <span className="sm:hidden text-xs">Всі</span>
+                        </Button>
+                        <Button onClick={clearAll} leftIcon={<X className="w-3 h-3 sm:w-4 sm:h-4" />}>
+                            <span className="hidden sm:inline">Очистити</span>
+                        </Button>
+                    </ButtonGroup>
                 </div>
             </div>
         </div>

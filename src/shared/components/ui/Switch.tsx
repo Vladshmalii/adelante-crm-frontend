@@ -7,26 +7,29 @@ interface SwitchProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size'
 }
 
 export const Switch = forwardRef<HTMLInputElement, SwitchProps>(
-    ({ label, size = 'md', className, disabled, ...props }, ref) => {
+    ({ label, size = 'md', className, disabled, checked, ...props }, ref) => {
         const sizeClasses = {
             sm: {
                 track: 'w-9 h-5',
                 thumb: 'h-4 w-4',
-                translate: 'translate-x-4',
             },
             md: {
                 track: 'w-11 h-6',
                 thumb: 'h-5 w-5',
-                translate: 'translate-x-5',
             },
             lg: {
                 track: 'w-14 h-7',
                 thumb: 'h-6 w-6',
-                translate: 'translate-x-7',
             },
         };
 
-        const { track, thumb, translate } = sizeClasses[size];
+        const translateClasses = {
+            sm: 'translate-x-4',
+            md: 'translate-x-5',
+            lg: 'translate-x-7',
+        };
+
+        const { track, thumb } = sizeClasses[size];
 
         return (
             <label
@@ -42,13 +45,14 @@ export const Switch = forwardRef<HTMLInputElement, SwitchProps>(
                         type="checkbox"
                         className="sr-only peer"
                         disabled={disabled}
+                        checked={checked}
                         {...props}
                     />
                     <div
                         className={clsx(
                             'rounded-full transition-all duration-200',
-                            'bg-muted border-2 border-transparent',
-                            'peer-checked:bg-primary',
+                            'border-2 border-transparent',
+                            checked ? 'bg-primary' : 'bg-muted',
                             'peer-focus:ring-2 peer-focus:ring-ring peer-focus:ring-offset-2',
                             track
                         )}
@@ -56,8 +60,8 @@ export const Switch = forwardRef<HTMLInputElement, SwitchProps>(
                     <div
                         className={clsx(
                             'absolute top-0.5 left-0.5 rounded-full transition-transform duration-200',
-                            'bg-background shadow-sm',
-                            'peer-checked:' + translate,
+                            'bg-card shadow-sm',
+                            checked && translateClasses[size],
                             thumb
                         )}
                     />

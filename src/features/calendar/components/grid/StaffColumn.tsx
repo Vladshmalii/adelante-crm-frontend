@@ -30,19 +30,17 @@ export function StaffColumn({
     const currentHour = currentTime.getHours();
     const currentMinute = currentTime.getMinutes();
 
-    // Вычисляем позицию текущей линии времени
     const getCurrentTimePosition = () => {
         const totalMinutes = (currentHour - startHour) * 60 + currentMinute;
         return (totalMinutes / 30) * slotHeight;
     };
 
-    // Вычисляем позицию и высоту карточки записи
     const getAppointmentStyle = (appointment: Appointment) => {
-        const [startHour, startMinute] = appointment.startTime.split(':').map(Number);
-        const [endHour, endMinute] = appointment.endTime.split(':').map(Number);
+        const [aptStartHour, aptStartMinute] = appointment.startTime.split(':').map(Number);
+        const [aptEndHour, aptEndMinute] = appointment.endTime.split(':').map(Number);
 
-        const startMinutes = (startHour - 9) * 60 + startMinute;
-        const endMinutes = (endHour - 9) * 60 + endMinute;
+        const startMinutes = (aptStartHour - startHour) * 60 + aptStartMinute;
+        const endMinutes = (aptEndHour - startHour) * 60 + aptEndMinute;
         const duration = endMinutes - startMinutes;
 
         const top = (startMinutes / 30) * slotHeight;
@@ -59,12 +57,11 @@ export function StaffColumn({
         onSlotClick(staff.id, timeString);
     };
 
-    const isCurrentTimeVisible = currentHour >= startHour && currentHour <= 18;
+    const isCurrentTimeVisible = currentHour >= startHour && currentHour <= 20;
     const currentTimeTop = getCurrentTimePosition();
 
     return (
         <div className="flex-1 min-w-[150px] sm:min-w-[200px] border-r border-border bg-background relative">
-            {/* Header */}
             <div className="h-16 px-2 sm:px-3 flex flex-col justify-center border-b border-border bg-muted/30">
                 <div className="font-semibold text-foreground text-xs sm:text-sm truncate font-heading">
                     {staff.name}
@@ -74,19 +71,21 @@ export function StaffColumn({
                 </div>
             </div>
 
-            {/* Grid */}
             <div className="relative">
-                {/* Time slots background */}
                 {timeSlots.map((slot) => (
                     <div
                         key={`${slot.hour}-${slot.minute}`}
-                        className="border-b border-border/50 hover:bg-accent/50 cursor-pointer transition-colors"
+                        className={clsx(
+                            'border-b border-border/50 cursor-pointer transition-colors',
+                            slot.isAfterWork
+                                ? 'bg-muted/40 hover:bg-muted/60'
+                                : 'hover:bg-accent/50'
+                        )}
                         style={{ height: `${slotHeight}px` }}
                         onClick={() => handleSlotClick(slot.hour, slot.minute)}
                     />
                 ))}
 
-                {/* Current time line */}
                 {isCurrentTimeVisible && (
                     <div
                         className="absolute left-0 right-0 h-0.5 bg-accent z-20 pointer-events-none"
@@ -96,7 +95,6 @@ export function StaffColumn({
                     </div>
                 )}
 
-                {/* Appointments */}
                 {appointments.map((appointment) => (
                     <AppointmentCard
                         key={appointment.id}

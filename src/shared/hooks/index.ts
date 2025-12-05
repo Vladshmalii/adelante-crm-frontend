@@ -1,6 +1,9 @@
-// Експорт всіх хуків
-
 export { useCurrentTime } from './useCurrentTime';
 export { useDebounce } from './useDebounce';
 export { useLocalStorage } from './useLocalStorage';
 export { useClickOutside } from './useClickOutside';
+export { usePagination } from './usePagination';
+export { useFilter } from './useFilter';
+export { useSort } from './useSort';
+export { useApi } from './useApi';
+export { usePermissions } from './usePermissions';

@@ -65,7 +65,7 @@ export function ServicesLayout() {
     });
 
     return (
-        <div className="h-full flex flex-col">
+        <div className="p-6">
             <ServicesHeader
                 onAddService={() => setIsAddModalOpen(true)}
                 searchQuery={searchQuery}
@@ -77,7 +77,7 @@ export function ServicesLayout() {
                 onFiltersChange={setFilters}
             />
 
-            <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+            <div className="mt-6">
                 {filteredServices.length === 0 ? (
                     <div className="text-center py-12">
                         <p className="text-muted-foreground">Послуги не знайдено</p>

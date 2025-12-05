@@ -3,7 +3,7 @@ import { useState } from 'react';
 const toggleClasses =
   'relative inline-flex h-5 w-9 items-center rounded-full transition-colors cursor-pointer';
 const knobClasses =
-  'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform';
+  'inline-block h-4 w-4 transform rounded-full bg-card shadow transition-transform';
 
 export function GeneralSettings() {
   const [emailNotifications, setEmailNotifications] = useState(true);
@@ -44,14 +44,12 @@ export function GeneralSettings() {
             <button
               type="button"
               onClick={() => setEmailNotifications((v) => !v)}
-              className={`${toggleClasses} ${
-                emailNotifications ? 'bg-primary' : 'bg-border'
-              }`}
+              className={`${toggleClasses} ${emailNotifications ? 'bg-primary' : 'bg-border'
+                }`}
             >
               <span
-                className={`${knobClasses} ${
-                  emailNotifications ? 'translate-x-4' : 'translate-x-0'
-                }`}
+                className={`${knobClasses} ${emailNotifications ? 'translate-x-4' : 'translate-x-0'
+                  }`}
               />
             </button>
           </div>
@@ -66,14 +64,12 @@ export function GeneralSettings() {
             <button
               type="button"
               onClick={() => setInAppNotifications((v) => !v)}
-              className={`${toggleClasses} ${
-                inAppNotifications ? 'bg-primary' : 'bg-border'
-              }`}
+              className={`${toggleClasses} ${inAppNotifications ? 'bg-primary' : 'bg-border'
+                }`}
             >
               <span
-                className={`${knobClasses} ${
-                  inAppNotifications ? 'translate-x-4' : 'translate-x-0'
-                }`}
+                className={`${knobClasses} ${inAppNotifications ? 'translate-x-4' : 'translate-x-0'
+                  }`}
               />
             </button>
           </div>
@@ -88,14 +84,12 @@ export function GeneralSettings() {
             <button
               type="button"
               onClick={() => setMarketingNotifications((v) => !v)}
-              className={`${toggleClasses} ${
-                marketingNotifications ? 'bg-primary' : 'bg-border'
-              }`}
+              className={`${toggleClasses} ${marketingNotifications ? 'bg-primary' : 'bg-border'
+                }`}
             >
               <span
-                className={`${knobClasses} ${
-                  marketingNotifications ? 'translate-x-4' : 'translate-x-0'
-                }`}
+                className={`${knobClasses} ${marketingNotifications ? 'translate-x-4' : 'translate-x-0'
+                  }`}
               />
             </button>
           </div>
@@ -114,7 +108,7 @@ export function GeneralSettings() {
             </div>
             <button
               type="button"
-              className="px-3 py-1.5 text-xs font-medium rounded-lg border border-border text-muted-foreground hover:bg-white/5"
+              className="px-3 py-1.5 text-xs font-medium rounded-lg border border-border text-muted-foreground hover:bg-muted transition-colors"
             >
               {telegramConnected ? 'Підключено' : 'Підключити'}
             </button>
@@ -129,7 +123,7 @@ export function GeneralSettings() {
             </div>
             <button
               type="button"
-              className="px-3 py-1.5 text-xs font-medium rounded-lg border border-border text-muted-foreground hover:bg-white/5"
+              className="px-3 py-1.5 text-xs font-medium rounded-lg border border-border text-muted-foreground hover:bg-muted transition-colors"
             >
               {phoneIntegration ? 'Налаштовано' : 'Налаштувати'}
             </button>
@@ -144,7 +138,7 @@ export function GeneralSettings() {
             </div>
             <button
               type="button"
-              className="px-3 py-1.5 text-xs font-medium rounded-lg border border-border text-muted-foreground hover:bg-white/5"
+              className="px-3 py-1.5 text-xs font-medium rounded-lg border border-border text-muted-foreground hover:bg-muted transition-colors"
             >
               {calendarIntegration ? 'Налаштовано' : 'Налаштувати'}
             </button>

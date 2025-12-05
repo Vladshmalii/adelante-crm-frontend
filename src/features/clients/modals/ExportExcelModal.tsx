@@ -46,7 +46,7 @@ export function ExportExcelModal({ isOpen, onClose, onExport }: ExportExcelModal
                                 disabled
                             />
                             <p className="text-xs text-muted-foreground mt-1 ml-7">
-                                Ім'я, телефон, email, знижка тощо
+                                Ім&apos;я, телефон, email, знижка тощо
                             </p>
                         </div>
 

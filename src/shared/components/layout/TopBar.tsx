@@ -7,6 +7,8 @@ import clsx from 'clsx';
 import { CalendarView } from '@/features/calendar/types';
 import { NotificationsDropdown, Notification } from '@/shared/components/ui/NotificationsDropdown';
 import { ProfileDropdown } from '@/shared/components/ui/ProfileDropdown';
+import { Button } from '@/shared/components/ui/Button';
+import { ButtonGroup } from '@/shared/components/ui/ButtonGroup';
 import { StaffRole } from '@/features/staff/types';
 
 interface TopBarProps {
@@ -83,23 +85,20 @@ export function TopBar({
                     <span className="sm:hidden">Сьог.</span>
                 </button>
 
-                <div className="flex items-center gap-1 sm:gap-2">
-                    <button
+                <ButtonGroup variant="ghost" size="sm">
+                    <Button
                         onClick={goToPrevious}
-                        className="p-1.5 sm:p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground rounded-lg transition-all active:scale-95"
-                        aria-label="Попередній"
+                        leftIcon={<ChevronLeft className="w-4 h-4" />}
                     >
-                        <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
-                    </button>
-
-                    <button
+                        <span className="sr-only">Попередній</span>
+                    </Button>
+                    <Button
                         onClick={goToNext}
-                        className="p-1.5 sm:p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground rounded-lg transition-all active:scale-95"
-                        aria-label="Наступний"
+                        leftIcon={<ChevronRight className="w-4 h-4" />}
                     >
-                        <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
-                    </button>
-                </div>
+                        <span className="sr-only">Наступний</span>
+                    </Button>
+                </ButtonGroup>
 
                 <h1 className="text-sm sm:text-lg font-bold text-foreground capitalize font-heading tracking-tight">
                     <span className="hidden md:inline">{formattedDate}</span>
@@ -108,17 +107,12 @@ export function TopBar({
             </div>
 
             <div className="flex items-center gap-2 sm:gap-4 animate-fade-in-down" style={{ animationDelay: '0.1s' }}>
-                <div className="flex items-center bg-muted rounded-lg p-0.5 sm:p-1">
+                <ButtonGroup variant="ghost" size="sm">
                     {(['day', 'week', 'month'] as CalendarView[]).map((v) => (
-                        <button
+                        <Button
                             key={v}
                             onClick={() => onViewChange(v)}
-                            className={clsx(
-                                'px-2 sm:px-4 py-1 sm:py-1.5 text-xs sm:text-sm font-medium rounded-md transition-all duration-200',
-                                view === v
-                                    ? 'bg-background text-foreground shadow-sm scale-105'
-                                    : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
-                            )}
+                            variant={view === v ? 'primary' : 'secondary'}
                         >
                             <span className="hidden sm:inline">
                                 {v === 'day' && 'День'}
@@ -130,9 +124,9 @@ export function TopBar({
                                 {v === 'week' && 'Т'}
                                 {v === 'month' && 'М'}
                             </span>
-                        </button>
+                        </Button>
                     ))}
-                </div>
+                </ButtonGroup>
 
                 <div className="relative group hidden lg:block">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />

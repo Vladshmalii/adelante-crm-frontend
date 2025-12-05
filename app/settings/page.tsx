@@ -1,16 +1,13 @@
 'use client';
 
-import { useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 import { AppShell } from '@/shared/components/layout/AppShell';
 import { FeatureHeader } from '@/shared/components/layout/FeatureHeader';
 import { useHeaderActions } from '@/shared/hooks/useHeaderActions';
 import { ProfileModal } from '@/features/profile/modals/ProfileModal';
-import { SettingsLayout } from '@/features/settings/components/SettingsLayout';
+import { SettingsContent } from './SettingsContent';
 
 export default function SettingsPage() {
-    const searchParams = useSearchParams();
-    const activeTab = (searchParams.get('tab') || 'salon') as 'salon' | 'profile' | 'roles' | 'general';
-
     const {
         notifications,
         isProfileModalOpen,
@@ -44,7 +41,9 @@ export default function SettingsPage() {
                 />
 
                 <div className="flex-1 overflow-auto p-6">
-                    <SettingsLayout activeTab={activeTab} />
+                    <Suspense fallback={<div>Loading...</div>}>
+                        <SettingsContent />
+                    </Suspense>
                 </div>
             </div>
 

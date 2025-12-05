@@ -17,10 +17,10 @@ interface StaffDetailsModalProps {
 }
 
 export function StaffDetailsModal({ isOpen, onClose, onEdit, onDelete, staff }: StaffDetailsModalProps) {
-    if (!staff) return null;
-
     const [isPhoneVisible, setIsPhoneVisible] = useState(false);
     const isAdmin = mockUserProfile.role === 'administrator';
+
+    if (!staff) return null;
 
     const formatDate = (dateString: string) => {
         const date = new Date(dateString);
@@ -95,7 +95,7 @@ export function StaffDetailsModal({ isOpen, onClose, onEdit, onDelete, staff }: 
                 {/* Header */}
                 <div className="flex items-center gap-4 pb-4 border-b border-border">
                     <div className="w-16 h-16 bg-gradient-to-br from-primary to-primary/60 rounded-full flex items-center justify-center">
-                        <User className="w-8 h-8 text-white" />
+                        <User className="w-8 h-8 text-primary-foreground" />
                     </div>
                     <div className="flex-1">
                         <h3 className="text-xl font-semibold text-foreground font-heading">

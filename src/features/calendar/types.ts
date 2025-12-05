@@ -35,6 +35,7 @@ export interface TimeSlot {
     hour: number;
     minute: number;
     label: string;
+    isAfterWork?: boolean;
 }
 
 export type CalendarView = 'day' | 'week' | 'month';

@@ -13,8 +13,9 @@ interface CalendarGridProps {
 }
 
 const SLOT_HEIGHT = 60;
-const START_HOUR = 9;
-const END_HOUR = 18;
+const START_HOUR = 8;
+const END_HOUR = 20;
+const WORK_END_HOUR = 19;
 
 const generateTimeSlots = (): TimeSlot[] => {
     const slots: TimeSlot[] = [];
@@ -24,6 +25,7 @@ const generateTimeSlots = (): TimeSlot[] => {
                 hour,
                 minute,
                 label: `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`,
+                isAfterWork: hour >= WORK_END_HOUR,
             });
         }
     }
@@ -83,20 +85,17 @@ const addBreakAppointments = (appointments: Appointment[]): Appointment[] => {
 };
 
 export function CalendarGrid({
-                                 staff,
-                                 appointments,
-                                 onAppointmentClick,
-                                 onSlotClick,
-                                 isAdmin,
-                             }: CalendarGridProps) {
+    staff,
+    appointments,
+    onAppointmentClick,
+    onSlotClick,
+    isAdmin,
+}: CalendarGridProps) {
     const timeSlots = generateTimeSlots();
 
     return (
         <div className="flex overflow-x-auto scrollbar-thin">
-            {/* Time Column */}
             <TimeColumn timeSlots={timeSlots} slotHeight={SLOT_HEIGHT} />
-
-            {/* Staff Columns */}
             {staff.map((staffMember) => {
                 const staffAppointments = appointments.filter(
                     (apt) => apt.staffId === staffMember.id

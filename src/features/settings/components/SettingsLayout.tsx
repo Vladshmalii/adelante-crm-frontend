@@ -4,8 +4,9 @@ import { SalonSettings } from './SalonSettings';
 import { ProfileSettings } from './ProfileSettings';
 import { RolesSettings } from './RolesSettings';
 import { GeneralSettings } from './GeneralSettings';
+import { ReportsSettings } from './ReportsSettings';
 
-export type SettingsTab = 'salon' | 'profile' | 'roles' | 'general';
+export type SettingsTab = 'salon' | 'profile' | 'roles' | 'general' | 'reports';
 
 interface SettingsLayoutProps {
 	activeTab: SettingsTab;
@@ -19,6 +20,7 @@ export function SettingsLayout({ activeTab }: SettingsLayoutProps) {
 				{activeTab === 'profile' && <ProfileSettings />}
 				{activeTab === 'roles' && <RolesSettings />}
 				{activeTab === 'general' && <GeneralSettings />}
+				{activeTab === 'reports' && <ReportsSettings />}
 			</div>
 		</div>
 	);

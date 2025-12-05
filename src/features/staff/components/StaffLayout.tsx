@@ -11,6 +11,8 @@ import { StaffPagination } from './StaffPagination';
 import { AddStaffModal } from '../modals/AddStaffModal';
 import { EditStaffModal } from '../modals/EditStaffModal';
 import { StaffDetailsModal } from '../modals/StaffDetailsModal';
+import { StaffScheduleModal } from '../modals/StaffScheduleModal';
+import { StaffStatisticsModal } from '../modals/StaffStatisticsModal';
 import { ImportExcelModal } from '@/features/clients/modals/ImportExcelModal';
 import { ExportExcelModal } from '@/features/clients/modals/ExportExcelModal';
 import { ConfirmDialog } from '@/shared/components/ui/ConfirmDialog';
@@ -22,9 +24,8 @@ import type { ExportExcelOptions } from '@/features/clients/types';
 
 export function StaffLayout() {
     const toast = useToast();
-    // Демонстрація завантаження
     const [isLoading, setIsLoading] = useState(false);
-    
+
     const [searchQuery, setSearchQuery] = useState('');
     const [activeStatus, setActiveStatus] = useState<StaffStatus>('active');
     const [filters, setFilters] = useState<StaffFilters>({});
@@ -38,6 +39,9 @@ export function StaffLayout() {
     const [isDeleteStaffModalOpen, setIsDeleteStaffModalOpen] = useState(false);
     const [isImportExcelModalOpen, setIsImportExcelModalOpen] = useState(false);
     const [isExportExcelModalOpen, setIsExportExcelModalOpen] = useState(false);
+
+    const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+    const [isStatsModalOpen, setIsStatsModalOpen] = useState(false);
 
     const [selectedStaffMember, setSelectedStaffMember] = useState<Staff | null>(null);
 
@@ -118,6 +122,16 @@ export function StaffLayout() {
         setIsDeleteStaffModalOpen(true);
     };
 
+    const handleScheduleStaff = (staff: Staff) => {
+        setSelectedStaffMember(staff);
+        setIsScheduleModalOpen(true);
+    };
+
+    const handleStatisticsStaff = (staff: Staff) => {
+        setSelectedStaffMember(staff);
+        setIsStatsModalOpen(true);
+    };
+
     const handleSaveStaff = (data: AddStaffFormData) => {
         console.log('Зберегти співробітника:', data);
     };
@@ -134,6 +148,12 @@ export function StaffLayout() {
             setSelectedStaffMember(null);
             setIsStaffDetailsModalOpen(false);
         }
+    };
+
+    const handleSaveSchedule = (schedule: any) => {
+        console.log('Збережено графік:', schedule);
+        toast.success('Графік роботи оновлено', 'Успіх');
+        setIsScheduleModalOpen(false);
     };
 
     const handleImportExcel = (file: File) => {
@@ -187,6 +207,8 @@ export function StaffLayout() {
                     onStaffClick={handleStaffClick}
                     onEditStaff={handleEditStaff}
                     onDeleteStaff={handleDeleteStaff}
+                    onScheduleStaff={handleScheduleStaff}
+                    onStatisticsStaff={handleStatisticsStaff}
                 />
             )}
 
@@ -224,6 +246,19 @@ export function StaffLayout() {
                     setIsStaffDetailsModalOpen(false);
                     setIsDeleteStaffModalOpen(true);
                 }}
+                staff={selectedStaffMember}
+            />
+
+            <StaffScheduleModal
+                isOpen={isScheduleModalOpen}
+                onClose={() => setIsScheduleModalOpen(false)}
+                staff={selectedStaffMember}
+                onSave={handleSaveSchedule}
+            />
+
+            <StaffStatisticsModal
+                isOpen={isStatsModalOpen}
+                onClose={() => setIsStatsModalOpen(false)}
                 staff={selectedStaffMember}
             />
 

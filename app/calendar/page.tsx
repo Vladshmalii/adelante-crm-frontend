@@ -17,10 +17,7 @@ export default function CalendarPage() {
 
     return (
         <AppShell activeSection="calendar">
-            <DailyCalendar
-                currentDate={currentDate}
-                view={view}
-            />
+            <DailyCalendar />
         </AppShell>
     );
 }

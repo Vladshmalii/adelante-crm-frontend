@@ -2,6 +2,7 @@
 
 import { Modal } from './Modal';
 import { Button } from './Button';
+import { ButtonGroup } from './ButtonGroup';
 import { AlertTriangle } from 'lucide-react';
 
 interface ConfirmDialogProps {
@@ -34,12 +35,12 @@ export function ConfirmDialog({
         <Modal isOpen={isOpen} onClose={onClose} size="sm">
             <div className="text-center">
                 <div className={`mx-auto flex items-center justify-center w-12 h-12 rounded-full mb-4 ${variant === 'danger' ? 'bg-destructive/10' :
-                        variant === 'warning' ? 'bg-yellow-500/10' :
-                            'bg-primary/10'
+                    variant === 'warning' ? 'bg-yellow-500/10' :
+                        'bg-primary/10'
                     }`}>
                     <AlertTriangle className={`w-6 h-6 ${variant === 'danger' ? 'text-destructive' :
-                            variant === 'warning' ? 'text-yellow-500' :
-                                'text-primary'
+                        variant === 'warning' ? 'text-yellow-500' :
+                            'text-primary'
                         }`} />
                 </div>
 
@@ -51,19 +52,22 @@ export function ConfirmDialog({
                     {message}
                 </p>
 
-                <div className="flex gap-3 justify-center">
-                    <Button
-                        variant="ghost"
-                        onClick={onClose}
-                    >
-                        {cancelText}
-                    </Button>
-                    <Button
-                        variant={variant === 'danger' ? 'danger' : 'primary'}
-                        onClick={handleConfirm}
-                    >
-                        {confirmText}
-                    </Button>
+                <div className="flex justify-center">
+                    <ButtonGroup variant="ghost" className="w-full justify-center">
+                        <Button
+                            onClick={onClose}
+                            className="flex-1"
+                        >
+                            {cancelText}
+                        </Button>
+                        <Button
+                            variant={variant === 'danger' ? 'danger' : 'primary'}
+                            onClick={handleConfirm}
+                            className="flex-1"
+                        >
+                            {confirmText}
+                        </Button>
+                    </ButtonGroup>
                 </div>
             </div>
         </Modal>

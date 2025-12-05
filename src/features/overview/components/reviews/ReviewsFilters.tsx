@@ -1,5 +1,5 @@
 import { Dropdown } from '@/shared/components/ui/Dropdown';
-import { DatePicker } from '@/shared/components/ui/DatePicker';
+import { RangeDatePicker } from '@/shared/components/ui/RangeDatePicker';
 import { REVIEW_TYPES, REVIEW_RATINGS } from '../../constants';
 import type { ReviewsFilters as Filters } from '../../types';
 
@@ -13,20 +13,22 @@ export function ReviewsFilters({ filters, onFiltersChange }: ReviewsFiltersProps
         onFiltersChange({ ...filters, [key]: value });
     };
 
+    const handleDateRangeChange = (range: { from: string; to: string }) => {
+        onFiltersChange({
+            ...filters,
+            dateFrom: range.from,
+            dateTo: range.to,
+        });
+    };
+
     return (
         <div className="space-y-4 mb-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <DatePicker
-                    label="Дата (з)"
-                    value={filters.dateFrom || ''}
-                    onChange={(value) => updateFilter('dateFrom', value)}
-                    placeholder="Обрати дату"
-                />
-                <DatePicker
-                    label="Дата (до)"
-                    value={filters.dateTo || ''}
-                    onChange={(value) => updateFilter('dateTo', value)}
-                    placeholder="Обрати дату"
+                <RangeDatePicker
+                    label="Період"
+                    value={{ from: filters.dateFrom || '', to: filters.dateTo || '' }}
+                    onChange={handleDateRangeChange}
+                    placeholder="Оберіть період"
                 />
                 <Dropdown
                     label="Тип відгуку"
@@ -40,12 +42,11 @@ export function ReviewsFilters({ filters, onFiltersChange }: ReviewsFiltersProps
                     options={REVIEW_RATINGS}
                     onChange={(value) => updateFilter('rating', value)}
                 />
-            </div>
-
-            <div className="flex justify-end">
-                <button className="px-6 py-2 text-sm font-medium text-accent-foreground bg-accent hover:bg-accent/90 rounded-lg transition-colors">
-                    Показати
-                </button>
+                <div className="flex items-end">
+                    <button className="w-full px-4 py-2 text-sm font-medium text-accent-foreground bg-accent hover:bg-accent/90 rounded-lg transition-colors">
+                        Показати
+                    </button>
+                </div>
             </div>
         </div>
     );

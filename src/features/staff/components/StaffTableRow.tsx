@@ -9,6 +9,8 @@ interface StaffTableRowProps {
     onStaffClick: () => void;
     onEdit: () => void;
     onDelete: () => void;
+    onSchedule: () => void;
+    onStatistics: () => void;
     isEven: boolean;
 }
 
@@ -25,6 +27,8 @@ export function StaffTableRow({
     onStaffClick,
     onEdit,
     onDelete,
+    onSchedule,
+    onStatistics,
     isEven,
 }: StaffTableRowProps) {
     const formatDate = (dateString: string) => {
@@ -72,20 +76,20 @@ export function StaffTableRow({
                 </button>
             </td>
             <td className="px-4 py-3 text-sm text-foreground">{getMaskedPhone(staff.phone)}</td>
-            <td className="px-4 py-3 text-sm text-muted-foreground">
+            <td className="px-4 py-3 text-sm text-muted-foreground hidden xl:table-cell">
                 {staff.email ? 'Приховано' : '—'}
             </td>
-            <td className="px-4 py-3 text-sm text-foreground">
+            <td className="px-4 py-3 text-sm text-foreground hidden md:table-cell">
                 {ROLE_LABELS[staff.role]}
             </td>
-            <td className="px-4 py-3 text-sm text-muted-foreground">
+            <td className="px-4 py-3 text-sm text-muted-foreground hidden lg:table-cell">
                 {staff.specialization || '—'}
             </td>
-            <td className="px-4 py-3 text-sm font-medium text-foreground">
+            <td className="px-4 py-3 text-sm font-medium text-foreground hidden lg:table-cell">
                 {staff.salary.toLocaleString('uk-UA')} ₴
             </td>
-            <td className="px-4 py-3 text-sm text-foreground">{staff.commission}%</td>
-            <td className="px-4 py-3 text-sm text-muted-foreground">
+            <td className="px-4 py-3 text-sm text-foreground hidden xl:table-cell">{staff.commission}%</td>
+            <td className="px-4 py-3 text-sm text-muted-foreground hidden xl:table-cell">
                 {formatDate(staff.hireDate)}
             </td>
             <td className="px-4 py-3">
@@ -93,6 +97,8 @@ export function StaffTableRow({
                     onView={onStaffClick}
                     onEdit={onEdit}
                     onDelete={onDelete}
+                    onSchedule={onSchedule}
+                    onStatistics={onStatistics}
                 />
             </td>
         </tr>

@@ -23,7 +23,7 @@ export function Tooltip({ children, content, position = 'top' }: TooltipProps) {
             {isVisible && (
                 <div
                     className={clsx(
-                        'absolute z-50 px-2 py-1 text-xs text-white bg-gray-900 rounded-md whitespace-nowrap animate-fade-in',
+                        'absolute z-50 px-2 py-1 text-xs text-sidebar-foreground bg-sidebar rounded-md whitespace-nowrap animate-fade-in shadow-lg',
                         {
                             'bottom-full left-1/2 -translate-x-1/2 mb-2': position === 'top',
                             'top-full left-1/2 -translate-x-1/2 mt-2': position === 'bottom',
