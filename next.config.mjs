@@ -1,16 +1,17 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'export', // Включаем статический экспорт
+  output: 'export', // Статичний експорт для GitHub Pages
 
-  // Для GitHub Pages: раскомментируй и замени на имя твоего репозитория
-  // basePath: '/adelante-crm-frontend',
-  // assetPrefix: '/adelante-crm-frontend/',
+  // GitHub Pages: шлях до репозиторію
+  basePath: '/adelante-crm-frontend',
+  assetPrefix: '/adelante-crm-frontend/',
 
   images: {
-    unoptimized: true, // GitHub Pages не поддерживает Image Optimization API
+    unoptimized: true, // GitHub Pages не підтримує Image Optimization API
   },
 
-  trailingSlash: true, // Добавляет / в конце URL для корректной работы статического хостинга
+  trailingSlash: true, // Додає / в кінці URL для коректної роботи статичного хостингу
 };
 
 export default nextConfig;
+
