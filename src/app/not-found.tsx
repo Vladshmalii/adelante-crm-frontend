@@ -1,3 +1,5 @@
+'use client';
+
 import Link from 'next/link';
 import { Home, ArrowLeft, Search } from 'lucide-react';
 
@@ -6,7 +8,7 @@ export default function NotFound() {
         <div className="min-h-screen bg-background flex items-center justify-center p-4">
             <div className="max-w-md w-full text-center">
                 <div className="relative mb-8">
-                    <div className="text-[140px] sm:text-[200px] font-bold text-primary/10 leading-none select-none transition-all duration-300">
+                    <div className="text-[150px] font-bold text-primary/10 leading-none select-none">
                         404
                     </div>
                     <div className="absolute inset-0 flex items-center justify-center">

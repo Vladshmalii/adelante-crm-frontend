@@ -19,13 +19,13 @@ src/
     └── useSettingsStore.ts
 ```
 
-#### 1.2 useAuthStore.ts
-- [ ] Состояние:
+#### 1.2 useAuthStore.ts ✅
+- [x] Состояние:
   - `user: UserProfile | null`
   - `token: string | null`
   - `isAuthenticated: boolean`
   - `isLoading: boolean`
-- [ ] Действия:
+- [x] Действия:
   - `login(email, password)`
   - `register(data)`
   - `logout()`
@@ -33,14 +33,14 @@ src/
   - `updateProfile(data)`
   - `checkAuth()` - проверка при загрузке
 
-#### 1.3 useCalendarStore.ts
-- [ ] Состояние:
+#### 1.3 useCalendarStore.ts ✅
+- [x] Состояние:
   - `appointments: Appointment[]`
   - `selectedDate: string`
   - `view: CalendarView`
   - `isLoading: boolean`
   - `filters: AppointmentFilters`
-- [ ] Действия:
+- [x] Действия:
   - `fetchAppointments(date)`
   - `createAppointment(data)`
   - `updateAppointment(id, data)`
@@ -49,14 +49,14 @@ src/
   - `setView(view)`
   - `setFilters(filters)`
 
-#### 1.4 useClientsStore.ts
-- [ ] Состояние:
+#### 1.4 useClientsStore.ts ✅
+- [x] Состояние:
   - `clients: Client[]`
   - `selectedClient: Client | null`
   - `isLoading: boolean`
   - `filters: ClientFilters`
   - `pagination: PaginationMeta`
-- [ ] Действия:
+- [x] Действия:
   - `fetchClients(page, filters)`
   - `fetchClientById(id)`
   - `createClient(data)`
@@ -128,12 +128,12 @@ src/
   - `createStockMovement(data)`
   - `exportProducts(options)`
 
-#### 1.9 useNotificationsStore.ts
-- [ ] Состояние:
+#### 1.9 useNotificationsStore.ts ✅
+- [x] Состояние:
   - `notifications: Notification[]`
   - `unreadCount: number`
   - `isLoading: boolean`
-- [ ] Действия:
+- [x] Действия:
   - `fetchNotifications()`
   - `markAsRead(id)`
   - `markAllAsRead()`
@@ -177,77 +177,77 @@ src/
         └── reports.ts         # Reports endpoints
 ```
 
-#### 2.2 client.ts - Базовый клиент
-- [ ] Создать Axios instance с baseURL
-- [ ] Добавить interceptor для токена
-- [ ] Добавить interceptor для обновления токена
-- [ ] Добавить interceptor для обработки ошибок
-- [ ] Типизация ответов
-- [ ] Обработка 401 (redirect на login)
-- [ ] Обработка 403 (показать ошибку)
-- [ ] Обработка 500 (показать toast)
+#### 2.2 client.ts - Базовый клиент ✅
+- [x] Создать Axios instance с baseURL
+- [x] Добавить interceptor для токена
+- [x] Добавить interceptor для обновления токена
+- [x] Добавить interceptor для обработки ошибок
+- [x] Типизация ответов
+- [x] Обработка 401 (redirect на login)
+- [x] Обработка 403 (показать ошибку)
+- [x] Обработка 500 (показать toast)
 
-#### 2.3 auth.ts
-- [ ] `login(email, password)` → `POST /auth/login`
-- [ ] `register(data)` → `POST /auth/register`
-- [ ] `refreshToken(token)` → `POST /auth/refresh`
-- [ ] `logout()` → `POST /auth/logout`
-- [ ] `forgotPassword(email)` → `POST /auth/forgot-password`
-- [ ] `resetPassword(token, password)` → `POST /auth/reset-password`
+#### 2.3 auth.ts ✅
+- [x] `login(email, password)` → `POST /auth/login`
+- [x] `register(data)` → `POST /auth/register`
+- [x] `refreshToken(token)` → `POST /auth/refresh`
+- [x] `logout()` → `POST /auth/logout`
+- [x] `forgotPassword(email)` → `POST /auth/forgot-password`
+- [x] `resetPassword(token, password)` → `POST /auth/reset-password`
 
-#### 2.4 appointments.ts
-- [ ] `getAppointments(params)` → `GET /appointments`
-- [ ] `getAppointmentById(id)` → `GET /appointments/:id`
-- [ ] `createAppointment(data)` → `POST /appointments`
-- [ ] `updateAppointment(id, data)` → `PUT /appointments/:id`
-- [ ] `deleteAppointment(id)` → `DELETE /appointments/:id`
-- [ ] `updateStatus(id, status)` → `PATCH /appointments/:id/status`
+#### 2.4 appointments.ts ✅
+- [x] `getAppointments(params)` → `GET /appointments`
+- [x] `getAppointmentById(id)` → `GET /appointments/:id`
+- [x] `createAppointment(data)` → `POST /appointments`
+- [x] `updateAppointment(id, data)` → `PUT /appointments/:id`
+- [x] `deleteAppointment(id)` → `DELETE /appointments/:id`
+- [x] `updateStatus(id, status)` → `PATCH /appointments/:id/status`
 
-#### 2.5 clients.ts
-- [ ] `getClients(params)` → `GET /clients`
-- [ ] `getClientById(id)` → `GET /clients/:id`
-- [ ] `createClient(data)` → `POST /clients`
-- [ ] `updateClient(id, data)` → `PUT /clients/:id`
-- [ ] `deleteClient(id)` → `DELETE /clients/:id`
-- [ ] `getClientHistory(id, params)` → `GET /clients/:id/history`
-- [ ] `importClients(file)` → `POST /clients/import`
-- [ ] `exportClients(params)` → `GET /clients/export`
+#### 2.5 clients.ts ✅
+- [x] `getClients(params)` → `GET /clients`
+- [x] `getClientById(id)` → `GET /clients/:id`
+- [x] `createClient(data)` → `POST /clients`
+- [x] `updateClient(id, data)` → `PUT /clients/:id`
+- [x] `deleteClient(id)` → `DELETE /clients/:id`
+- [x] `getClientHistory(id, params)` → `GET /clients/:id/history`
+- [x] `importClients(file)` → `POST /clients/import`
+- [x] `exportClients(params)` → `GET /clients/export`
 
-#### 2.6 staff.ts
-- [ ] `getStaff(params)` → `GET /staff`
-- [ ] `getStaffById(id)` → `GET /staff/:id`
-- [ ] `createStaff(data)` → `POST /staff`
-- [ ] `updateStaff(id, data)` → `PUT /staff/:id`
-- [ ] `deleteStaff(id)` → `DELETE /staff/:id`
-- [ ] `getSchedule(id, params)` → `GET /staff/:id/schedule`
-- [ ] `updateSchedule(id, data)` → `POST /staff/:id/schedule`
+#### 2.6 staff.ts ✅
+- [x] `getStaff(params)` → `GET /staff`
+- [x] `getStaffById(id)` → `GET /staff/:id`
+- [x] `createStaff(data)` → `POST /staff`
+- [x] `updateStaff(id, data)` → `PUT /staff/:id`
+- [x] `deleteStaff(id)` → `DELETE /staff/:id`
+- [x] `getSchedule(id, params)` → `GET /staff/:id/schedule`
+- [x] `updateSchedule(id, data)` → `POST /staff/:id/schedule`
 
-#### 2.7 services.ts
-- [ ] `getServices(params)` → `GET /services`
-- [ ] `getServiceById(id)` → `GET /services/:id`
-- [ ] `createService(data)` → `POST /services`
-- [ ] `updateService(id, data)` → `PUT /services/:id`
-- [ ] `deleteService(id)` → `DELETE /services/:id`
+#### 2.7 services.ts ✅
+- [x] `getServices(params)` → `GET /services`
+- [x] `getServiceById(id)` → `GET /services/:id`
+- [x] `createService(data)` → `POST /services`
+- [x] `updateService(id, data)` → `PUT /services/:id`
+- [x] `deleteService(id)` → `DELETE /services/:id`
 
-#### 2.8 finances.ts
-- [ ] `getOperations(params)` → `GET /finances/operations`
-- [ ] `createOperation(data)` → `POST /finances/operations`
-- [ ] `getDocuments(params)` → `GET /finances/documents`
-- [ ] `createDocument(data)` → `POST /finances/documents`
-- [ ] `getReceipts(params)` → `GET /finances/receipts`
-- [ ] `createReceipt(data)` → `POST /finances/receipts`
-- [ ] `getPaymentMethods()` → `GET /finances/payment-methods`
-- [ ] `createPaymentMethod(data)` → `POST /finances/payment-methods`
-- [ ] `getCashRegisters()` → `GET /finances/cash-registers`
-- [ ] `getDashboard(params)` → `GET /finances/dashboard`
+#### 2.8 finances.ts ✅
+- [x] `getOperations(params)` → `GET /finances/operations`
+- [x] `createOperation(data)` → `POST /finances/operations`
+- [x] `getDocuments(params)` → `GET /finances/documents`
+- [x] `createDocument(data)` → `POST /finances/documents`
+- [x] `getReceipts(params)` → `GET /finances/receipts`
+- [x] `createReceipt(data)` → `POST /finances/receipts`
+- [x] `getPaymentMethods()` → `GET /finances/payment-methods`
+- [x] `createPaymentMethod(data)` → `POST /finances/payment-methods`
+- [x] `getCashRegisters()` → `GET /finances/cash-registers`
+- [x] `getDashboard(params)` → `GET /finances/dashboard`
 
-#### 2.9 inventory.ts
-- [ ] `getProducts(params)` → `GET /inventory/products`
-- [ ] `createProduct(data)` → `POST /inventory/products`
-- [ ] `updateProduct(id, data)` → `PUT /inventory/products/:id`
-- [ ] `deleteProduct(id)` → `DELETE /inventory/products/:id`
-- [ ] `createStockMovement(data)` → `POST /inventory/stock-movement`
-- [ ] `exportProducts(params)` → `GET /inventory/export`
+#### 2.9 inventory.ts ✅
+- [x] `getProducts(params)` → `GET /inventory/products`
+- [x] `createProduct(data)` → `POST /inventory/products`
+- [x] `updateProduct(id, data)` → `PUT /inventory/products/:id`
+- [x] `deleteProduct(id)` → `DELETE /inventory/products/:id`
+- [x] `createStockMovement(data)` → `POST /inventory/stock-movement`
+- [x] `exportProducts(params)` → `GET /inventory/export`
 
 #### 2.10 overview.ts
 - [ ] `getRecords(params)` → `GET /overview/records`
@@ -307,38 +307,38 @@ src/
 
 ### 7. Недостающие хуки
 
-#### 7.1 usePagination.ts
-- [ ] Создать `src/shared/hooks/usePagination.ts`
-- [ ] Управление текущей страницей
-- [ ] Управление количеством элементов
-- [ ] Расчет offset
-- [ ] Расчет общего количества страниц
+#### 7.1 usePagination.ts ✅
+- [x] Создать `src/shared/hooks/usePagination.ts`
+- [x] Управление текущей страницей
+- [x] Управление количеством элементов
+- [x] Расчет offset
+- [x] Расчет общего количества страниц
 
-#### 7.2 useFilter.ts
-- [ ] Создать `src/shared/hooks/useFilter.ts`
-- [ ] Управление фильтрами
-- [ ] Сброс фильтров
-- [ ] Применение фильтров
-- [ ] Сохранение в URL
+#### 7.2 useFilter.ts ✅
+- [x] Создать `src/shared/hooks/useFilter.ts`
+- [x] Управление фильтрами
+- [x] Сброс фильтров
+- [x] Применение фильтров
+- [x] Сохранение в URL
 
-#### 7.3 useSort.ts
-- [ ] Создать `src/shared/hooks/useSort.ts`
-- [ ] Управление сортировкой
-- [ ] Направление сортировки
-- [ ] Множественная сортировка
+#### 7.3 useSort.ts ✅
+- [x] Создать `src/shared/hooks/useSort.ts`
+- [x] Управление сортировкой
+- [x] Направление сортировки
+- [x] Множественная сортировка
 
-#### 7.4 useApi.ts
-- [ ] Создать `src/shared/hooks/useApi.ts`
-- [ ] Generic хук для API запросов
-- [ ] Loading состояние
-- [ ] Error состояние
-- [ ] Retry логика
+#### 7.4 useApi.ts ✅
+- [x] Создать `src/shared/hooks/useApi.ts`
+- [x] Generic хук для API запросов
+- [x] Loading состояние
+- [x] Error состояние
+- [x] Retry логика
 
-#### 7.5 usePermissions.ts
-- [ ] Создать `src/shared/hooks/usePermissions.ts`
-- [ ] Проверка прав на действие
-- [ ] Проверка прав на модуль
-- [ ] HOC для компонентов
+#### 7.5 usePermissions.ts ✅
+- [x] Создать `src/shared/hooks/usePermissions.ts`
+- [x] Проверка прав на действие
+- [x] Проверка прав на модуль
+- [x] HOC для компонентов
 
 ---
 
@@ -424,77 +424,34 @@ src/features/loyalty/
     └── CreateCertificateModal.tsx
 ```
 
-#### 13.2 Типы (types.ts)
-- [ ] `BonusProgram`
-- [ ] `Discount`
-- [ ] `Certificate`
-- [ ] `LoyaltyFilters`
+#### 13.2 Типы (types.ts) ✅
+- [x] `BonusProgram`
+- [x] `Discount`
+- [x] `Certificate`
+- [x] `LoyaltyFilters`
 
-#### 13.3 Компоненты
-- [ ] `LoyaltyLayout.tsx` - главный layout с табами
-- [ ] `BonusesView.tsx` - управление бонусами
-- [ ] `DiscountsView.tsx` - управление скидками
-- [ ] `CertificatesView.tsx` - управление сертификатами
+#### 13.3 Компоненты ✅
+- [x] `LoyaltyLayout.tsx` - главный layout с табами
+- [x] `BonusesView.tsx` - управление бонусами
+- [x] `DiscountsView.tsx` - управление скидками
+- [x] `CertificatesView.tsx` - управление сертификатами
 
-#### 13.4 Модальные окна
-- [ ] `CreateBonusModal.tsx`
-- [ ] `CreateDiscountModal.tsx`
-- [ ] `CreateCertificateModal.tsx`
+#### 13.4 Модальные окна ✅
+- [x] `CreateBonusModal.tsx`
+- [x] `CreateDiscountModal.tsx`
+- [x] `CreateCertificateModal.tsx`
 
-#### 13.5 Страница
-- [ ] Создать `/app/loyalty/page.tsx`
-- [ ] Добавить в Sidebar
-
----
-
-### 14. Интеграции (новый модуль)
-
-#### 14.1 Структура
-```
-src/features/integrations/
-├── types.ts
-├── components/
-│   ├── IntegrationsLayout.tsx
-│   ├── TelegramIntegration.tsx
-│   ├── PhoneIntegration.tsx
-│   ├── CalendarIntegration.tsx
-│   ├── PaymentIntegration.tsx
-│   └── SMSIntegration.tsx
-└── modals/
-    ├── TelegramSetupModal.tsx
-    ├── PhoneSetupModal.tsx
-    └── CalendarSetupModal.tsx
-```
-
-#### 14.2 Компоненты
-- [ ] `IntegrationsLayout.tsx` - список интеграций
-- [ ] `TelegramIntegration.tsx` - настройка Telegram
-- [ ] `PhoneIntegration.tsx` - настройка телефонии
-- [ ] `CalendarIntegration.tsx` - синхронизация календарей
-- [ ] `PaymentIntegration.tsx` - платежные системы
-- [ ] `SMSIntegration.tsx` - SMS рассылки
-
-#### 14.3 Страница
-- [ ] Создать `/app/integrations/page.tsx`
-- [ ] Добавить в Sidebar
-
----
-
-### 15. Отчеты и аналитика
-
-Страница отчетов перенесена в Настройки (доступно только админу)
-
-
+#### 13.5 Страница ✅
 
 ### 16. Онлайн бронирование (виджет)
 
-#### 16.1 Публичная страница
-- [ ] Создать `/app/booking/page.tsx`
-- [ ] Выбор услуги
-- [ ] Выбор мастера
-- [ ] Выбор даты и времени
-- [ ] Форма клиента
-- [ ] Подтверждение
+#### 16.1 Публичная страница ✅
+- [x] Создать `/app/booking/page.tsx`
+- [x] Выбор услуги
+- [x] Выбор мастера
+- [x] Выбор даты и времени
+- [x] Форма клиента
+- [x] Подтверждение
 
 #### 16.2 Виджет
 - [ ] Создать отдельный build для виджета
@@ -571,12 +528,6 @@ src/features/integrations/
 
 ### 21. Дополнительные фичи
 
-#### 21.2 Мультиязычность (i18n)
-- [ ] Настроить next-i18next
-- [ ] Перевести все тексты
-- [ ] Переключатель языка
-- [ ] Поддержка украинского и русского
-
 #### 21.3 Горячие клавиши
 - [ ] Создать хук useHotkeys
 - [ ] Ctrl+K - поиск
@@ -647,13 +598,12 @@ src/features/integrations/
 
 ### Опционально
 - [ ] Темная тема
-- [ ] Мультиязычность
 - [ ] PWA
 - [ ] Storybook
-- [ ] Онлайн бронирование
+- [x] Онлайн бронирование
 
 ---
 
 **Общее количество задач**: ~150+  
 **Оценка времени**: 2-3 месяца для одного разработчика  
-**Текущий прогресс**: ~40% (базовые модули готовы)
+**Текущий прогресс**: ~65% (stores, API, hooks, loyalty, booking готовы)
