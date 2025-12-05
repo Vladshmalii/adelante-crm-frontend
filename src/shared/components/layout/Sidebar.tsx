@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import clsx from 'clsx';
 import {
     Calendar,
@@ -10,14 +11,10 @@ import {
     Banknote,
     Package,
     Gift,
-    Plug,
     Settings,
-    HelpCircle,
     ChevronLeft,
-    Mail,
     User,
     Briefcase,
-    BarChart3,
 } from 'lucide-react';
 import { DatePicker } from '@/shared/components/ui/DatePicker';
 import { ThemeToggle } from '@/shared/components/ui/ThemeToggle';
@@ -25,7 +22,7 @@ import { ThemeToggle } from '@/shared/components/ui/ThemeToggle';
 interface NavItem {
     id: string;
     label: string;
-    icon: any;
+    icon: React.ComponentType<{ className?: string }>;
     href: string;
     subItems?: { label: string; href: string; tab: string }[];
 }
@@ -136,7 +133,7 @@ export function Sidebar({ activeSection = 'calendar', isMobileMenuOpen = false, 
 
                         return (
                             <li key={item.id}>
-                                <a
+                                <Link
                                     href={item.href}
                                     onClick={() => onMobileMenuClose?.()}
                                     className={clsx(
@@ -152,7 +149,7 @@ export function Sidebar({ activeSection = 'calendar', isMobileMenuOpen = false, 
                                     {!isCollapsed && (
                                         <span className="text-sm font-medium animate-fade-in">{item.label}</span>
                                     )}
-                                </a>
+                                </Link>
 
                                 {isActive && hasSubItems && !isCollapsed && (
                                     <ul className="mt-1 ml-4 border-l border-sidebar-border pl-2 space-y-1 animate-fade-in">
@@ -162,18 +159,18 @@ export function Sidebar({ activeSection = 'calendar', isMobileMenuOpen = false, 
                                                 (!currentTab && subItem.tab === 'salon' && item.id === 'settings');
                                             return (
                                                 <li key={subItem.href}>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => router.push(subItem.href, { scroll: false })}
+                                                    <Link
+                                                        href={subItem.href}
+                                                        scroll={false}
                                                         className={clsx(
-                                                            'w-full text-left block px-3 py-2 text-sm rounded-lg transition-colors',
+                                                            'block px-3 py-2 text-sm rounded-lg transition-colors',
                                                             isSubActive
                                                                 ? 'text-sidebar-foreground bg-sidebar-active font-medium'
                                                                 : 'text-sidebar-muted hover:text-sidebar-foreground hover:bg-sidebar-active'
                                                         )}
                                                     >
                                                         {subItem.label}
-                                                    </button>
+                                                    </Link>
                                                 </li>
                                             );
                                         })}
