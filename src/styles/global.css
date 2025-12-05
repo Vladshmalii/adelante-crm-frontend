@@ -243,3 +243,28 @@
 .animate-float {
     animation: float 6s ease-in-out infinite;
 }
+
+@layer utilities {
+    .diagonal-stripes {
+        background-image: linear-gradient(45deg,
+                rgba(0, 0, 0, 0.05) 25%,
+                transparent 25%,
+                transparent 50%,
+                rgba(0, 0, 0, 0.05) 50%,
+                rgba(0, 0, 0, 0.05) 75%,
+                transparent 75%,
+                transparent);
+        background-size: 10px 10px;
+    }
+
+    .dark .diagonal-stripes {
+        background-image: linear-gradient(45deg,
+                rgba(255, 255, 255, 0.05) 25%,
+                transparent 25%,
+                transparent 50%,
+                rgba(255, 255, 255, 0.05) 50%,
+                rgba(255, 255, 255, 0.05) 75%,
+                transparent 75%,
+                transparent);
+    }
+}

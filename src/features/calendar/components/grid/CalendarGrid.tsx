@@ -3,6 +3,7 @@
 import { StaffMember, Appointment, TimeSlot } from '../../types';
 import { TimeColumn } from './TimeColumn';
 import { StaffColumn } from './StaffColumn';
+import { useRef, useEffect } from 'react';
 
 interface CalendarGridProps {
     staff: StaffMember[];
@@ -15,7 +16,7 @@ interface CalendarGridProps {
 const SLOT_HEIGHT = 60;
 const START_HOUR = 8;
 const END_HOUR = 20;
-const WORK_END_HOUR = 19;
+const WORK_END_HOUR = 18;
 
 const generateTimeSlots = (): TimeSlot[] => {
     const slots: TimeSlot[] = [];
@@ -93,9 +94,58 @@ export function CalendarGrid({
 }: CalendarGridProps) {
     const timeSlots = generateTimeSlots();
 
+    const containerRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (containerRef.current) {
+            const now = new Date();
+            const currentHour = now.getHours();
+            const currentMinute = now.getMinutes();
+
+            // Calculate position in pixels
+            // (Hour - Start) * (Slots per hour * Slot Height) + (Minutes / 30 * Slot Height)
+            const minutesFromStart = (currentHour - START_HOUR) * 60 + currentMinute;
+            const scrollPosition = (minutesFromStart / 30) * SLOT_HEIGHT;
+
+            // Scroll to center the current time. 
+            // Subtract half of container height (approx 300px) or just scroll to 1 hour before
+            const offset = scrollPosition - 100; // Show a bit of context before
+
+            containerRef.current.scrollTop = Math.max(0, offset);
+        }
+    }, []);
+
+    const unassignedStaff: StaffMember = {
+        id: 'unassigned',
+        name: 'Без майстра',
+        role: 'Черга / Записи',
+    };
+
+    const unassignedAppointments = appointments.filter(apt => apt.staffId === 'unassigned');
+
     return (
-        <div className="flex overflow-x-auto scrollbar-thin">
-            <TimeColumn timeSlots={timeSlots} slotHeight={SLOT_HEIGHT} />
+        <div
+            ref={containerRef}
+            className="flex overflow-x-auto overflow-y-auto scrollbar-thin h-full bg-background relative isolate"
+        >
+            <div className="sticky left-0 z-30 bg-background border-r border-border">
+                <TimeColumn timeSlots={timeSlots} slotHeight={SLOT_HEIGHT} />
+            </div>
+
+            <div className="sticky left-12 sm:left-16 z-20 min-w-[200px]">
+                <StaffColumn
+                    staff={unassignedStaff}
+                    appointments={addBreakAppointments(unassignedAppointments)}
+                    timeSlots={timeSlots}
+                    slotHeight={SLOT_HEIGHT}
+                    startHour={START_HOUR}
+                    onAppointmentClick={onAppointmentClick}
+                    onSlotClick={onSlotClick}
+                    isAdmin={isAdmin}
+                    className="bg-accent/10"
+                />
+            </div>
+
             {staff.map((staffMember) => {
                 const staffAppointments = appointments.filter(
                     (apt) => apt.staffId === staffMember.id

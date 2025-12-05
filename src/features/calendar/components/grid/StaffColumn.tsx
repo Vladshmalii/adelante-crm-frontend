@@ -14,6 +14,7 @@ interface StaffColumnProps {
     onAppointmentClick: (appointment: Appointment) => void;
     onSlotClick: (staffId: string, time: string) => void;
     isAdmin: boolean;
+    className?: string;
 }
 
 export function StaffColumn({
@@ -25,6 +26,7 @@ export function StaffColumn({
     onAppointmentClick,
     onSlotClick,
     isAdmin,
+    className,
 }: StaffColumnProps) {
     const currentTime = useCurrentTime();
     const currentHour = currentTime.getHours();
@@ -61,8 +63,8 @@ export function StaffColumn({
     const currentTimeTop = getCurrentTimePosition();
 
     return (
-        <div className="flex-1 min-w-[150px] sm:min-w-[200px] border-r border-border bg-background relative">
-            <div className="h-16 px-2 sm:px-3 flex flex-col justify-center border-b border-border bg-muted/30">
+        <div className={clsx('flex-1 min-w-[150px] sm:min-w-[200px] border-r border-border relative', className || 'bg-background')}>
+            <div className={clsx('h-16 px-2 sm:px-3 flex flex-col justify-center border-b border-border', className ? 'bg-transparent' : 'bg-muted/30')}>
                 <div className="font-semibold text-foreground text-xs sm:text-sm truncate font-heading">
                     {staff.name}
                 </div>
@@ -78,7 +80,7 @@ export function StaffColumn({
                         className={clsx(
                             'border-b border-border/50 cursor-pointer transition-colors',
                             slot.isAfterWork
-                                ? 'bg-muted/40 hover:bg-muted/60'
+                                ? 'bg-muted/80 hover:bg-muted/90 diagonal-stripes'
                                 : 'hover:bg-accent/50'
                         )}
                         style={{ height: `${slotHeight}px` }}

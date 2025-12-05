@@ -8,7 +8,7 @@ interface TimeColumnProps {
 
 export function TimeColumn({ timeSlots, slotHeight }: TimeColumnProps) {
     return (
-        <div className="w-12 sm:w-16 flex-shrink-0 border-r border-border bg-background sticky left-0 z-10">
+        <div className="w-12 sm:w-16 flex-shrink-0 border-r border-border bg-background">
             <div className="h-16 border-b border-border bg-muted/30" />
             <div className="relative">
                 {timeSlots.map((slot) => (
@@ -22,7 +22,7 @@ export function TimeColumn({ timeSlots, slotHeight }: TimeColumnProps) {
                     >
                         {slot.minute === 0 && (
                             <span className={clsx(
-                                'absolute -top-2 right-1 sm:right-2 text-[10px] sm:text-xs font-medium',
+                                'absolute -top-2 right-1 sm:right-2 text-[10px] sm:text-xs font-medium bg-background px-1',
                                 slot.isAfterWork ? 'text-muted-foreground/50' : 'text-muted-foreground'
                             )}>
                                 {slot.label}
