@@ -19,21 +19,21 @@ interface DocumentsFiltersProps {
 }
 
 export function DocumentsFilters({
-                                     dateFrom,
-                                     dateTo,
-                                     documentType,
-                                     contentType,
-                                     searchQuery,
-                                     onDateFromChange,
-                                     onDateToChange,
-                                     onDocumentTypeChange,
-                                     onContentTypeChange,
-                                     onSearchQueryChange,
-                                     onApply,
-                                 }: DocumentsFiltersProps) {
+    dateFrom,
+    dateTo,
+    documentType,
+    contentType,
+    searchQuery,
+    onDateFromChange,
+    onDateToChange,
+    onDocumentTypeChange,
+    onContentTypeChange,
+    onSearchQueryChange,
+    onApply,
+}: DocumentsFiltersProps) {
     return (
         <div className="p-4 bg-card border-b border-border">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
+            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
                 <DatePicker
                     label="Дата з"
                     value={dateFrom}
@@ -58,7 +58,7 @@ export function DocumentsFilters({
                 />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <div className="lg:col-span-2">
                     <label className="block text-sm font-medium text-foreground mb-1.5">
                         Пошук за номером

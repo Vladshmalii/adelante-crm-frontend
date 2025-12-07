@@ -18,13 +18,18 @@ const steps: { id: BookingStep; label: string; icon: any }[] = [
     { id: 'confirm', label: 'Підтвердження', icon: Check },
 ];
 
-export function BookingLayout() {
+interface BookingLayoutProps {
+    isWidget?: boolean;
+}
+
+export function BookingLayout({ isWidget = false }: BookingLayoutProps) {
     const [currentStep, setCurrentStep] = useState<BookingStep>('service');
     const [isSuccess, setIsSuccess] = useState(false);
     const [formData, setFormData] = useState<Partial<BookingFormData>>({});
 
     const currentStepIndex = steps.findIndex(s => s.id === currentStep);
 
+    // ... handlers ...
     const handleNext = () => {
         const nextIndex = currentStepIndex + 1;
         if (nextIndex < steps.length) {
@@ -59,7 +64,7 @@ export function BookingLayout() {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5">
+        <div className={`min-h-screen ${isWidget ? 'bg-background' : 'bg-gradient-to-br from-primary/5 via-background to-accent/5'}`}>
             <div className="max-w-3xl mx-auto px-4 py-8">
                 <div className="text-center mb-8">
                     <h1 className="text-3xl font-bold text-foreground mb-2">
@@ -82,10 +87,10 @@ export function BookingLayout() {
                                     <div className="flex flex-col items-center w-full">
                                         <div
                                             className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${isCompleted
-                                                    ? 'bg-primary text-primary-foreground'
-                                                    : isActive
-                                                        ? 'bg-primary text-primary-foreground ring-4 ring-primary/20'
-                                                        : 'bg-muted text-muted-foreground'
+                                                ? 'bg-primary text-primary-foreground'
+                                                : isActive
+                                                    ? 'bg-primary text-primary-foreground ring-4 ring-primary/20'
+                                                    : 'bg-muted text-muted-foreground'
                                                 }`}
                                         >
                                             {isCompleted ? (
@@ -181,9 +186,11 @@ export function BookingLayout() {
                     </div>
                 </div>
 
-                <p className="text-center text-sm text-muted-foreground mt-6">
-                    © 2025 Adelante CRM. Усі права захищено.
-                </p>
+                {!isWidget && (
+                    <p className="text-center text-sm text-muted-foreground mt-6">
+                        © 2025 Adelante CRM. Усі права захищено.
+                    </p>
+                )}
             </div>
         </div>
     );

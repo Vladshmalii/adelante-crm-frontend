@@ -209,12 +209,38 @@ export function ProfilePage({ profile, onSave }: ProfilePageProps) {
                 </div>
             )}
 
-            <div className="bg-card border border-border rounded-lg p-6">
+            <div className="bg-card border border-border rounded-lg p-6 mb-6">
                 <h3 className="text-lg font-semibold text-foreground mb-4">Додаткова інформація</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {renderField('Адреса', profile.address, 'address', <MapPin size={20} />)}
                     {renderField('Контактна особа (екстрений випадок)', profile.emergencyContact, 'emergencyContact', <Users size={20} />)}
                     {renderField('Телефон (екстрений випадок)', profile.emergencyPhone, 'emergencyPhone', <Phone size={20} />, 'tel')}
+                </div>
+            </div>
+
+            <div className="bg-card border border-border rounded-lg p-6">
+                <h3 className="text-lg font-semibold text-foreground mb-4">Інтеграція з Telegram</h3>
+                <div className="flex items-center justify-between">
+                    <div>
+                        <p className="text-sm font-medium text-foreground">
+                            {profile.telegramConnected ? 'Telegram підключено' : 'Telegram не підключено'}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                            {profile.telegramConnected
+                                ? 'Ви отримуєте сповіщення про записи в Telegram'
+                                : 'Підключіть Telegram для отримання сповіщень про записи'}
+                        </p>
+                    </div>
+                    {!profile.telegramConnected && (
+                        <a
+                            href={`https://t.me/AdelanteCrmBot?start=${profile.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-4 py-2 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors"
+                        >
+                            Підключити
+                        </a>
+                    )}
                 </div>
             </div>
         </div>

@@ -5,7 +5,7 @@ import { SettingsLayout } from '@/features/settings/components/SettingsLayout';
 
 export function SettingsContent() {
     const searchParams = useSearchParams();
-    const activeTab = (searchParams.get('tab') || 'salon') as 'salon' | 'profile' | 'roles' | 'general';
+    const activeTab = (searchParams.get('tab') || 'salon') as 'salon' | 'profile' | 'roles' | 'general' | 'reports' | 'widget';
 
     return <SettingsLayout activeTab={activeTab} />;
 }

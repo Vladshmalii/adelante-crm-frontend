@@ -11,7 +11,7 @@ export function StaffSegments({
     onStatusChange,
 }: StaffSegmentsProps) {
     return (
-        <div className="flex items-center gap-6 border-b border-border mb-6">
+        <div className="flex items-center gap-6 border-b border-border mb-6 overflow-x-auto whitespace-nowrap pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-hide">
             {STATUSES.map((status) => (
                 <button
                     key={status.id}

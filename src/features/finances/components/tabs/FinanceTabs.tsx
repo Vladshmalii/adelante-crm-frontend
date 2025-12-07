@@ -24,7 +24,7 @@ export function FinanceTabs() {
     return (
         <div className="flex flex-col h-full">
             <div className="border-b border-border bg-card">
-                <div className="flex gap-1 px-4 overflow-x-auto scrollbar-thin">
+                <div className="flex gap-1 overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-4">
                     {tabs.map((tab) => {
                         const Icon = tab.icon;
                         return (
@@ -35,9 +35,9 @@ export function FinanceTabs() {
                   flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap
                   border-b-2 transition-colors
                   ${activeTab === tab.id
-                                    ? 'border-primary text-primary'
-                                    : 'border-transparent text-muted-foreground hover:text-foreground'
-                                }
+                                        ? 'border-primary text-primary'
+                                        : 'border-transparent text-muted-foreground hover:text-foreground'
+                                    }
                 `}
                             >
                                 <Icon size={18} />

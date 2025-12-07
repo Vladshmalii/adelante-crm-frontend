@@ -17,6 +17,7 @@ export interface UserProfile {
     address?: string;
     emergencyContact?: string;
     emergencyPhone?: string;
+    telegramConnected?: boolean;
 }
 
 export interface ProfileFormData {

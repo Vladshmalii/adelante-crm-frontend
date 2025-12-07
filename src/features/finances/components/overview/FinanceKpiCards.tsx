@@ -9,7 +9,7 @@ interface KpiCardProps {
 
 function KpiCard({ label, value, change, trend }: KpiCardProps) {
     return (
-        <Card className="p-6 hover:shadow-md transition-shadow">
+        <Card className="p-4 hover:shadow-md transition-shadow">
             <p className="text-sm text-muted-foreground mb-2">{label}</p>
             <div className="flex items-end justify-between">
                 <span className="text-2xl font-bold font-heading">{value}</span>
@@ -26,7 +26,7 @@ function KpiCard({ label, value, change, trend }: KpiCardProps) {
 
 function FinanceKpiCards() {
     return (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             <KpiCard
                 label="Дохід за період"
                 value="42 350 ₴"

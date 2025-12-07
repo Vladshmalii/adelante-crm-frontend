@@ -9,6 +9,7 @@ import { NotificationsDropdown, Notification } from '@/shared/components/ui/Noti
 import { ProfileDropdown } from '@/shared/components/ui/ProfileDropdown';
 import { Button } from '@/shared/components/ui/Button';
 import { ButtonGroup } from '@/shared/components/ui/ButtonGroup';
+import { GlobalSearch } from '@/shared/components/layout/GlobalSearch';
 import { StaffRole } from '@/features/staff/types';
 
 interface TopBarProps {
@@ -128,13 +129,8 @@ export function TopBar({
                     ))}
                 </ButtonGroup>
 
-                <div className="relative group hidden lg:block">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
-                    <input
-                        type="text"
-                        placeholder="Пошук..."
-                        className="pl-9 pr-4 py-2 w-64 text-sm bg-card border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition-all shadow-sm group-hover:shadow-md"
-                    />
+                <div>
+                    <GlobalSearch />
                 </div>
 
                 <NotificationsDropdown

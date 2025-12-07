@@ -85,6 +85,7 @@ class ApiClient {
     private setToken(token: string) {
         if (typeof window !== 'undefined') {
             localStorage.setItem('auth_token', token);
+            document.cookie = `auth_token=${token}; path=/; max-age=86400; SameSite=Lax`;
         }
     }
 
@@ -92,6 +93,7 @@ class ApiClient {
         if (typeof window !== 'undefined') {
             localStorage.removeItem('auth_token');
             localStorage.removeItem('refresh_token');
+            document.cookie = 'auth_token=; path=/; max-age=0';
         }
     }
 

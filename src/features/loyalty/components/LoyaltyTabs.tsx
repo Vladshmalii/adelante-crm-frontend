@@ -17,7 +17,7 @@ const tabs = [
 
 export function LoyaltyTabs({ activeTab, onTabChange }: LoyaltyTabsProps) {
     return (
-        <div className="flex flex-wrap gap-2 border-b border-border">
+        <div className="flex flex-nowrap gap-2 border-b border-border overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
             {tabs.map((tab) => {
                 const Icon = tab.icon;
                 const isActive = activeTab === tab.id;
@@ -27,7 +27,7 @@ export function LoyaltyTabs({ activeTab, onTabChange }: LoyaltyTabsProps) {
                         key={tab.id}
                         onClick={() => onTabChange(tab.id)}
                         className={clsx(
-                            'flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors relative',
+                            'flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors relative whitespace-nowrap',
                             'hover:text-foreground',
                             isActive
                                 ? 'text-primary border-b-2 border-primary -mb-[2px]'
@@ -35,7 +35,7 @@ export function LoyaltyTabs({ activeTab, onTabChange }: LoyaltyTabsProps) {
                         )}
                     >
                         <Icon size={18} />
-                        <span className="hidden sm:inline">{tab.label}</span>
+                        <span>{tab.label}</span>
                     </button>
                 );
             })}

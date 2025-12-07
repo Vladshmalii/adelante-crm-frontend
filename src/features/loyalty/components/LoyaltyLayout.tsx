@@ -82,7 +82,7 @@ export function LoyaltyLayout() {
     };
 
     return (
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
             <GlobalLoader isLoading={isLoading} />
 
             <LoyaltyHeader

@@ -52,11 +52,14 @@ export function StaffPagination({
     };
 
     return (
-        <div className="flex items-center justify-between mt-6 pt-4 border-t border-border">
-            <div className="flex items-center gap-4">
+        <div className="flex flex-col-reverse md:flex-row items-center justify-between gap-4 mt-6 pt-4 border-t border-border pb-20 md:pb-0">
+            <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto justify-between md:justify-start text-center sm:text-left">
                 <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">
+                    <span className="text-sm text-muted-foreground hidden sm:inline">
                         Результатів на сторінці:
+                    </span>
+                    <span className="text-sm text-muted-foreground sm:hidden">
+                        На сторінці:
                     </span>
                     <div className="w-[72px]">
                         <Dropdown
@@ -70,44 +73,48 @@ export function StaffPagination({
                     </div>
                 </div>
 
-                <span className="text-sm text-muted-foreground">
-                    Показано результати з {startItem} по {endItem} із {totalItems}
+                <span className="text-xs sm:text-sm text-muted-foreground">
+                    <span className="hidden sm:inline">Показано результати з {startItem} по {endItem} із {totalItems}</span>
+                    <span className="sm:hidden">{startItem}-{endItem} із {totalItems}</span>
                 </span>
             </div>
 
-            <ButtonGroup variant="secondary" size="sm">
-                <Button
-                    onClick={() => onPageChange(currentPage - 1)}
-                    disabled={currentPage === 1}
-                    leftIcon={<ChevronLeft size={16} />}
-                >
-                    Назад
-                </Button>
+            <div className="w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
+                <ButtonGroup variant="secondary" size="sm" className="flex justify-center md:justify-end min-w-max mx-auto md:mx-0">
+                    <Button
+                        onClick={() => onPageChange(currentPage - 1)}
+                        disabled={currentPage === 1}
+                        leftIcon={<ChevronLeft size={16} />}
+                    >
+                        <span className="hidden sm:inline">Назад</span>
+                    </Button>
 
-                {getPageNumbers().map((page, index) =>
-                    page === '...' ? (
-                        <Button key={`ellipsis-${index}`} disabled>
-                            ...
-                        </Button>
-                    ) : (
-                        <Button
-                            key={page}
-                            onClick={() => onPageChange(page as number)}
-                            variant={currentPage === page ? 'primary' : 'secondary'}
-                        >
-                            {page}
-                        </Button>
-                    )
-                )}
+                    {getPageNumbers().map((page, index) =>
+                        page === '...' ? (
+                            <Button key={`ellipsis-${index}`} disabled className="px-2 sm:px-3">
+                                ...
+                            </Button>
+                        ) : (
+                            <Button
+                                key={page}
+                                onClick={() => onPageChange(page as number)}
+                                variant={currentPage === page ? 'primary' : 'secondary'}
+                                className="px-3 sm:px-4"
+                            >
+                                {page}
+                            </Button>
+                        )
+                    )}
 
-                <Button
-                    onClick={() => onPageChange(currentPage + 1)}
-                    disabled={currentPage === totalPages}
-                    rightIcon={<ChevronRight size={16} />}
-                >
-                    Далі
-                </Button>
-            </ButtonGroup>
+                    <Button
+                        onClick={() => onPageChange(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                        rightIcon={<ChevronRight size={16} />}
+                    >
+                        <span className="hidden sm:inline">Далі</span>
+                    </Button>
+                </ButtonGroup>
+            </div>
         </div>
     );
 }

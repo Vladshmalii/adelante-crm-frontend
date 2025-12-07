@@ -25,22 +25,22 @@ interface OperationsFiltersProps {
 }
 
 export function OperationsFilters({
-                                      dateFrom,
-                                      dateTo,
-                                      operationType,
-                                      cashRegister,
-                                      employee,
-                                      clientSearch,
-                                      paymentMethod,
-                                      onDateFromChange,
-                                      onDateToChange,
-                                      onOperationTypeChange,
-                                      onCashRegisterChange,
-                                      onEmployeeChange,
-                                      onClientSearchChange,
-                                      onPaymentMethodChange,
-                                      onApply,
-                                  }: OperationsFiltersProps) {
+    dateFrom,
+    dateTo,
+    operationType,
+    cashRegister,
+    employee,
+    clientSearch,
+    paymentMethod,
+    onDateFromChange,
+    onDateToChange,
+    onOperationTypeChange,
+    onCashRegisterChange,
+    onEmployeeChange,
+    onClientSearchChange,
+    onPaymentMethodChange,
+    onApply,
+}: OperationsFiltersProps) {
     const cashRegisterOptions = [
         { value: 'all', label: 'Усі каси' },
         ...mockCashRegisters.map(cr => ({ value: cr.id, label: cr.name })),
@@ -59,7 +59,7 @@ export function OperationsFilters({
 
     return (
         <div className="p-4 bg-card border-b border-border">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
+            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
                 <DatePicker
                     label="Дата з"
                     value={dateFrom}
@@ -84,7 +84,7 @@ export function OperationsFilters({
                 />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <Dropdown
                     label="Співробітник"
                     value={employee}

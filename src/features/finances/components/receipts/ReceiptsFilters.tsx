@@ -19,18 +19,18 @@ interface ReceiptsFiltersProps {
 }
 
 export function ReceiptsFilters({
-                                    dateFrom,
-                                    dateTo,
-                                    cashRegister,
-                                    employee,
-                                    status,
-                                    onDateFromChange,
-                                    onDateToChange,
-                                    onCashRegisterChange,
-                                    onEmployeeChange,
-                                    onStatusChange,
-                                    onApply,
-                                }: ReceiptsFiltersProps) {
+    dateFrom,
+    dateTo,
+    cashRegister,
+    employee,
+    status,
+    onDateFromChange,
+    onDateToChange,
+    onCashRegisterChange,
+    onEmployeeChange,
+    onStatusChange,
+    onApply,
+}: ReceiptsFiltersProps) {
     const cashRegisterOptions = [
         { value: 'all', label: 'Усі каси' },
         ...mockCashRegisters.map(cr => ({ value: cr.id, label: cr.name })),
@@ -44,7 +44,7 @@ export function ReceiptsFilters({
 
     return (
         <div className="p-4 bg-card border-b border-border">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                 <DatePicker
                     label="Дата з"
                     value={dateFrom}

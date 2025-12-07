@@ -27,29 +27,37 @@ export function FinanceDashboard() {
 
     return (
         <div className="p-4 sm:p-6 space-y-6">
-            <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-end">
-                <DatePicker
-                    label="Дата з"
-                    value={dateFrom}
-                    onChange={setDateFrom}
-                />
-                <DatePicker
-                    label="Дата по"
-                    value={dateTo}
-                    onChange={setDateTo}
-                />
-                <Dropdown
-                    label="Локація"
-                    value={location}
-                    options={locationOptions}
-                    onChange={(val) => setLocation(val as string)}
-                />
-                <Dropdown
-                    label="Каса"
-                    value={cashRegister}
-                    options={cashRegisterOptions}
-                    onChange={(val) => setCashRegister(val as string)}
-                />
+            <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-row sm:items-end">
+                <div className="w-full sm:w-auto">
+                    <DatePicker
+                        label="Дата з"
+                        value={dateFrom}
+                        onChange={setDateFrom}
+                    />
+                </div>
+                <div className="w-full sm:w-auto">
+                    <DatePicker
+                        label="Дата по"
+                        value={dateTo}
+                        onChange={setDateTo}
+                    />
+                </div>
+                <div className="w-full sm:w-auto min-w-[150px]">
+                    <Dropdown
+                        label="Локація"
+                        value={location}
+                        options={locationOptions}
+                        onChange={(val) => setLocation(val as string)}
+                    />
+                </div>
+                <div className="w-full sm:w-auto min-w-[150px]">
+                    <Dropdown
+                        label="Каса"
+                        value={cashRegister}
+                        options={cashRegisterOptions}
+                        onChange={(val) => setCashRegister(val as string)}
+                    />
+                </div>
             </div>
 
             <FinanceKpiCards />

@@ -1,23 +1,16 @@
 import { create } from 'zustand';
-
-interface Appointment {
-    id: string;
-    clientId: string;
-    staffId: string;
-    serviceId: string;
-    date: string;
-    startTime: string;
-    endTime: string;
-    status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
-    notes?: string;
-}
-
-type CalendarView = 'day' | 'week' | 'month';
+import { Appointment, CalendarView } from '@/features/calendar/types';
 
 interface AppointmentFilters {
     staffId?: string;
     serviceId?: string;
     status?: string;
+}
+
+interface CreateModalProps {
+    initialStaffId?: string;
+    initialTime?: string;
+    initialDate?: string;
 }
 
 interface CalendarState {
@@ -27,6 +20,8 @@ interface CalendarState {
     isLoading: boolean;
     filters: AppointmentFilters;
     selectedAppointment: Appointment | null;
+    isCreateModalOpen: boolean;
+    createModalProps: CreateModalProps | null;
 
     setAppointments: (appointments: Appointment[]) => void;
     addAppointment: (appointment: Appointment) => void;
@@ -38,6 +33,7 @@ interface CalendarState {
     setLoading: (isLoading: boolean) => void;
     selectAppointment: (appointment: Appointment | null) => void;
     updateStatus: (id: string, status: Appointment['status']) => void;
+    setCreateModalOpen: (isOpen: boolean, props?: CreateModalProps) => void;
 }
 
 export const useCalendarStore = create<CalendarState>((set) => ({
@@ -47,6 +43,8 @@ export const useCalendarStore = create<CalendarState>((set) => ({
     isLoading: false,
     filters: {},
     selectedAppointment: null,
+    isCreateModalOpen: false,
+    createModalProps: null,
 
     setAppointments: (appointments) => set({ appointments }),
 
@@ -83,4 +81,7 @@ export const useCalendarStore = create<CalendarState>((set) => ({
                 a.id === id ? { ...a, status } : a
             ),
         })),
+
+    setCreateModalOpen: (isOpen, props) =>
+        set({ isCreateModalOpen: isOpen, createModalProps: props || null }),
 }));

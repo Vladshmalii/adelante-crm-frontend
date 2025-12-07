@@ -65,7 +65,7 @@ export function ServicesLayout() {
     });
 
     return (
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
             <ServicesHeader
                 onAddService={() => setIsAddModalOpen(true)}
                 searchQuery={searchQuery}
