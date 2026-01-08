@@ -84,11 +84,11 @@ export function CalendarFilters({
 
     return (
         <div className="bg-background/80 backdrop-blur-md border-b border-border/50 px-4 sm:px-8 py-4 sticky top-20 z-20 shadow-[0_4px_20px_-10px_rgba(0,0,0,0.1)]">
-            <div className="max-w-[1600px] mx-auto space-y-4">
+            <div className="w-full space-y-4">
                 {/* Categories & Actions */}
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 lg:gap-4">
                     <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
-                        <div className="flex bg-muted/50 p-1 rounded-xl border border-border/50">
+                        <div className="flex flex-wrap bg-muted/50 p-1 rounded-xl border border-border/50 gap-1">
                             {categories.map((cat) => {
                                 const Icon = cat.icon;
                                 const isActive = activeCategory === cat.id;
@@ -119,7 +119,7 @@ export function CalendarFilters({
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                         <button
                             onClick={() => handleBulkSelect(true)}
                             className="px-4 py-2 bg-primary/10 text-primary hover:bg-primary/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
@@ -144,13 +144,13 @@ export function CalendarFilters({
                 </div>
 
                 {/* Staff Chips */}
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                     <div className="flex-shrink-0 flex items-center gap-2 text-muted-foreground/40 pr-2 border-r border-border/50">
                         <Filter className="w-3.5 h-3.5" />
                         <span className="text-[10px] font-black uppercase tracking-[0.2em]">Майстри</span>
                     </div>
 
-                    <div className="flex items-center gap-2 overflow-x-auto scrollbar-none py-1 flex-1">
+                    <div className="flex items-center gap-2 overflow-x-auto scrollbar-none py-1 flex-1 min-w-0">
                         {filteredStaffList.length > 0 ? (
                             filteredStaffList.map((s) => {
                                 const isSelected = selectedStaffIds.includes(s.id);
