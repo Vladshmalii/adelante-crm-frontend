@@ -100,7 +100,10 @@ export const useStaffStore = create<StaffState>((set, get) => ({
     updateSchedule: async (id, schedule) => {
         set({ isLoading: true });
         try {
-            await staffApi.updateSchedule(Number(id), schedule);
+            const payload = 'work_days' in (schedule as any)
+                ? schedule
+                : { work_days: schedule as Record<string, any>, exceptions: [] };
+            await staffApi.updateSchedule(Number(id), payload as any);
             // After updating schedule, we might need to refresh the staff member to get the updated schedule
             const updatedMember = await staffApi.getById(Number(id));
             set((state) => ({

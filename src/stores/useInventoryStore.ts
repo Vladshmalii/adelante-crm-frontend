@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { inventoryApi, Product, ProductFilters, StockMovement } from '@/lib/api/inventory';
+import { inventoryApi, ProductFilters, StockMovement } from '@/lib/api/inventory';
+import type { Product } from '@/features/inventory/types';
 
 interface InventoryState {
     products: Product[];
@@ -7,9 +8,12 @@ interface InventoryState {
     isLoading: boolean;
     filters: ProductFilters;
 
+    setProducts: (products: Product[]) => void;
+    setLoading: (value: boolean) => void;
+
     fetchProducts: (filters?: ProductFilters) => Promise<void>;
     createProduct: (data: Omit<Product, 'id' | 'createdAt'>) => Promise<void>;
-    updateProduct: (id: string, data: Partial<Product>) => Promise<void>;
+    updateProduct: (id: string | number, data: Partial<Product>) => Promise<void>;
     deleteProduct: (id: string) => Promise<void>;
     createStockMovement: (data: Omit<StockMovement, 'id' | 'createdAt' | 'createdBy'>) => Promise<void>;
     exportProducts: (filters?: ProductFilters) => Promise<Blob>;
@@ -23,11 +27,15 @@ export const useInventoryStore = create<InventoryState>((set) => ({
     isLoading: false,
     filters: {},
 
+    setProducts: (products) => set({ products }),
+    setLoading: (value) => set({ isLoading: value }),
+
     fetchProducts: async (filters) => {
         set({ isLoading: true });
         try {
             const response = await inventoryApi.getProducts(filters);
-            set({ products: response.data || [] });
+            const list = Array.isArray(response) ? response : (response as any)?.data || [];
+            set({ products: list });
         } catch (error) {
             console.error('Failed to fetch products:', error);
         } finally {
@@ -38,7 +46,8 @@ export const useInventoryStore = create<InventoryState>((set) => ({
     createProduct: async (data) => {
         set({ isLoading: true });
         try {
-            const newProduct = await inventoryApi.createProduct(data);
+            const payload = { isActive: true, ...data } as Omit<import('@/lib/api/inventory').Product, 'id' | 'createdAt' | 'updatedAt'>;
+            const newProduct = await inventoryApi.createProduct(payload);
             set((state) => ({ products: [...state.products, newProduct] }));
         } catch (error) {
             console.error('Failed to create product:', error);
@@ -51,7 +60,9 @@ export const useInventoryStore = create<InventoryState>((set) => ({
     updateProduct: async (id, data) => {
         set({ isLoading: true });
         try {
-            const updatedProduct = await inventoryApi.updateProduct(id, data);
+            const numId = typeof id === 'string' ? parseInt(id) : id;
+            const payload = { ...data } as Partial<import('@/lib/api/inventory').Product>;
+            const updatedProduct = await inventoryApi.updateProduct(numId, payload);
             set((state) => ({
                 products: state.products.map((p) => (p.id === id ? updatedProduct : p)),
                 selectedProduct: state.selectedProduct?.id === id ? updatedProduct : state.selectedProduct
@@ -67,9 +78,11 @@ export const useInventoryStore = create<InventoryState>((set) => ({
     deleteProduct: async (id) => {
         set({ isLoading: true });
         try {
-            await inventoryApi.deleteProduct(id);
+            const numId = typeof id === 'string' ? parseInt(id) : id;
+            const targetId = String(id);
+            await inventoryApi.deleteProduct(numId);
             set((state) => ({
-                products: state.products.filter((p) => p.id !== id),
+                products: state.products.filter((p) => String(p.id) !== targetId),
                 selectedProduct: state.selectedProduct?.id === id ? null : state.selectedProduct
             }));
         } catch (error) {

@@ -43,6 +43,7 @@ export function GlobalCommandRegistry() {
                 onClose={() => setCreateModalOpen(false)}
                 onSave={handleCreateAppointment}
                 staff={mockStaff}
+                appointments={[]}
                 initialStaffId={createModalProps?.initialStaffId}
                 initialTime={createModalProps?.initialTime}
                 initialDate={createModalProps?.initialDate}

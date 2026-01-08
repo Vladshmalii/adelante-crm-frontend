@@ -1,10 +1,13 @@
 import { Eye, Pencil } from 'lucide-react';
 import { FinanceDocument } from '../../types';
+import type { FinanceDocument as ApiFinanceDocument } from '@/lib/api/finances';
+
+type DocumentLike = FinanceDocument | ApiFinanceDocument;
 
 interface DocumentRowProps {
-    document: FinanceDocument;
-    onView: (document: FinanceDocument) => void;
-    onEdit: (document: FinanceDocument) => void;
+    document: DocumentLike;
+    onView: (document: DocumentLike) => void;
+    onEdit: (document: DocumentLike) => void;
 }
 
 export function DocumentRow({ document, onView, onEdit }: DocumentRowProps) {
@@ -55,6 +58,10 @@ export function DocumentRow({ document, onView, onEdit }: DocumentRowProps) {
         );
     };
 
+    const servicesCount = 'servicesCount' in document ? document.servicesCount : undefined;
+    const productsCount = 'productsCount' in document ? document.productsCount : undefined;
+    const author = 'author' in document ? document.author : undefined;
+
     return (
         <tr className="border-b border-border hover:bg-secondary/50 transition-colors">
             <td className="px-4 py-3 text-sm text-foreground">
@@ -73,10 +80,10 @@ export function DocumentRow({ document, onView, onEdit }: DocumentRowProps) {
                 ₴ {document.amount.toLocaleString()}
             </td>
             <td className="px-4 py-3 text-sm text-muted-foreground text-center">
-                {document.servicesCount}
+                {servicesCount ?? '-'}
             </td>
             <td className="px-4 py-3 text-sm text-muted-foreground text-center">
-                {document.productsCount}
+                {productsCount ?? '-'}
             </td>
             <td className="px-4 py-3 text-sm text-foreground">
                 {document.counterparty}
@@ -85,7 +92,7 @@ export function DocumentRow({ document, onView, onEdit }: DocumentRowProps) {
                 {document.comment}
             </td>
             <td className="px-4 py-3 text-sm text-muted-foreground">
-                {document.author}
+                {author ?? '-'}
             </td>
             <td className="px-4 py-3">
                 {getStatusBadge(document.status)}

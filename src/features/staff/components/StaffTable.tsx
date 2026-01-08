@@ -51,8 +51,8 @@ export function StaffTable({
                         <StaffTableRow
                             key={staffMember.id}
                             staff={staffMember}
-                            isSelected={selectedStaff.has(staffMember.id)}
-                            onToggleSelect={() => onToggleStaff(staffMember.id)}
+                            isSelected={selectedStaff.has(String(staffMember.id))}
+                            onToggleSelect={() => onToggleStaff(String(staffMember.id))}
                             onStaffClick={() => onStaffClick(staffMember)}
                             onEdit={() => onEditStaff(staffMember)}
                             onDelete={() => onDeleteStaff(staffMember)}

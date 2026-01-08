@@ -27,7 +27,7 @@ export function StockMovementModal({ isOpen, onClose, onSave, product }: StockMo
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (product) {
-            onSave({ ...formData, productId: product.id });
+            onSave({ ...formData, productId: String(product.id) });
         }
         onClose();
     };

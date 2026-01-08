@@ -41,6 +41,8 @@ export function ServiceCard({ service, onClick }: ServiceCardProps) {
         return labels[status] || status;
     };
 
+    const status = (service as any).status ?? 'active';
+
     return (
         <div
             onClick={onClick}
@@ -59,8 +61,8 @@ export function ServiceCard({ service, onClick }: ServiceCardProps) {
                         {getCategoryLabel(service.category)}
                     </Badge>
                 </div>
-                <Badge variant={getStatusVariant(service.status)} size="sm">
-                    {getStatusLabel(service.status)}
+                <Badge variant={getStatusVariant(status)} size="sm">
+                    {getStatusLabel(status)}
                 </Badge>
             </div>
 

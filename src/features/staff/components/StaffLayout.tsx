@@ -32,7 +32,7 @@ export function StaffLayout() {
     const [searchQuery, setSearchQuery] = useState('');
     const [activeStatus, setActiveStatus] = useState<StaffStatus>('active');
     const [filters, setFilters] = useState<StaffFilters>({});
-    const [selectedStaff, setSelectedStaff] = useState<Set<string | number>>(new Set());
+    const [selectedStaff, setSelectedStaff] = useState<Set<string>>(new Set());
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(DEFAULT_ITEMS_PER_PAGE);
 
@@ -85,11 +85,12 @@ export function StaffLayout() {
     }, [filteredStaff, currentPage, itemsPerPage]);
 
     const handleToggleStaff = (staffId: string | number) => {
+        const id = String(staffId);
         const newSelected = new Set(selectedStaff);
-        if (newSelected.has(staffId)) {
-            newSelected.delete(staffId);
+        if (newSelected.has(id)) {
+            newSelected.delete(id);
         } else {
-            newSelected.add(staffId);
+            newSelected.add(id);
         }
         setSelectedStaff(newSelected);
     };
@@ -98,7 +99,7 @@ export function StaffLayout() {
         if (selectedStaff.size === paginatedStaff.length) {
             setSelectedStaff(new Set());
         } else {
-            setSelectedStaff(new Set(paginatedStaff.map((s) => s.id)));
+            setSelectedStaff(new Set(paginatedStaff.map((s) => String(s.id))));
         }
     };
 

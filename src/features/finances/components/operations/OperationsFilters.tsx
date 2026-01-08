@@ -54,7 +54,7 @@ export function OperationsFilters({
 
     const paymentMethodOptions = [
         { value: 'all', label: 'Усі методи' },
-        ...mockPaymentMethods.map(pm => ({ value: pm.id, label: pm.name })),
+        ...mockPaymentMethods.map(pm => ({ value: pm.id, label: pm.name || '—' })),
     ];
 
     return (

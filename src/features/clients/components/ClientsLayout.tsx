@@ -161,9 +161,6 @@ export function ClientsLayout() {
                 source: data.category,
                 discount: data.discount,
                 bonusBalance: 0,
-                totalVisits: 0,
-                totalSpent: 0,
-                segment: 'new',
             });
             toast.success('Клієнта створено', 'Успіх');
             setIsAddClientModalOpen(false);

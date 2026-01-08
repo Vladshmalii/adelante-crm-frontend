@@ -287,8 +287,8 @@ export function RolesSettings() {
                   </td>
                   <td className="py-2 px-4 text-sm min-w-[180px]">
                     <Dropdown
-                      value={staffRoles[staff.id]}
-                      onChange={(value) => handleChangeStaffRole(staff.id, value as StaffRole)}
+                      value={staffRoles[String(staff.id)]}
+                      onChange={(value) => handleChangeStaffRole(String(staff.id), value as StaffRole)}
                       options={[
                         { value: 'master', label: 'Майстер' },
                         { value: 'administrator', label: 'Адміністратор' },

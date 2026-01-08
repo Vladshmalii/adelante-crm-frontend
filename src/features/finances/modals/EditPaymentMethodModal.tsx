@@ -76,6 +76,8 @@ export function EditPaymentMethodModal({ isOpen, onClose, paymentMethod, onSave 
         setFormData(prev => (prev ? { ...prev, [field]: value } : prev));
     };
 
+    if (!formData) return null;
+
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={paymentMethod ? "Редагувати метод оплати" : "Додати метод оплати"} size="lg">
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -90,7 +92,7 @@ export function EditPaymentMethodModal({ isOpen, onClose, paymentMethod, onSave 
 
                 <Dropdown
                     label="Тип методу"
-                    value={formData.type}
+                    value={formData.type || ''}
                     options={PAYMENT_METHOD_TYPES}
                     onChange={(val) => handleChange('type', val as PaymentMethodType)}
                 />
@@ -99,7 +101,7 @@ export function EditPaymentMethodModal({ isOpen, onClose, paymentMethod, onSave 
                     label="Каса"
                     type="text"
                     required
-                    value={formData.cashRegister}
+                    value={formData.cashRegister || ''}
                     onChange={(e) => handleChange('cashRegister', e.target.value)}
                     placeholder="Основна каса"
                 />
@@ -107,7 +109,7 @@ export function EditPaymentMethodModal({ isOpen, onClose, paymentMethod, onSave 
                 <div className="grid grid-cols-3 gap-4">
                     <Dropdown
                         label="Тип комісії"
-                        value={formData.commissionType}
+                        value={formData.commissionType || 'none'}
                         options={COMMISSION_TYPES}
                         onChange={(val) => handleChange('commissionType', val as CommissionType)}
                     />
@@ -117,14 +119,14 @@ export function EditPaymentMethodModal({ isOpen, onClose, paymentMethod, onSave 
                         type="number"
                         min="0"
                         step="0.01"
-                        value={formData.commissionValue}
+                        value={formData.commissionValue ?? 0}
                         onChange={(e) => handleChange('commissionValue', Number(e.target.value))}
                         placeholder={formData.commissionType === 'percentage' ? '0-100' : '0.00'}
                     />
 
                     <Dropdown
                         label="Хто платить"
-                        value={formData.commissionPayer}
+                        value={formData.commissionPayer || 'client'}
                         options={COMMISSION_PAYERS}
                         onChange={(val) => handleChange('commissionPayer', val as CommissionPayer)}
                     />
@@ -133,22 +135,22 @@ export function EditPaymentMethodModal({ isOpen, onClose, paymentMethod, onSave 
                 <div className="grid grid-cols-2 gap-4">
                     <Switch
                         label="Доступний онлайн"
-                        checked={formData.availableOnline}
+                        checked={!!formData.availableOnline}
                         onChange={(e) => handleChange('availableOnline', e.target.checked)}
                     />
                     <Switch
                         label="Дозволити часткову оплату"
-                        checked={formData.allowPartialPayment}
+                        checked={!!formData.allowPartialPayment}
                         onChange={(e) => handleChange('allowPartialPayment', e.target.checked)}
                     />
                     <Switch
                         label="Дозволити чайові"
-                        checked={formData.allowTips}
+                        checked={!!formData.allowTips}
                         onChange={(e) => handleChange('allowTips', e.target.checked)}
                     />
                     <Switch
                         label="Активний"
-                        checked={formData.isActive}
+                        checked={!!formData.isActive}
                         onChange={(e) => handleChange('isActive', e.target.checked)}
                     />
                 </div>
@@ -157,7 +159,7 @@ export function EditPaymentMethodModal({ isOpen, onClose, paymentMethod, onSave 
                     label="Порядок сортування"
                     type="number"
                     min="0"
-                    value={formData.sortOrder}
+                    value={formData.sortOrder ?? 0}
                     onChange={(e) => handleChange('sortOrder', Number(e.target.value))}
                     placeholder="0"
                 />

@@ -50,9 +50,9 @@ export function EditStaffModal({ isOpen, onClose, onSave, staff }: EditStaffModa
                 email: staff.email,
                 role: staff.role,
                 gender: 'female' as StaffGender,
-                salary: staff.salary,
-                commission: staff.commission,
-                hireDate: staff.hireDate,
+                salary: staff.salary ?? 0,
+                commission: staff.commission ?? 0,
+                hireDate: staff.hireDate || '',
                 specialization: staff.specialization,
                 workSchedule: staff.workSchedule,
             });
@@ -61,7 +61,7 @@ export function EditStaffModal({ isOpen, onClose, onSave, staff }: EditStaffModa
 
     const handleSubmit = () => {
         if (staff) {
-            onSave(staff.id, formData);
+            onSave(String(staff.id), formData);
             toast.success("Співробітника оновлено", "Успіх");
             onClose();
         }

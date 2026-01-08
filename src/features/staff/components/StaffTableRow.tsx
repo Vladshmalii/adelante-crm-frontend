@@ -81,11 +81,11 @@ export function StaffTableRow({
                 {staff.specialization || '—'}
             </td>
             <td className="px-4 py-3 text-sm font-medium text-foreground hidden lg:table-cell">
-                {staff.salary.toLocaleString('uk-UA')} ₴
+                {staff.salary !== undefined ? `${staff.salary.toLocaleString('uk-UA')} ₴` : '—'}
             </td>
             <td className="px-4 py-3 text-sm text-foreground hidden xl:table-cell">{staff.commission}%</td>
             <td className="px-4 py-3 text-sm text-muted-foreground hidden xl:table-cell">
-                {formatDate(staff.hireDate)}
+                {staff.hireDate ? formatDate(staff.hireDate) : '—'}
             </td>
             <td className="px-4 py-3">
                 <StaffActionsMenu

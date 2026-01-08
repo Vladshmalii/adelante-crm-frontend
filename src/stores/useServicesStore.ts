@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { servicesApi, Service, ServiceFilters, CreateServiceRequest } from '@/lib/api/services';
+import { servicesApi, ServiceFilters, CreateServiceRequest } from '@/lib/api/services';
+import type { Service } from '@/features/services/types';
 
 interface ServicesState {
     services: Service[];

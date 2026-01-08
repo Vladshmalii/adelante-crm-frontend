@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useServicesStore } from '@/stores/useServicesStore';
 import { servicesApi } from '@/lib/api/services';
-import { mockServices } from '../data/mockServices';
+import { MOCK_SERVICES } from '../data/mockServices';
 import { USE_MOCK_DATA } from '@/lib/config';
 import type { Service } from '../types';
 
@@ -26,7 +26,7 @@ export function useServices(options: UseServicesOptions = {}) {
 
             if (USE_MOCK_DATA) {
                 // Використовуємо мокові дані
-                let filtered = [...mockServices].map((s: any) => ({
+                let filtered = [...MOCK_SERVICES].map((s: any) => ({
                     ...s,
                     id: s.id,
                     isActive: s.isActive ?? true,

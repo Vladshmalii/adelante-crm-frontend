@@ -144,7 +144,7 @@ export function StaffDetailsModal({ isOpen, onClose, onEdit, onDelete, staff }: 
                 {/* Work Info */}
                 <div className="space-y-1">
                     <h4 className="text-sm font-semibold text-foreground mb-3">Робоча інформація</h4>
-                    <InfoRow icon={Calendar} label="Дата прийому" value={formatDate(staff.hireDate)} />
+                    <InfoRow icon={Calendar} label="Дата прийому" value={staff.hireDate ? formatDate(staff.hireDate) : '—'} />
                     {staff.specialization && <InfoRow icon={Briefcase} label="Спеціалізація" value={staff.specialization} />}
                     {staff.workSchedule && <InfoRow icon={Clock} label="Графік роботи" value={staff.workSchedule} />}
                 </div>
@@ -152,7 +152,7 @@ export function StaffDetailsModal({ isOpen, onClose, onEdit, onDelete, staff }: 
                 {/* Financial Info */}
                 <div className="space-y-1">
                     <h4 className="text-sm font-semibold text-foreground mb-3">Фінансова інформація</h4>
-                    <InfoRow icon={Banknote} label="Зарплата" value={`${staff.salary.toLocaleString('uk-UA')} ₴`} />
+                    <InfoRow icon={Banknote} label="Зарплата" value={staff.salary !== undefined ? `${staff.salary.toLocaleString('uk-UA')} ₴` : '—'} />
                     <InfoRow icon={Percent} label="Комісія" value={`${staff.commission}%`} />
                 </div>
 

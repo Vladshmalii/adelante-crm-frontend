@@ -155,8 +155,8 @@ export function CreateAppointmentModal({
         const selectedServices = MOCK_SERVICES.filter(s => (selectedServiceIds || []).includes(s.id));
         const duration = selectedServices.reduce((sum, s) => sum + s.duration, 0) || 30;
 
-        let [h, m] = startTime.split(':').map(Number);
-        let currentMins = h * 60 + m;
+        const [h, m] = startTime.split(':').map(Number);
+        const currentMins = h * 60 + m;
 
         // Search for the next 12 hours with 15-minute steps
         for (let i = 0; i < 48; i++) {

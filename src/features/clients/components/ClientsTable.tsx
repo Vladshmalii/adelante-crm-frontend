@@ -6,8 +6,8 @@ import type { Client } from '../types';
 
 interface ClientsTableProps {
     clients: Client[];
-    selectedClients: Set<string>;
-    onToggleClient: (clientId: string) => void;
+    selectedClients: Set<string | number>;
+    onToggleClient: (clientId: string | number) => void;
     onToggleAll: () => void;
     onClientClick: (client: Client) => void;
     onEditClient: (client: Client) => void;

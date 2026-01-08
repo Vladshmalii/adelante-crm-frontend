@@ -1,22 +1,21 @@
+import type { Product as ApiProduct } from '@/lib/api/inventory';
+
 export type ProductType = 'item' | 'weight';
 export type ProductCategory = 'professional' | 'retail' | 'consumables' | 'equipment';
 export type ProductUnit = 'pcs' | 'ml' | 'l' | 'g' | 'kg';
 export type StockStatus = 'ok' | 'low' | 'out';
 
-export interface Product {
-    id: string;
-    name: string;
-    sku: string; // Артикул
-    category: ProductCategory;
-    type: ProductType;
-    quantity: number;
-    unit: ProductUnit;
-    price: number; // Ціна закупівлі або продажу (залежить від контексту, візьмемо ціну продажу)
-    costPrice: number; // Собівартість
-    minQuantity: number; // Мінімальний залишок для сповіщення
-    description?: string;
+// Align with API Product but keep UI-specific fields/enum narrowing.
+export type Product = Omit<ApiProduct, 'id' | 'category' | 'type' | 'unit' | 'createdAt' | 'isActive'> & {
+    id: string | number;
+    category: ProductCategory | string;
+    type: ProductType | string;
+    unit: ProductUnit | string;
+    minQuantity?: number;
+    isActive?: boolean;
+    createdAt?: string;
     lastRestockDate?: string;
-}
+};
 
 export interface InventoryFilters {
     search?: string;

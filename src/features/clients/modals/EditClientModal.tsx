@@ -70,7 +70,7 @@ export function EditClientModal({ isOpen, onClose, onSave, client }: EditClientM
                 category: 'regular' as ClientCategory,
                 gender: 'female' as ClientGender,
                 importance: 'medium' as ClientImportance,
-                discount: client.discount,
+                discount: client.discount || 0,
                 colorLabel: COLOR_LABELS[0],
                 noOnlineBooking: false,
                 totalSpent: client.totalSpent,
@@ -83,7 +83,7 @@ export function EditClientModal({ isOpen, onClose, onSave, client }: EditClientM
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (client) {
-            onSave(client.id, formData);
+            onSave(String(client.id), formData);
             toast.success('Клієнта оновлено', 'Успіх');
             onClose();
         }

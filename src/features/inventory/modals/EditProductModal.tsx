@@ -7,7 +7,7 @@ import { Button } from '@/shared/components/ui/Button';
 import { Input } from '@/shared/components/ui/Input';
 import { Dropdown } from '@/shared/components/ui/Dropdown';
 import { Textarea } from '@/shared/components/ui/Textarea';
-import { Product, AddProductFormData } from '../types';
+import { Product, AddProductFormData, ProductCategory, ProductType, ProductUnit } from '../types';
 import { PRODUCT_CATEGORIES, PRODUCT_TYPES, PRODUCT_UNITS } from '../constants';
 
 interface EditProductModalProps {
@@ -37,10 +37,10 @@ export function EditProductModal({ isOpen, onClose, onSave, product }: EditProdu
             setFormData({
                 name: product.name,
                 sku: product.sku,
-                category: product.category,
-                type: product.type,
+                category: product.category as ProductCategory,
+                type: product.type as ProductType,
                 quantity: product.quantity,
-                unit: product.unit,
+                unit: product.unit as ProductUnit,
                 price: product.price,
                 costPrice: product.costPrice,
                 minQuantity: product.minQuantity,
@@ -64,7 +64,7 @@ export function EditProductModal({ isOpen, onClose, onSave, product }: EditProdu
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (product) {
-            onSave(product.id, formData);
+            onSave(String(product.id), formData);
             toast.success('Товар оновлено', 'Успіх');
         }
         onClose();

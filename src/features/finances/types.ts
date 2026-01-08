@@ -1,42 +1,34 @@
+import type { FinanceOperation as ApiFinanceOperation, FinanceDocument as ApiFinanceDocument } from '@/lib/api/finances';
+
 export type OperationType = 'payment' | 'refund' | 'transfer' | 'withdrawal' | 'deposit';
 export type OperationStatus = 'completed' | 'pending' | 'cancelled';
 export type DocumentType = 'receipt' | 'invoice' | 'expense' | 'income' | 'act';
 export type DocumentContentType = 'services' | 'products' | 'mixed';
-export type DocumentStatus = 'draft' | 'completed' | 'cancelled';
+export type DocumentStatus = 'draft' | 'issued' | 'paid' | 'cancelled';
 export type ReceiptStatus = 'paid' | 'cancelled' | 'partial';
 export type ReceiptSource = 'web' | 'mobile' | 'pos';
 export type PaymentMethodType = 'cash' | 'card' | 'online' | 'certificate' | 'bonus' | 'tips' | 'other';
 export type CommissionType = 'none' | 'percentage' | 'fixed';
 export type CommissionPayer = 'client' | 'salon' | 'split';
 
-export interface FinanceOperation {
-    id: string;
-    date: string;
-    documentNumber: string;
-    cashRegister: string;
-    client: string;
-    amount: number;
-    paymentMethod: string;
-    type: OperationType;
-    status: OperationStatus;
-    author: string;
-    description?: string;
-}
+// Extend API types with optional fields that UI expects but API may not return yet.
+export type FinanceOperation = Omit<ApiFinanceOperation, 'type' | 'createdAt'> & {
+    type: string;
+    createdAt?: string;
+    documentNumber?: string;
+    cashRegister?: string;
+    client?: string;
+    paymentMethod?: string;
+    author?: string;
+};
 
-export interface FinanceDocument {
-    id: string;
-    number: string;
-    date: string;
-    type: DocumentType;
-    contentType: DocumentContentType;
-    amount: number;
-    servicesCount: number;
-    productsCount: number;
-    counterparty: string;
-    comment?: string;
-    author: string;
-    status: DocumentStatus;
-}
+export type FinanceDocument = Omit<ApiFinanceDocument, 'createdAt'> & {
+    createdAt?: string;
+    servicesCount?: number;
+    productsCount?: number;
+    counterparty?: string;
+    author?: string;
+};
 
 export interface FinanceReceipt {
     id: string;
@@ -53,18 +45,18 @@ export interface FinanceReceipt {
 }
 
 export interface PaymentMethod {
-    id: string;
-    name: string;
-    type: PaymentMethodType;
-    cashRegister: string;
-    commissionType: CommissionType;
-    commissionValue: number;
-    commissionPayer: CommissionPayer;
-    availableOnline: boolean;
-    allowPartialPayment: boolean;
-    allowTips: boolean;
-    sortOrder: number;
-    isActive: boolean;
+    id: string | number;
+    name?: string;
+    type?: PaymentMethodType | string;
+    cashRegister?: string;
+    commissionType?: CommissionType;
+    commissionValue?: number;
+    commissionPayer?: CommissionPayer;
+    availableOnline?: boolean;
+    allowPartialPayment?: boolean;
+    allowTips?: boolean;
+    sortOrder?: number;
+    isActive?: boolean;
 }
 
 export interface CashRegister {

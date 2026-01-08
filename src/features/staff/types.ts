@@ -14,7 +14,7 @@ export interface Staff {
     role: StaffRole;
     position?: string;
     status: StaffStatus;
-    isActive: boolean;
+    isActive?: boolean;
     salary?: number;
     commission?: number;
     hireDate?: string;

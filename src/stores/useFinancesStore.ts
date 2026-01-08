@@ -1,15 +1,19 @@
 import { create } from 'zustand';
-import { financesApi, FinanceOperation, FinanceDocument, FinanceDashboard, OperationFilters } from '@/lib/api/finances';
+import { financesApi, FinanceDashboard, OperationFilters } from '@/lib/api/finances';
+import type { FinanceOperation, FinanceDocument } from '@/features/finances/types';
 
 export interface PaymentMethod {
-    id: string;
-    name: string;
+    id: string | number;
+    name?: string;
+    type?: string;
+    isActive?: boolean;
 }
 
 export interface CashRegister {
-    id: string;
+    id: string | number;
     name: string;
     balance: number;
+    isActive?: boolean;
 }
 
 export type FinanceTab = 'overview' | 'operations' | 'documents' | 'reports';
@@ -23,6 +27,10 @@ interface FinancesState {
     dashboard: FinanceDashboard | null;
     isLoading: boolean;
     activeTab: FinanceTab;
+
+    setOperations: (operations: FinanceOperation[]) => void;
+    setDocuments: (documents: FinanceDocument[]) => void;
+    setLoading: (value: boolean) => void;
 
     fetchOperations: (filters?: OperationFilters) => Promise<void>;
     createOperation: (data: Omit<FinanceOperation, 'id' | 'createdAt' | 'createdBy'>) => Promise<void>;
@@ -46,11 +54,16 @@ export const useFinancesStore = create<FinancesState>((set) => ({
     isLoading: false,
     activeTab: 'overview',
 
+    setOperations: (operations) => set({ operations }),
+    setDocuments: (documents) => set({ documents }),
+    setLoading: (value) => set({ isLoading: value }),
+
     fetchOperations: async (filters) => {
         set({ isLoading: true });
         try {
             const response = await financesApi.getOperations(filters);
-            set({ operations: response.data || [] });
+            const list = Array.isArray(response) ? response : (response as any)?.data || [];
+            set({ operations: list });
         } catch (error) {
             console.error('Failed to fetch operations:', error);
         } finally {
@@ -61,7 +74,8 @@ export const useFinancesStore = create<FinancesState>((set) => ({
     createOperation: async (data) => {
         set({ isLoading: true });
         try {
-            const newOperation = await financesApi.createOperation(data);
+            const payload = { ...data } as Omit<import('@/lib/api/finances').FinanceOperation, 'id' | 'createdAt' | 'updatedAt'>;
+            const newOperation = await financesApi.createOperation(payload);
             set((state) => ({ operations: [newOperation, ...state.operations] }));
         } catch (error) {
             console.error('Failed to create operation:', error);
@@ -75,7 +89,8 @@ export const useFinancesStore = create<FinancesState>((set) => ({
         set({ isLoading: true });
         try {
             const response = await financesApi.getDocuments(filters);
-            set({ documents: response.data || [] });
+            const list = Array.isArray(response) ? response : (response as any)?.data || [];
+            set({ documents: list });
         } catch (error) {
             console.error('Failed to fetch documents:', error);
         } finally {
@@ -101,7 +116,8 @@ export const useFinancesStore = create<FinancesState>((set) => ({
         try {
             // Using getDocuments filtered for receipts as there is no getReceipts in API
             const response = await financesApi.getDocuments({ ...filters, type: 'receipt' });
-            set({ receipts: response.data || [] });
+            const list = Array.isArray(response) ? response : (response as any)?.data || [];
+            set({ receipts: list });
         } catch (error) {
             console.error('Failed to fetch receipts:', error);
         } finally {

@@ -33,7 +33,6 @@ const APPOINTMENT_STATUSES: { value: AppointmentStatus; label: string }[] = [
     { value: 'no-show', label: 'Не прийшов' },
     { value: 'cancelled', label: 'Відміна' },
     { value: 'completed', label: 'Завершено' },
-    { value: 'paid', label: 'Оплачено' },
 ];
 
 export function EditAppointmentModal({
@@ -62,7 +61,7 @@ export function EditAppointmentModal({
     useEffect(() => {
         if (appointment) {
             setFormData({
-                staffId: appointment.staffId,
+                staffId: appointment.staffId || '',
                 clientName: appointment.clientName,
                 clientPhone: appointment.clientPhone || '',
                 service: appointment.service,

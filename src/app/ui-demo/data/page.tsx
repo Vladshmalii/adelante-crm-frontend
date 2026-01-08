@@ -17,7 +17,7 @@ const mockClients: Client[] = [
         phone: '+380671234567',
         email: 'ivan@example.com',
         totalSpent: 12500,
-        visits: 5,
+        totalVisits: 5,
         discount: 0,
         lastVisit: '2023-11-20',
         firstVisit: '2023-01-10',
@@ -30,7 +30,7 @@ const mockClients: Client[] = [
         phone: '+380509876543',
         email: 'olena@example.com',
         totalSpent: 4500,
-        visits: 2,
+        totalVisits: 2,
         discount: 5,
         lastVisit: '2023-12-01',
         firstVisit: '2023-10-15',
@@ -43,7 +43,7 @@ const mockClients: Client[] = [
         phone: '+380931122334',
         email: 'maksym@example.com',
         totalSpent: 28900,
-        visits: 12,
+        totalVisits: 12,
         discount: 10,
         lastVisit: '2023-11-25',
         firstVisit: '2022-05-20',
@@ -56,7 +56,7 @@ const mockClients: Client[] = [
         phone: '+380685556677',
         email: 'tanya@example.com',
         totalSpent: 1200,
-        visits: 1,
+        totalVisits: 1,
         discount: 0,
         lastVisit: '2023-10-05',
         firstVisit: '2023-10-05',
@@ -88,7 +88,7 @@ export default function DataDemo() {
         if (selectedClients.size === mockClients.length) {
             setSelectedClients(new Set());
         } else {
-            setSelectedClients(new Set(mockClients.map(c => c.id)));
+            setSelectedClients(new Set(mockClients.map(c => String(c.id))));
         }
     };
 
@@ -135,7 +135,7 @@ export default function DataDemo() {
                     <ClientsTable
                         clients={mockClients}
                         selectedClients={selectedClients}
-                        onToggleClient={toggleClient}
+                        onToggleClient={(id) => toggleClient(String(id))}
                         onToggleAll={toggleAll}
                         onClientClick={(client) => console.log('Click client', client)}
                         onEditClient={(client) => console.log('Edit client', client)}

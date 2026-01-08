@@ -12,7 +12,7 @@ import type { DocumentType, DocumentContentType, DocumentStatus, FinanceDocument
 interface CreateDocumentModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSave: (data: Omit<FinanceDocument, 'id'>) => void;
+    onSave: (data: Omit<FinanceDocument, 'id'>) => Promise<void>;
 }
 
 const DOCUMENT_TYPES: { value: DocumentType; label: string }[] = [
@@ -31,7 +31,8 @@ const CONTENT_TYPES: { value: DocumentContentType; label: string }[] = [
 
 const DOCUMENT_STATUSES: { value: DocumentStatus; label: string }[] = [
     { value: 'draft', label: 'Чернетка' },
-    { value: 'completed', label: 'Завершено' },
+    { value: 'issued', label: 'Виписано' },
+    { value: 'paid', label: 'Оплачено' },
     { value: 'cancelled', label: 'Скасовано' },
 ];
 

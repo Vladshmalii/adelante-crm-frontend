@@ -43,7 +43,7 @@ export function PaymentMethodRow({ method, onEdit, onToggle, onDelete }: Payment
                 {method.name}
             </td>
             <td className="px-4 py-3 text-sm text-muted-foreground">
-                {getTypeLabel(method.type)}
+                {getTypeLabel(method.type || '')}
             </td>
             <td className="px-4 py-3 text-sm text-muted-foreground">
                 {method.cashRegister}
@@ -52,7 +52,7 @@ export function PaymentMethodRow({ method, onEdit, onToggle, onDelete }: Payment
                 {getCommissionText()}
             </td>
             <td className="px-4 py-3 text-sm text-muted-foreground">
-                {getCommissionPayerLabel(method.commissionPayer)}
+                {getCommissionPayerLabel(method.commissionPayer || 'client')}
             </td>
             <td className="px-4 py-3">
                 {method.availableOnline ? (

@@ -10,7 +10,8 @@ import { appointmentsApi } from '@/lib/api/appointments';
 const WebSocketContext = createContext<typeof wsClient | null>(null);
 
 export function WebSocketProvider({ children }: { children: React.ReactNode }) {
-    const { token, isAuthenticated } = useAuthStore();
+    const { isAuthenticated } = useAuthStore();
+    const token = (useAuthStore.getState() as any)?.token as string | undefined;
     const { addNotification } = useNotificationsStore();
     const { setAppointments, selectedDate } = useCalendarStore();
 
@@ -27,7 +28,8 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
                 if (selectedDate) {
                     try {
                         const response = await appointmentsApi.getAll({ date: selectedDate });
-                        setAppointments(response.data as any);
+                        const list = Array.isArray(response) ? response : (response as any)?.data || [];
+                        setAppointments(list as any);
                     } catch (e) {
                         console.error('Failed to update appointments via WS', e);
                     }

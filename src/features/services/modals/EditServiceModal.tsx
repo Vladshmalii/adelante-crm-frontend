@@ -37,11 +37,11 @@ export function EditServiceModal({ isOpen, onClose, onSave, onDelete, service }:
         if (service) {
             setFormData({
                 name: service.name,
-                category: service.category,
+                category: service.category as ServiceCategory,
                 description: service.description,
                 duration: service.duration,
                 price: service.price,
-                status: service.status,
+                status: (service.status as ServiceStatus) || 'active',
                 color: service.color || COLOR_OPTIONS[0],
             });
         }
@@ -50,7 +50,7 @@ export function EditServiceModal({ isOpen, onClose, onSave, onDelete, service }:
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (service) {
-            onSave(service.id, formData);
+            onSave(String(service.id), formData);
             onClose();
         }
     };

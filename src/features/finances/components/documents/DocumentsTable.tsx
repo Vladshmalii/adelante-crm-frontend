@@ -1,10 +1,12 @@
 import { FinanceDocument } from '../../types';
+import type { FinanceDocument as ApiFinanceDocument } from '@/lib/api/finances';
+type DocumentLike = FinanceDocument | ApiFinanceDocument;
 import { DocumentRow } from './DocumentRow';
 
 interface DocumentsTableProps {
-    documents: FinanceDocument[];
-    onView: (document: FinanceDocument) => void;
-    onEdit: (document: FinanceDocument) => void;
+    documents: DocumentLike[];
+    onView: (document: DocumentLike) => void;
+    onEdit: (document: DocumentLike) => void;
 }
 
 export function DocumentsTable({ documents, onView, onEdit }: DocumentsTableProps) {

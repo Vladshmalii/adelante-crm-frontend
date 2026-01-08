@@ -101,7 +101,8 @@ export function useInventory(options: UseInventoryOptions = {}) {
                 return newProduct;
             } else {
                 // Реальний API
-                const newProduct = await inventoryApi.createProduct(data);
+                const payload = { isActive: true, ...data } as Omit<import('@/lib/api/inventory').Product, 'id' | 'createdAt' | 'updatedAt'>;
+                const newProduct = await inventoryApi.createProduct(payload);
                 setProducts([...products, newProduct]);
                 return newProduct;
             }
@@ -128,7 +129,8 @@ export function useInventory(options: UseInventoryOptions = {}) {
             } else {
                 // Реальний API
                 const numId = typeof id === 'string' ? parseInt(id) : id;
-                const updatedProduct = await inventoryApi.updateProduct(numId, data);
+                const payload = { ...data } as Partial<import('@/lib/api/inventory').Product>;
+                const updatedProduct = await inventoryApi.updateProduct(numId, payload);
                 const updated = products.map((p) =>
                     p.id === updatedProduct.id ? updatedProduct : p
                 );

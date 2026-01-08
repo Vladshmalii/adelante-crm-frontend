@@ -2,7 +2,7 @@ import { FinanceOperation } from '../types';
 
 export const mockOperations: FinanceOperation[] = [
     {
-        id: '1',
+        id: 1,
         date: '2026-01-04T10:30:00',
         documentNumber: 'ЧК-2025-001234',
         cashRegister: 'Каса 1',
@@ -15,7 +15,7 @@ export const mockOperations: FinanceOperation[] = [
         description: 'Стрижка + укладка',
     },
     {
-        id: '2',
+        id: 2,
         date: '2026-01-04T11:15:00',
         documentNumber: 'ЧК-2025-001235',
         cashRegister: 'Каса 1',
@@ -28,7 +28,7 @@ export const mockOperations: FinanceOperation[] = [
         description: 'Фарбування + стрижка',
     },
     {
-        id: '3',
+        id: 3,
         date: '2026-01-04T12:00:00',
         documentNumber: 'ЧК-2025-001236',
         cashRegister: 'Каса 2',
@@ -41,7 +41,7 @@ export const mockOperations: FinanceOperation[] = [
         description: 'Манікюр класичний',
     },
     {
-        id: '4',
+        id: 4,
         date: '2026-01-03T16:45:00',
         documentNumber: 'ЧК-2025-001220',
         cashRegister: 'Каса 1',
@@ -54,7 +54,7 @@ export const mockOperations: FinanceOperation[] = [
         description: 'Повернення за скасований запис',
     },
     {
-        id: '5',
+        id: 5,
         date: '2026-01-03T14:20:00',
         documentNumber: 'ЧК-2025-001215',
         cashRegister: 'Каса 2',
@@ -67,7 +67,7 @@ export const mockOperations: FinanceOperation[] = [
         description: 'СПА процедури',
     },
     {
-        id: '6',
+        id: 6,
         date: '2026-01-03T10:00:00',
         documentNumber: 'ЧК-2025-001210',
         cashRegister: 'Каса 1',
@@ -80,7 +80,7 @@ export const mockOperations: FinanceOperation[] = [
         description: 'Педикюр + покриття гель-лак',
     },
     {
-        id: '7',
+        id: 7,
         date: '2026-01-02T15:30:00',
         documentNumber: 'ПР-2025-000045',
         cashRegister: 'Каса 1',
@@ -93,7 +93,7 @@ export const mockOperations: FinanceOperation[] = [
         description: 'Інкасація',
     },
     {
-        id: '8',
+        id: 8,
         date: '2026-01-02T13:15:00',
         documentNumber: 'ЧК-2025-001195',
         cashRegister: 'Каса 2',
@@ -106,7 +106,7 @@ export const mockOperations: FinanceOperation[] = [
         description: 'Мелірування + тонування',
     },
     {
-        id: '9',
+        id: 9,
         date: '2026-01-02T11:00:00',
         documentNumber: 'ЧК-2025-001190',
         cashRegister: 'Каса 1',
@@ -119,7 +119,7 @@ export const mockOperations: FinanceOperation[] = [
         description: 'Масаж обличчя',
     },
     {
-        id: '10',
+        id: 10,
         date: '2026-01-01T17:00:00',
         documentNumber: 'ЧК-2025-001175',
         cashRegister: 'Каса 2',
@@ -132,7 +132,7 @@ export const mockOperations: FinanceOperation[] = [
         description: 'Комплекс процедур для волосся',
     },
     {
-        id: '11',
+        id: 11,
         date: '2026-01-01T14:30:00',
         documentNumber: 'ЧК-2025-001170',
         cashRegister: 'Каса 1',
@@ -145,7 +145,7 @@ export const mockOperations: FinanceOperation[] = [
         description: 'Стрижка + укладка феном',
     },
     {
-        id: '12',
+        id: 12,
         date: '2026-01-01T10:15:00',
         documentNumber: 'ЧК-2025-001165',
         cashRegister: 'Каса 1',

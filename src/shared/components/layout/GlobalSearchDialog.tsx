@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogTitle } from '../ui/Dialog';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/stores/useUIStore';
 import { clientsApi } from '@/lib/api/clients';
+import type { Client } from '@/features/clients/types';
 
 interface SearchResult {
     id: string;
@@ -56,7 +57,8 @@ export function GlobalSearchDialog() {
             if (query.length >= 2) {
                 try {
                     const response = await clientsApi.getAll({ search: query, perPage: 5 });
-                    clientResults = response.data.map(client => ({
+                    const list = Array.isArray(response) ? response : (response as any)?.data || [];
+                    clientResults = list.map((client: Client) => ({
                         id: client.id,
                         type: 'client',
                         title: `${client.firstName} ${client.lastName || ''}`.trim(),
