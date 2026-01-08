@@ -82,10 +82,10 @@ export function TopBar({
 
     return (
         <header className="h-20 bg-background/80 backdrop-blur-xl border-b border-border/50 sticky top-0 z-40 transition-all flex items-center px-4 sm:px-8">
-            <div className="max-w-[1600px] w-full mx-auto flex items-center justify-between gap-4">
+            <div className="w-full flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
 
                 {/* DATE NAVIGATION */}
-                <div className="flex items-center gap-6">
+                <div className="flex flex-wrap items-center gap-4 sm:gap-6 min-w-0">
                     <div className="flex items-center bg-muted/40 p-1.5 rounded-2xl border border-border/10">
                         <button
                             onClick={goToPrevious}
@@ -109,11 +109,11 @@ export function TopBar({
                         </button>
                     </div>
 
-                    <div className="flex flex-col">
-                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary leading-none mb-1">
+                    <div className="flex flex-col min-w-[140px]">
+                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary leading-none mb-1 whitespace-nowrap">
                             {dayName}
                         </span>
-                        <h1 className="text-lg font-black text-foreground font-heading tracking-tight leading-none flex items-center gap-2">
+                        <h1 className="text-lg font-black text-foreground font-heading tracking-tight leading-none flex items-center gap-2 whitespace-nowrap">
                             {dateFormatted}
                             <Calendar className="w-4 h-4 text-muted-foreground/30" />
                         </h1>
@@ -121,7 +121,7 @@ export function TopBar({
                 </div>
 
                 {/* SEARCH & VIEW & USER */}
-                <div className="flex items-center gap-6">
+                <div className="flex flex-wrap items-center justify-end gap-3 sm:gap-4 lg:gap-6">
                     {/* View Switcher - Premium Style */}
                     <div className="hidden xl:flex bg-muted/40 p-1 rounded-xl border border-border/10">
                         {viewOptions.map((opt) => {
