@@ -18,8 +18,7 @@ export function useAuth() {
                 if (!token) {
                     clearUser();
                     if (typeof window !== 'undefined') {
-                        const loginPath = BASE_PATH ? `${BASE_PATH}/login` : '/login';
-                        router.replace(loginPath);
+                        router.replace('/login'); // basePath додається автоматично
                     }
                     return;
                 }
@@ -50,8 +49,7 @@ export function useAuth() {
                 
                 // Перенаправляємо на логін, якщо користувач неавторизований
                 if (typeof window !== 'undefined') {
-                    const loginPath = BASE_PATH ? `${BASE_PATH}/login` : '/login';
-                    router.replace(loginPath);
+                    router.replace('/login'); // basePath додається автоматично
                 }
                 return;
             }
@@ -68,8 +66,7 @@ export function useAuth() {
             console.error('[useAuth.checkAuth] Failed to check auth:', err);
             clearUser();
             if (typeof window !== 'undefined') {
-                const loginPath = BASE_PATH ? `${BASE_PATH}/login` : '/login';
-                router.replace(loginPath);
+                router.replace('/login'); // basePath додається автоматично
             }
         }
     }, [setUser, clearUser, router]);
