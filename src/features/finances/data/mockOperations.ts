@@ -3,7 +3,7 @@ import { FinanceOperation } from '../types';
 export const mockOperations: FinanceOperation[] = [
     {
         id: '1',
-        date: '2025-11-28T10:30:00',
+        date: '2026-01-04T10:30:00',
         documentNumber: 'ЧК-2025-001234',
         cashRegister: 'Каса 1',
         client: 'Марія Коваленко',
@@ -16,7 +16,7 @@ export const mockOperations: FinanceOperation[] = [
     },
     {
         id: '2',
-        date: '2025-11-28T11:15:00',
+        date: '2026-01-04T11:15:00',
         documentNumber: 'ЧК-2025-001235',
         cashRegister: 'Каса 1',
         client: 'Ірина Шевченко',
@@ -29,7 +29,7 @@ export const mockOperations: FinanceOperation[] = [
     },
     {
         id: '3',
-        date: '2025-11-28T12:00:00',
+        date: '2026-01-04T12:00:00',
         documentNumber: 'ЧК-2025-001236',
         cashRegister: 'Каса 2',
         client: 'Анна Мельник',
@@ -42,7 +42,7 @@ export const mockOperations: FinanceOperation[] = [
     },
     {
         id: '4',
-        date: '2025-11-27T16:45:00',
+        date: '2026-01-03T16:45:00',
         documentNumber: 'ЧК-2025-001220',
         cashRegister: 'Каса 1',
         client: 'Олександра Бойко',
@@ -55,7 +55,7 @@ export const mockOperations: FinanceOperation[] = [
     },
     {
         id: '5',
-        date: '2025-11-27T14:20:00',
+        date: '2026-01-03T14:20:00',
         documentNumber: 'ЧК-2025-001215',
         cashRegister: 'Каса 2',
         client: 'Наталія Ткаченко',
@@ -68,7 +68,7 @@ export const mockOperations: FinanceOperation[] = [
     },
     {
         id: '6',
-        date: '2025-11-27T10:00:00',
+        date: '2026-01-03T10:00:00',
         documentNumber: 'ЧК-2025-001210',
         cashRegister: 'Каса 1',
         client: 'Юлія Савченко',
@@ -81,7 +81,7 @@ export const mockOperations: FinanceOperation[] = [
     },
     {
         id: '7',
-        date: '2025-11-26T15:30:00',
+        date: '2026-01-02T15:30:00',
         documentNumber: 'ПР-2025-000045',
         cashRegister: 'Каса 1',
         client: 'Адміністратор',
@@ -94,7 +94,7 @@ export const mockOperations: FinanceOperation[] = [
     },
     {
         id: '8',
-        date: '2025-11-26T13:15:00',
+        date: '2026-01-02T13:15:00',
         documentNumber: 'ЧК-2025-001195',
         cashRegister: 'Каса 2',
         client: 'Вікторія Морозова',
@@ -107,7 +107,7 @@ export const mockOperations: FinanceOperation[] = [
     },
     {
         id: '9',
-        date: '2025-11-26T11:00:00',
+        date: '2026-01-02T11:00:00',
         documentNumber: 'ЧК-2025-001190',
         cashRegister: 'Каса 1',
         client: 'Катерина Лисенко',
@@ -120,7 +120,7 @@ export const mockOperations: FinanceOperation[] = [
     },
     {
         id: '10',
-        date: '2025-11-25T17:00:00',
+        date: '2026-01-01T17:00:00',
         documentNumber: 'ЧК-2025-001175',
         cashRegister: 'Каса 2',
         client: 'Оксана Павленко',
@@ -133,7 +133,7 @@ export const mockOperations: FinanceOperation[] = [
     },
     {
         id: '11',
-        date: '2025-11-25T14:30:00',
+        date: '2026-01-01T14:30:00',
         documentNumber: 'ЧК-2025-001170',
         cashRegister: 'Каса 1',
         client: 'Світлана Кравчук',
@@ -146,7 +146,7 @@ export const mockOperations: FinanceOperation[] = [
     },
     {
         id: '12',
-        date: '2025-11-25T10:15:00',
+        date: '2026-01-01T10:15:00',
         documentNumber: 'ЧК-2025-001165',
         cashRegister: 'Каса 1',
         client: 'Лариса Бондаренко',

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useToast } from '@/shared/hooks/useToast';
 import { StaffHeader } from './StaffHeader';
 import { StaffSegments } from './StaffSegments';
@@ -17,19 +17,22 @@ import { ImportExcelModal } from '@/features/clients/modals/ImportExcelModal';
 import { ExportExcelModal } from '@/features/clients/modals/ExportExcelModal';
 import { ConfirmDialog } from '@/shared/components/ui/ConfirmDialog';
 import { Skeleton } from '@/shared/components/ui/Skeleton';
-import { STAFF_MOCK } from '../data/mockStaff';
 import { DEFAULT_ITEMS_PER_PAGE } from '../constants';
 import type { StaffStatus, StaffFilters, Staff, AddStaffFormData } from '../types';
 import type { ExportExcelOptions } from '@/features/clients/types';
+import { useStaff } from '../hooks/useStaff';
+import { GlobalLoader } from '@/shared/components/ui/GlobalLoader';
+import { staffApi } from '@/lib/api/staff';
+import { USE_MOCK_DATA } from '@/lib/config';
 
 export function StaffLayout() {
     const toast = useToast();
-    const [isLoading, setIsLoading] = useState(false);
+    const [isLocalLoading, setIsLocalLoading] = useState(false);
 
     const [searchQuery, setSearchQuery] = useState('');
     const [activeStatus, setActiveStatus] = useState<StaffStatus>('active');
     const [filters, setFilters] = useState<StaffFilters>({});
-    const [selectedStaff, setSelectedStaff] = useState<Set<string>>(new Set());
+    const [selectedStaff, setSelectedStaff] = useState<Set<string | number>>(new Set());
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(DEFAULT_ITEMS_PER_PAGE);
 
@@ -45,30 +48,43 @@ export function StaffLayout() {
 
     const [selectedStaffMember, setSelectedStaffMember] = useState<Staff | null>(null);
 
+    const { staff, isLoading, error, createStaff, updateStaff, deleteStaff } = useStaff({
+        search: searchQuery,
+        position: filters.role,
+        isActive: activeStatus === 'active' ? true : undefined,
+    });
+
+    useEffect(() => {
+        if (error) {
+            toast.error('Помилка', error);
+        }
+    }, [error, toast]);
+
     const filteredStaff = useMemo(() => {
-        let result = STAFF_MOCK.filter(
-            (staff) => staff.status === activeStatus
-        );
+        let result = staff.filter((s) => {
+            if (activeStatus === 'active') return s.isActive;
+            return s.status === activeStatus;
+        });
 
         if (searchQuery) {
             const query = searchQuery.toLowerCase();
             result = result.filter(
                 (staff) =>
                     `${staff.firstName} ${staff.middleName || ''} ${staff.lastName || ''}`.toLowerCase().includes(query) ||
-                    staff.phone.includes(query) ||
+                    staff.phone?.toLowerCase().includes(query) ||
                     staff.email?.toLowerCase().includes(query)
             );
         }
 
         return result;
-    }, [activeStatus, searchQuery]);
+    }, [staff, activeStatus, searchQuery]);
 
     const paginatedStaff = useMemo(() => {
         const startIndex = (currentPage - 1) * itemsPerPage;
         return filteredStaff.slice(startIndex, startIndex + itemsPerPage);
     }, [filteredStaff, currentPage, itemsPerPage]);
 
-    const handleToggleStaff = (staffId: string) => {
+    const handleToggleStaff = (staffId: string | number) => {
         const newSelected = new Set(selectedStaff);
         if (newSelected.has(staffId)) {
             newSelected.delete(staffId);
@@ -132,21 +148,80 @@ export function StaffLayout() {
         setIsStatsModalOpen(true);
     };
 
-    const handleSaveStaff = (data: AddStaffFormData) => {
-        console.log('Зберегти співробітника:', data);
+    const buildHireDate = (data: AddStaffFormData) => data.hireDate || undefined;
+
+    const handleSaveStaff = async (data: AddStaffFormData) => {
+        setIsLocalLoading(true);
+        try {
+            await createStaff({
+                firstName: data.firstName,
+                lastName: data.lastName || '',
+                middleName: data.middleName,
+                phone: data.phone,
+                email: data.email,
+                role: data.role,
+                position: data.role,
+                status: 'active',
+                isActive: true,
+                salary: data.salary,
+                commission: data.commission,
+                hireDate: buildHireDate(data),
+                specialization: data.specialization,
+                specializations: data.specialization ? [data.specialization] : [],
+            });
+            toast.success('Співробітника створено', 'Успіх');
+            setIsAddStaffModalOpen(false);
+        } catch (err) {
+            console.error(err);
+            toast.error('Помилка', err instanceof Error ? err.message : 'Не вдалося створити співробітника');
+        } finally {
+            setIsLocalLoading(false);
+        }
     };
 
-    const handleUpdateStaff = (id: string, data: AddStaffFormData) => {
-        console.log('Оновити співробітника:', id, data);
+    const handleUpdateStaff = async (id: string | number, data: AddStaffFormData) => {
+        if (!selectedStaffMember) return;
+        setIsLocalLoading(true);
+        try {
+            await updateStaff(id, {
+                firstName: data.firstName,
+                lastName: data.lastName,
+                middleName: data.middleName,
+                phone: data.phone,
+                email: data.email,
+                role: data.role,
+                position: data.role,
+                salary: data.salary,
+                commission: data.commission,
+                hireDate: buildHireDate(data),
+                specialization: data.specialization,
+                specializations: data.specialization ? [data.specialization] : [],
+            });
+            toast.success('Співробітника оновлено', 'Успіх');
+            setIsEditStaffModalOpen(false);
+            setSelectedStaffMember(null);
+        } catch (err) {
+            console.error(err);
+            toast.error('Помилка', err instanceof Error ? err.message : 'Не вдалося оновити співробітника');
+        } finally {
+            setIsLocalLoading(false);
+        }
     };
 
-    const handleConfirmDelete = () => {
-        if (selectedStaffMember) {
-            console.log('Видалити співробітника:', selectedStaffMember.id);
+    const handleConfirmDelete = async () => {
+        if (!selectedStaffMember) return;
+        setIsLocalLoading(true);
+        try {
+            await deleteStaff(selectedStaffMember.id);
             toast.success('Співробітника видалено', 'Успіх');
             setIsDeleteStaffModalOpen(false);
             setSelectedStaffMember(null);
             setIsStaffDetailsModalOpen(false);
+        } catch (err) {
+            console.error(err);
+            toast.error('Помилка', err instanceof Error ? err.message : 'Не вдалося видалити співробітника');
+        } finally {
+            setIsLocalLoading(false);
         }
     };
 
@@ -156,16 +231,27 @@ export function StaffLayout() {
         setIsScheduleModalOpen(false);
     };
 
-    const handleImportExcel = (file: File) => {
-        console.log('Імпорт Excel файлу:', file.name);
+    const handleImportExcel = async (file: File) => {
+        toast.info('Імпорт', USE_MOCK_DATA ? 'Демо режим: імпорт не виконується' : `Імпорт ${file.name}`);
     };
 
-    const handleExportExcel = (options: ExportExcelOptions) => {
-        console.log('Експорт в Excel з опціями:', options);
+    const handleExportExcel = async (options: ExportExcelOptions) => {
+        try {
+            if (!USE_MOCK_DATA) {
+                const data = await staffApi.getAll({});
+                console.log('Експорт staff', data, options);
+            } else {
+                toast.info('Демо режим', 'Експорт не виконується в демо режимі');
+            }
+        } catch (err) {
+            console.error(err);
+            toast.error('Помилка експорту', err instanceof Error ? err.message : 'Не вдалося експортувати');
+        }
     };
 
     return (
         <div className="p-4 sm:p-6">
+            <GlobalLoader isLoading={isLoading || isLocalLoading} />
             <StaffHeader
                 searchQuery={searchQuery}
                 onSearchChange={setSearchQuery}

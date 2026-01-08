@@ -9,11 +9,39 @@ export const CLIENTS_MOCK: Client[] = [
         phone: '+380 67 123 45 67',
         email: 'anna.petrova@gmail.com',
         totalSpent: 15420,
-        visits: 12,
+        totalVisits: 12,
         discount: 10,
-        lastVisit: '2024-11-25T14:30:00',
-        firstVisit: '2024-03-15T10:00:00',
+        lastVisit: '2026-01-01T14:30:00',
         segment: 'repeat',
+        visits: [
+            {
+                id: 'v1',
+                clientId: '1',
+                date: '2026-01-01T14:30:00',
+                serviceName: 'Манікюр з покриттям',
+                staffId: '1',
+                staffName: 'Олена Косенко',
+                notes: 'Любить коротко, п\'є зелений чай. Чутлива шкіра навколо нігтів.',
+                photos: [
+                    'https://images.unsplash.com/photo-1632345031435-8727f6897d53?w=800&auto=format&fit=crop&q=60',
+                    'https://images.unsplash.com/photo-1604654894610-df490982570d?w=800&auto=format&fit=crop&q=60'
+                ],
+                status: 'completed'
+            },
+            {
+                id: 'v2',
+                clientId: '1',
+                date: '2025-12-15T11:00:00',
+                serviceName: 'Манікюр без покриття',
+                staffId: '2',
+                staffName: 'Марія Іванова',
+                notes: 'Приходила з дитиною. Дитина спокійна.',
+                photos: [
+                    'https://images.unsplash.com/photo-1632345031435-8727f6897d53?w=800&auto=format&fit=crop&q=60'
+                ],
+                status: 'completed'
+            }
+        ]
     },
     {
         id: '2',
@@ -23,10 +51,9 @@ export const CLIENTS_MOCK: Client[] = [
         phone: '+380 50 987 65 43',
         email: 'olga.ivanenko@ukr.net',
         totalSpent: 8900,
-        visits: 7,
+        totalVisits: 7,
         discount: 5,
-        lastVisit: '2024-11-20T16:15:00',
-        firstVisit: '2024-05-10T11:30:00',
+        lastVisit: '2025-12-27T16:15:00',
         segment: 'repeat',
     },
     {
@@ -36,10 +63,9 @@ export const CLIENTS_MOCK: Client[] = [
 
         phone: '+380 93 456 78 90',
         totalSpent: 2300,
-        visits: 1,
+        totalVisits: 1,
         discount: 0,
-        lastVisit: '2024-11-26T13:00:00',
-        firstVisit: '2024-11-26T13:00:00',
+        lastVisit: '2026-01-02T13:00:00',
         segment: 'new',
     },
     {
@@ -50,10 +76,9 @@ export const CLIENTS_MOCK: Client[] = [
         phone: '+380 66 234 56 78',
         email: 'natalia.bond@gmail.com',
         totalSpent: 23500,
-        visits: 18,
+        totalVisits: 18,
         discount: 15,
         lastVisit: '2024-09-15T10:30:00',
-        firstVisit: '2024-01-20T09:00:00',
         segment: 'lost',
     },
     {
@@ -64,10 +89,9 @@ export const CLIENTS_MOCK: Client[] = [
         phone: '+380 99 876 54 32',
         email: 'kateryna.melnyk@ukr.net',
         totalSpent: 19800,
-        visits: 15,
+        totalVisits: 15,
         discount: 12,
-        lastVisit: '2024-11-24T15:45:00',
-        firstVisit: '2024-02-28T14:00:00',
+        lastVisit: '2025-12-31T15:45:00',
         segment: 'subscription-ending',
     },
     {
@@ -77,10 +101,9 @@ export const CLIENTS_MOCK: Client[] = [
 
         phone: '+380 68 345 67 89',
         totalSpent: 5600,
-        visits: 4,
+        totalVisits: 4,
         discount: 0,
-        lastVisit: '2024-11-22T11:20:00',
-        firstVisit: '2024-08-12T10:00:00',
+        lastVisit: '2025-12-29T11:20:00',
         segment: 'repeat',
     },
     {
@@ -91,10 +114,9 @@ export const CLIENTS_MOCK: Client[] = [
         phone: '+380 95 123 45 67',
         email: 'yulia.tkachenko@gmail.com',
         totalSpent: 12400,
-        visits: 9,
+        totalVisits: 9,
         discount: 8,
-        lastVisit: '2024-11-23T17:30:00',
-        firstVisit: '2024-04-05T12:00:00',
+        lastVisit: '2025-12-30T17:30:00',
         segment: 'repeat',
     },
     {
@@ -104,10 +126,9 @@ export const CLIENTS_MOCK: Client[] = [
 
         phone: '+380 97 765 43 21',
         totalSpent: 3200,
-        visits: 2,
+        totalVisits: 2,
         discount: 0,
         lastVisit: '2024-11-18T14:00:00',
-        firstVisit: '2024-10-30T11:00:00',
         segment: 'new',
     },
     {
@@ -118,10 +139,9 @@ export const CLIENTS_MOCK: Client[] = [
         phone: '+380 63 456 78 90',
         email: 'vira.sydorenko@ukr.net',
         totalSpent: 28700,
-        visits: 22,
+        totalVisits: 22,
         discount: 20,
         lastVisit: '2024-08-20T09:15:00',
-        firstVisit: '2023-11-10T10:30:00',
         segment: 'lost',
     },
     {
@@ -131,10 +151,9 @@ export const CLIENTS_MOCK: Client[] = [
 
         phone: '+380 91 234 56 78',
         totalSpent: 7800,
-        visits: 6,
+        totalVisits: 6,
         discount: 5,
-        lastVisit: '2024-11-21T16:00:00',
-        firstVisit: '2024-06-15T13:30:00',
+        lastVisit: '2025-12-28T16:00:00',
         segment: 'repeat',
     },
     {
@@ -145,10 +164,9 @@ export const CLIENTS_MOCK: Client[] = [
         phone: '+380 67 890 12 34',
         email: 'oksana.kozlova@gmail.com',
         totalSpent: 16200,
-        visits: 13,
+        totalVisits: 13,
         discount: 10,
-        lastVisit: '2024-11-25T10:45:00',
-        firstVisit: '2024-03-22T15:00:00',
+        lastVisit: '2026-01-01T10:45:00',
         segment: 'subscription-ending',
     },
     {
@@ -158,10 +176,9 @@ export const CLIENTS_MOCK: Client[] = [
 
         phone: '+380 50 678 90 12',
         totalSpent: 4100,
-        visits: 3,
+        totalVisits: 3,
         discount: 0,
-        lastVisit: '2024-11-19T12:30:00',
-        firstVisit: '2024-09-05T11:00:00',
+        lastVisit: '2025-12-26T12:30:00',
         segment: 'repeat',
     },
     {
@@ -172,10 +189,9 @@ export const CLIENTS_MOCK: Client[] = [
         phone: '+380 93 567 89 01',
         email: 'alla.kravchenko@ukr.net',
         totalSpent: 1850,
-        visits: 1,
+        totalVisits: 1,
         discount: 0,
-        lastVisit: '2024-11-27T09:00:00',
-        firstVisit: '2024-11-27T09:00:00',
+        lastVisit: '2026-01-03T09:00:00',
         segment: 'new',
     },
     {
@@ -185,10 +201,9 @@ export const CLIENTS_MOCK: Client[] = [
 
         phone: '+380 66 789 01 23',
         totalSpent: 21300,
-        visits: 17,
+        totalVisits: 17,
         discount: 15,
         lastVisit: '2024-09-08T14:20:00',
-        firstVisit: '2024-01-15T10:00:00',
         segment: 'lost',
     },
     {
@@ -199,10 +214,9 @@ export const CLIENTS_MOCK: Client[] = [
         phone: '+380 99 012 34 56',
         email: 'hanna.bilous@gmail.com',
         totalSpent: 9500,
-        visits: 8,
+        totalVisits: 8,
         discount: 7,
-        lastVisit: '2024-11-24T11:30:00',
-        firstVisit: '2024-05-20T14:00:00',
+        lastVisit: '2025-12-31T11:30:00',
         segment: 'repeat',
     },
 ];

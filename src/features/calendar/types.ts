@@ -11,16 +11,16 @@ export type AppointmentStatus =
     | 'arrived'      // Прийшов
     | 'no-show'      // Не прийшов
     | 'cancelled'    // Відміна
-    | 'completed'    // Завершено
-    | 'paid';        // Оплачено
+    | 'completed';    // Завершено та оплачено
 
 export type AppointmentType = 'standard' | 'important' | 'special';
 
 export interface Appointment {
     id: string;
-    staffId: string;
+    staffId?: string;
     clientName: string;
     clientPhone?: string;
+    clientId?: string | number;
     service: string;
     startTime: string; // HH:mm format
     endTime: string;   // HH:mm format

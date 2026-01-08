@@ -4,18 +4,30 @@ import { useEffect, useState } from 'react';
 
 type Theme = 'light' | 'dark' | 'system';
 
-export function useTheme() {
-    const [theme, setThemeState] = useState<Theme>('light');
-    const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>('light');
-
-    useEffect(() => {
+// Функция для получения начальной темы синхронно
+function getInitialTheme(): Theme {
+    if (typeof window === 'undefined') return 'light';
+    
+    try {
         const stored = localStorage.getItem('theme') as Theme | null;
-        if (stored) {
-            setThemeState(stored);
-        } else {
-            setThemeState('system');
-        }
-    }, []);
+        return stored || 'system';
+    } catch {
+        return 'system';
+    }
+}
+
+// Функция для определения эффективной темы
+function resolveTheme(theme: Theme): 'light' | 'dark' {
+    if (theme === 'system') {
+        if (typeof window === 'undefined') return 'light';
+        return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    return theme;
+}
+
+export function useTheme() {
+    const [theme, setThemeState] = useState<Theme>(getInitialTheme);
+    const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>(() => resolveTheme(getInitialTheme()));
 
     useEffect(() => {
         const root = document.documentElement;

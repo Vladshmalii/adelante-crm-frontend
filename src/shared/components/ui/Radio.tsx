@@ -28,7 +28,7 @@ export const Radio = forwardRef<HTMLInputElement, RadioProps>(
                             'h-5 w-5 rounded-full border-2 transition-all duration-200',
                             'flex items-center justify-center',
                             'border-border peer-checked:border-primary',
-                            'peer-focus:ring-2 peer-focus:ring-ring peer-focus:ring-offset-2'
+                            'peer-focus-visible:ring-2 peer-focus-visible:ring-primary/30'
                         )}
                     >
                         <div

@@ -1,56 +1,61 @@
 import apiClient, { ApiResponse } from './client';
 
 export interface Product {
-    id: string;
+    id: number;
     name: string;
     sku: string;
     category: string;
+    type: string;
     quantity: number;
     minQuantity: number;
     price: number;
     costPrice: number;
     unit: string;
+    description?: string;
     isActive: boolean;
     createdAt: string;
+    updatedAt?: string;
 }
 
 export interface StockMovement {
-    id: string;
-    productId: string;
+    id: number;
+    productId: number;
     type: 'in' | 'out' | 'adjustment';
     quantity: number;
     reason?: string;
-    createdBy: string;
+    documentNumber?: string;
+    createdBy?: number;
     createdAt: string;
 }
 
 export interface ProductFilters {
     search?: string;
     category?: string;
-    lowStock?: boolean;
+    type?: string;
+    stockStatus?: string;
     isActive?: boolean;
     page?: number;
-    perPage?: number;
+    limit?: number;
 }
 
 export const inventoryApi = {
-    getProducts: async (filters?: ProductFilters): Promise<ApiResponse<Product[]>> => {
+    getProducts: async (filters?: ProductFilters): Promise<Product[]> => {
         return apiClient.get('/inventory/products', filters);
     },
 
-    getProductById: async (id: string): Promise<Product> => {
+    getProductById: async (id: number): Promise<Product> => {
         return apiClient.get(`/inventory/products/${id}`);
     },
 
-    createProduct: async (data: Omit<Product, 'id' | 'createdAt'>): Promise<Product> => {
+    createProduct: async (data: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>): Promise<Product> => {
         return apiClient.post('/inventory/products', data);
     },
 
-    updateProduct: async (id: string, data: Partial<Product>): Promise<Product> => {
+    updateProduct: async (id: number, data: Partial<Product>): Promise<Product> => {
         return apiClient.put(`/inventory/products/${id}`, data);
     },
 
-    deleteProduct: async (id: string): Promise<void> => {
+    deleteProduct: async (id: number): Promise<void> => {
         return apiClient.delete(`/inventory/products/${id}`);
     },
 
@@ -58,15 +63,15 @@ export const inventoryApi = {
         return apiClient.post('/inventory/stock-movement', data);
     },
 
-    getStockHistory: async (productId: string): Promise<StockMovement[]> => {
+    getStockHistory: async (productId: number): Promise<StockMovement[]> => {
         return apiClient.get(`/inventory/products/${productId}/history`);
     },
 
     exportProducts: async (filters?: ProductFilters): Promise<Blob> => {
-        return apiClient.get('/inventory/export', { ...filters, format: 'xlsx' });
+        return apiClient.get('/inventory/export', filters);
     },
 
-    importProducts: async (file: File): Promise<{ imported: number; errors: string[] }> => {
+    importProducts: async (file: File): Promise<{ imported: number; failed: number; errors: Array<{ row: number; error: string }> }> => {
         return apiClient.upload('/inventory/import', file);
     },
 };

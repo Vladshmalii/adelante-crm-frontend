@@ -6,15 +6,19 @@ import { Send } from 'lucide-react';
 import { Input } from '@/shared/components/ui/Input';
 import { Button } from '@/shared/components/ui/Button';
 import { useToast } from '@/shared/hooks/useToast';
+import { useAuth } from '@/shared/hooks/useAuth';
+import { USE_MOCK_DATA } from '@/lib/config';
 
 export default function LoginPage() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+    const [loading, setLoading] = useState(false);
     const toast = useToast();
     const router = useRouter();
+    const { login } = useAuth();
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
         const newErrors: { email?: string; password?: string } = {};
@@ -34,18 +38,28 @@ export default function LoginPage() {
             return;
         }
 
-        toast.success('Вхід виконано успішно');
-        router.push('/calendar');
+        try {
+            setLoading(true);
+            await login(email, password);
+            toast.success('Вхід виконано успішно');
+            router.push('/calendar');
+        } catch (err) {
+            console.error(err);
+            const msg = err instanceof Error ? err.message : 'Не вдалося увійти';
+            toast.error(msg);
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/20 flex items-center justify-center px-4 py-8">
-            <div className="w-full max-w-4xl grid grid-cols-1 lg:grid-cols-[1.1fr,1fr] bg-card border border-border rounded-3xl shadow-2xl shadow-black/10 overflow-hidden">
-                <div className="hidden lg:flex flex-col justify-between bg-gradient-to-br from-primary to-primary/80 text-primary-foreground p-8 relative">
+        <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/20 flex items-center justify-center px-4 py-8" suppressHydrationWarning>
+            <div className="w-full max-w-4xl grid grid-cols-1 lg:grid-cols-[1.1fr,1fr] bg-card border border-border rounded-3xl shadow-2xl shadow-black/10 overflow-hidden" suppressHydrationWarning>
+                <div className="hidden lg:flex flex-col justify-between bg-gradient-to-br from-primary to-primary/80 text-primary-foreground p-8 relative" suppressHydrationWarning>
                     <div className="absolute inset-0 opacity-20 pointer-events-none" style={{
                         backgroundImage:
                             'radial-gradient(circle at 0 0, rgba(255,255,255,0.35) 0, transparent 55%), radial-gradient(circle at 100% 100%, rgba(255,255,255,0.3) 0, transparent 55%)',
-                    }} />
+                    }} suppressHydrationWarning />
                     <div className="relative space-y-4">
                         <h1 className="text-3xl font-extrabold tracking-tight font-heading">
                             Adelante CRM
@@ -103,13 +117,16 @@ export default function LoginPage() {
                                 error={errors.password}
                             />
 
-                            <div className="flex items-center justify-end text-sm">
+                            <div className="flex items-center justify-between text-sm">
+                                <a href="/setup" className="text-muted-foreground hover:text-foreground font-medium">
+                                    Перший вхід?
+                                </a>
                                 <a href="/forgot-password" className="text-primary hover:text-primary/80 font-medium">
                                     Забули пароль?
                                 </a>
                             </div>
 
-                            <Button type="submit" variant="primary" size="md" fullWidth>
+                            <Button type="submit" variant="primary" size="md" fullWidth disabled={loading}>
                                 Увійти
                             </Button>
                         </form>

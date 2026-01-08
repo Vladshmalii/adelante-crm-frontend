@@ -13,7 +13,7 @@ export const MOCK_INVENTORY: Product[] = [
         costPrice: 0.5, // за мл
         minQuantity: 500,
         description: 'Шампунь для фарбованого волосся, технічна упаковка',
-        lastRestockDate: '2025-11-20',
+        lastRestockDate: '2025-12-27',
     },
     {
         id: '2',
@@ -27,7 +27,7 @@ export const MOCK_INVENTORY: Product[] = [
         costPrice: 250,
         minQuantity: 5,
         description: 'Стійка крем-фарба',
-        lastRestockDate: '2025-11-25',
+        lastRestockDate: '2026-01-01',
     },
     {
         id: '3',
@@ -41,7 +41,7 @@ export const MOCK_INVENTORY: Product[] = [
         costPrice: 80,
         minQuantity: 10,
         description: 'Масло з ароматом персика, 15мл',
-        lastRestockDate: '2025-11-10',
+        lastRestockDate: '2025-12-17',
     },
     {
         id: '4',
@@ -55,7 +55,7 @@ export const MOCK_INVENTORY: Product[] = [
         costPrice: 120,
         minQuantity: 5,
         description: 'Рушники спанлейс 40х70',
-        lastRestockDate: '2025-11-15',
+        lastRestockDate: '2025-12-22',
     },
     {
         id: '5',

@@ -3,6 +3,7 @@
 import { ReactNode, useState, Suspense } from 'react';
 import { Sidebar } from './Sidebar';
 import { Menu, X } from 'lucide-react';
+import clsx from 'clsx';
 
 interface AppShellProps {
     children: ReactNode;
@@ -27,14 +28,42 @@ function SidebarSkeleton() {
 
 export function AppShell({ children, activeSection }: AppShellProps) {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [isCollapsed, setIsCollapsed] = useState(() => {
+        if (typeof window !== 'undefined') {
+            try {
+                const stored = localStorage.getItem('sidebar-collapsed');
+                return stored === 'true';
+            } catch {
+                return false;
+            }
+        }
+        return false;
+    });
+
+    const handleCollapseChange = (collapsed: boolean) => {
+        setIsCollapsed(collapsed);
+        try {
+            localStorage.setItem('sidebar-collapsed', String(collapsed));
+        } catch {
+            // Ignore localStorage errors
+        }
+    };
 
     return (
-        <div className="min-h-screen bg-background flex font-sans text-foreground">
+        <div
+            className="min-h-screen bg-background flex font-sans text-foreground overflow-hidden"
+            style={{
+                backgroundColor: 'hsl(var(--background))',
+                transition: 'none',
+            } as React.CSSProperties}
+        >
             <Suspense fallback={<SidebarSkeleton />}>
                 <Sidebar
                     activeSection={activeSection}
                     isMobileMenuOpen={isMobileMenuOpen}
                     onMobileMenuClose={() => setIsMobileMenuOpen(false)}
+                    isCollapsed={isCollapsed}
+                    onCollapseChange={handleCollapseChange}
                 />
             </Suspense>
 
@@ -45,9 +74,17 @@ export function AppShell({ children, activeSection }: AppShellProps) {
                 />
             )}
 
-            <main className="flex-1 lg:ml-64 min-h-screen transition-all duration-300 ease-in-out">
-                {children}
-            </main>
+            <div
+                className={clsx(
+                    "flex-1 h-screen overflow-hidden overflow-x-hidden relative transition-[margin-left] duration-300 ease-in-out",
+                    isCollapsed ? "lg:ml-16" : "lg:ml-64",
+                    "ml-0"
+                )}
+            >
+                <main className="h-full flex flex-col overflow-hidden">
+                    {children}
+                </main>
+            </div>
 
             <button
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}

@@ -1,28 +1,35 @@
 import apiClient, { ApiResponse } from './client';
 
 export interface FinanceOperation {
-    id: string;
+    id: number;
     type: 'income' | 'expense';
     amount: number;
-    category: string;
+    category?: string;
     description?: string;
     date: string;
-    paymentMethod: string;
-    cashRegisterId?: string;
-    createdBy: string;
+    documentNumber?: string;
+    paymentMethodId?: number;
+    paymentMethod?: string;
+    cashRegisterId?: number;
+    clientId?: number;
+    status: string;
+    createdBy?: number;
     createdAt: string;
+    updatedAt?: string;
 }
 
 export interface FinanceDocument {
-    id: string;
-    type: 'invoice' | 'receipt' | 'report';
+    id: number;
+    type: string;
     number: string;
     date: string;
     amount: number;
+    contentType: string;
+    counterparty?: string;
+    comment?: string;
     status: 'draft' | 'issued' | 'paid' | 'cancelled';
-    clientId?: string;
-    items: Array<{ name: string; quantity: number; price: number }>;
     createdAt: string;
+    updatedAt?: string;
 }
 
 export interface FinanceDashboard {
@@ -44,19 +51,19 @@ export interface OperationFilters {
 }
 
 export const financesApi = {
-    getOperations: async (filters?: OperationFilters): Promise<ApiResponse<FinanceOperation[]>> => {
+    getOperations: async (filters?: OperationFilters): Promise<FinanceOperation[]> => {
         return apiClient.get('/finances/operations', filters);
     },
 
-    createOperation: async (data: Omit<FinanceOperation, 'id' | 'createdAt' | 'createdBy'>): Promise<FinanceOperation> => {
+    createOperation: async (data: Omit<FinanceOperation, 'id' | 'createdAt' | 'updatedAt'>): Promise<FinanceOperation> => {
         return apiClient.post('/finances/operations', data);
     },
 
-    getDocuments: async (filters?: { type?: string; status?: string; page?: number; perPage?: number }): Promise<ApiResponse<FinanceDocument[]>> => {
+    getDocuments: async (filters?: { type?: string; status?: string; page?: number; limit?: number }): Promise<FinanceDocument[]> => {
         return apiClient.get('/finances/documents', filters);
     },
 
-    createDocument: async (data: Omit<FinanceDocument, 'id' | 'createdAt'>): Promise<FinanceDocument> => {
+    createDocument: async (data: Omit<FinanceDocument, 'id' | 'createdAt' | 'updatedAt'>): Promise<FinanceDocument> => {
         return apiClient.post('/finances/documents', data);
     },
 
@@ -64,15 +71,15 @@ export const financesApi = {
         return apiClient.get('/finances/dashboard', params);
     },
 
-    getPaymentMethods: async (): Promise<Array<{ id: string; name: string }>> => {
+    getPaymentMethods: async (): Promise<Array<{ id: number; name: string; type: string; isActive: boolean }>> => {
         return apiClient.get('/finances/payment-methods');
     },
 
-    getCashRegisters: async (): Promise<Array<{ id: string; name: string; balance: number }>> => {
+    getCashRegisters: async (): Promise<Array<{ id: number; name: string; balance: number; isActive: boolean }>> => {
         return apiClient.get('/finances/cash-registers');
     },
 
-    exportReport: async (params: { dateFrom: string; dateTo: string; format: 'xlsx' | 'pdf' }): Promise<Blob> => {
+    exportReport: async (params: { dateFrom: string; dateTo: string; format?: string }): Promise<Blob> => {
         return apiClient.get('/finances/export', params);
     },
 };

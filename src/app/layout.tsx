@@ -3,6 +3,7 @@ import localFont from 'next/font/local';
 import '@/styles/global.css';
 import { ToastProvider } from '@/shared/providers/ToastProvider';
 import { WebSocketProvider } from '@/shared/providers/WebSocketProvider';
+import { AuthProvider } from '@/shared/components/providers/AuthProvider';
 import { NavigationProgress } from '@/shared/components/NavigationProgress';
 import { GlobalCommandRegistry } from '@/shared/components/layout/GlobalCommandRegistry';
 import { Suspense } from 'react';
@@ -94,11 +95,13 @@ export default function RootLayout({
             <body className={`${sfUiDisplay.variable} font-sans`} suppressHydrationWarning>
                 <ToastProvider>
                     <WebSocketProvider>
+                        <AuthProvider>
                         <Suspense fallback={null}>
                             <NavigationProgress />
                         </Suspense>
                         <GlobalCommandRegistry />
                         {children}
+                        </AuthProvider>
                     </WebSocketProvider>
                 </ToastProvider>
             </body>

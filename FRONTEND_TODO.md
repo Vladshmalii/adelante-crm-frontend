@@ -4,19 +4,20 @@
 
 ### 1. State Management (Zustand)
 
-#### 1.1 Создать stores
+#### 1.1 Создать stores ✅
 ```
 src/
 └── stores/
-    ├── useAuthStore.ts
-    ├── useCalendarStore.ts
-    ├── useClientsStore.ts
-    ├── useStaffStore.ts
-    ├── useServicesStore.ts
-    ├── useFinancesStore.ts
-    ├── useInventoryStore.ts
-    ├── useNotificationsStore.ts
-    └── useSettingsStore.ts
+    ├── useAuthStore.ts ✅
+    ├── useCalendarStore.ts ✅
+    ├── useClientsStore.ts ✅
+    ├── useStaffStore.ts ✅
+    ├── useServicesStore.ts ✅
+    ├── useFinancesStore.ts ✅
+    ├── useInventoryStore.ts ✅
+    ├── useNotificationsStore.ts ✅
+    ├── useSettingsStore.ts ✅
+    └── useUIStore.ts ✅ (дополнительный)
 ```
 
 #### 1.2 useAuthStore.ts ✅
@@ -158,23 +159,23 @@ src/
 
 ### 2. API Интеграция
 
-#### 2.1 Создать API клиент
+#### 2.1 Создать API клиент ✅
 ```
 src/
 └── lib/
     └── api/
-        ├── client.ts          # Axios instance
-        ├── auth.ts            # Auth endpoints
-        ├── appointments.ts    # Appointments endpoints
-        ├── clients.ts         # Clients endpoints
-        ├── staff.ts           # Staff endpoints
-        ├── services.ts        # Services endpoints
-        ├── finances.ts        # Finances endpoints
-        ├── inventory.ts       # Inventory endpoints
-        ├── overview.ts        # Overview endpoints
-        ├── settings.ts        # Settings endpoints
-        ├── notifications.ts   # Notifications endpoints
-        └── reports.ts         # Reports endpoints
+        ├── client.ts          ✅ Axios instance
+        ├── auth.ts            ✅ Auth endpoints
+        ├── appointments.ts    ✅ Appointments endpoints
+        ├── clients.ts         ✅ Clients endpoints
+        ├── staff.ts           ✅ Staff endpoints
+        ├── services.ts        ✅ Services endpoints
+        ├── finances.ts        ✅ Finances endpoints
+        ├── inventory.ts       ✅ Inventory endpoints
+        ├── overview.ts        ✅ Overview endpoints
+        ├── settings.ts        ✅ Settings endpoints
+        ├── notifications.ts   ✅ Notifications endpoints
+        └── reports.ts         ✅ Reports endpoints
 ```
 
 #### 2.2 client.ts - Базовый клиент ✅
@@ -305,7 +306,7 @@ src/
 
 ## 🟡 Средний приоритет (Важно для полноценной работы)
 
-### 7. Недостающие хуки
+### 7. Хуки
 
 #### 7.1 usePagination.ts ✅
 - [x] Создать `src/shared/hooks/usePagination.ts`
@@ -339,6 +340,41 @@ src/
 - [x] Проверка прав на действие
 - [x] Проверка прав на модуль
 - [x] HOC для компонентов
+
+#### 7.6 useToast.ts ✅
+- [x] Создать `src/shared/hooks/useToast.ts`
+- [x] Интеграция с ToastProvider
+- [x] Методы show, success, error, warning, info
+
+#### 7.7 useWebSocket.ts ✅
+- [x] Создать `src/shared/hooks/useWebSocket.ts`
+- [x] Подписка на события
+- [x] Отправка сообщений
+- [x] Отписка при unmount
+
+#### 7.8 useHotkeys.ts ✅
+- [x] Создать `src/shared/hooks/useHotkeys.ts`
+- [x] Обработка комбинаций клавиш
+- [x] Поддержка модификаторов (Ctrl, Alt, Shift, Cmd)
+
+#### 7.9 useAuth.ts ✅
+- [x] Создать `src/shared/hooks/useAuth.ts`
+- [x] Получение данных пользователя
+- [x] Проверка авторизации
+- [x] Проверка прав доступа
+
+#### 7.10 useTheme.ts ✅
+- [x] Создать `src/shared/hooks/useTheme.ts`
+- [x] Переключение темы (light/dark)
+- [x] Сохранение в localStorage
+
+#### 7.11 Дополнительные хуки ✅
+- [x] `useDebounce.ts` - задержка выполнения
+- [x] `useLocalStorage.ts` - работа с localStorage
+- [x] `useClickOutside.ts` - обработка клика вне элемента
+- [x] `useCurrentTime.ts` - текущее время
+- [x] `useHeaderActions.ts` - действия в заголовке
+- [x] `useApi.ts` - generic хук для API запросов
 
 ---
 
@@ -395,9 +431,36 @@ src/
 ---
 
 ### 12. Loading состояния ✅
-- [x] Глобальный Loader
+- [x] Глобальный Loader (GlobalLoader.tsx)
+- [x] Skeleton компонент (Skeleton.tsx)
 - [x] Skeleton для таблиц (Clients)
 - [x] Skeleton для Sidebar
+- [x] Loader компонент (Loader.tsx)
+- [x] NavigationProgress для навигации
+
+### 13. Toast уведомления ✅
+- [x] ToastProvider (src/shared/providers/ToastProvider.tsx)
+- [x] Toast компонент (src/shared/components/ui/Toast.tsx)
+- [x] Хук useToast (src/shared/hooks/useToast.ts)
+- [x] Интеграция в root layout
+- [x] Методы: show, success, error, warning, info
+
+### 14. UI Компоненты ✅
+- [x] Button, Modal, Input, Textarea
+- [x] Dropdown, DatePicker, TimePicker
+- [x] Badge, Alert, Loader, Tooltip
+- [x] Tabs, EmptyState, SearchInput
+- [x] Card, ChartCard, ConfirmDialog
+- [x] ExcelDropdown, NotificationsDropdown, ProfileDropdown
+- [x] **Toast** ✅
+- [x] **Skeleton** ✅
+- [x] **Pagination** ✅
+- [x] **Select** ✅
+- [x] **FileUpload** ✅
+- [x] **Avatar** ✅
+- [x] Progress, Switch, Checkbox, Radio
+- [x] Breadcrumbs, RangeDatePicker
+- [x] ThemeToggle
 
 
 ## 🟢 Низкий приоритет (Можно добавить позже)
@@ -605,4 +668,29 @@ src/features/loyalty/
 
 **Общее количество задач**: ~150+  
 **Оценка времени**: 2-3 месяца для одного разработчика  
-**Текущий прогресс**: ~65% (stores, API, hooks, loyalty, booking готовы)
+**Текущий прогресс**: ~85% 
+
+### ✅ Полностью готово:
+- ✅ Все Zustand stores (9 stores + useUIStore)
+- ✅ Все API клиенты (11 модулей)
+- ✅ Все хуки (16 хуков)
+- ✅ Все UI компоненты (37 компонентов)
+- ✅ WebSocket интеграция (клиент, provider, хук)
+- ✅ Toast система (provider, компонент, хук)
+- ✅ Middleware для защиты роутов
+- ✅ Error boundaries (global-error, error.tsx)
+- ✅ Loading состояния (GlobalLoader, Skeleton, Loader)
+- ✅ Программа лояльности
+- ✅ Онлайн бронирование
+- ✅ Мобильная адаптация (базовая)
+
+### ⚠️ Частично готово:
+- ⚠️ Интеграция с реальным API (используются mock данные)
+- ⚠️ Telegram авторизация (UI готов, нужен backend)
+
+### ❌ Не готово:
+- ❌ PWA (Service Worker, Manifest)
+- ❌ Тестирование (Unit, E2E)
+- ❌ Storybook
+- ❌ Оптимизация производительности (code splitting, lazy loading)
+- ❌ Мониторинг (Analytics, Sentry)

@@ -1,42 +1,97 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { ServicesHeader } from './ServicesHeader';
 import { ServicesFilters } from './ServicesFilters';
 import { ServiceCard } from './ServiceCard';
 import { AddServiceModal } from '../modals/AddServiceModal';
 import { EditServiceModal } from '../modals/EditServiceModal';
 import { ConfirmDialog } from '@/shared/components/ui/ConfirmDialog';
-import { MOCK_SERVICES } from '../data/mockServices';
 import type { Service, ServiceFilters, AddServiceFormData } from '../types';
+import { useServices } from '../hooks/useServices';
+import { useToast } from '@/shared/hooks/useToast';
+import { GlobalLoader } from '@/shared/components/ui/GlobalLoader';
 
 export function ServicesLayout() {
-    const [services, setServices] = useState<Service[]>(MOCK_SERVICES);
+    const toast = useToast();
+    const { services, isLoading, error, createService, updateService, deleteService } = useServices();
     const [searchQuery, setSearchQuery] = useState('');
     const [filters, setFilters] = useState<ServiceFilters>({});
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [selectedService, setSelectedService] = useState<Service | null>(null);
+    const [isLocalLoading, setIsLocalLoading] = useState(false);
 
-    const handleAddService = (data: AddServiceFormData) => {
-        const newService: Service = {
-            id: Date.now().toString(),
-            ...data,
-        };
-        setServices([...services, newService]);
+    useEffect(() => {
+        if (error) {
+            toast.error('Помилка', error);
+        }
+    }, [error, toast]);
+
+    const mapStatusToActive = (status: AddServiceFormData['status']) => status === 'active';
+
+    const handleAddService = async (data: AddServiceFormData) => {
+        setIsLocalLoading(true);
+        try {
+            const newServiceData: Omit<Service, 'id' | 'createdAt' | 'updatedAt'> = {
+                name: data.name,
+                category: data.category,
+                description: data.description,
+                duration: data.duration,
+                price: data.price,
+                color: data.color,
+                isActive: mapStatusToActive(data.status),
+            };
+            await createService(newServiceData);
+            toast.success('Послугу створено', 'Успіх');
+            setIsAddModalOpen(false);
+        } catch (err) {
+            console.error(err);
+            toast.error('Помилка', err instanceof Error ? err.message : 'Не вдалося створити послугу');
+        } finally {
+            setIsLocalLoading(false);
+        }
     };
 
-    const handleEditService = (id: string, data: AddServiceFormData) => {
-        setServices(services.map(service =>
-            service.id === id ? { ...service, ...data } : service
-        ));
-    };
-
-    const handleDeleteService = () => {
-        if (selectedService) {
-            setServices(services.filter(service => service.id !== selectedService.id));
+    const handleEditService = async (id: string | number, data: AddServiceFormData) => {
+        if (!selectedService) return;
+        setIsLocalLoading(true);
+        try {
+            const payload: Partial<Service> = {
+                name: data.name,
+                category: data.category,
+                description: data.description,
+                duration: data.duration,
+                price: data.price,
+                color: data.color,
+                isActive: mapStatusToActive(data.status),
+            };
+            await updateService(id, payload);
+            toast.success('Послугу оновлено', 'Успіх');
+            setIsEditModalOpen(false);
             setSelectedService(null);
+        } catch (err) {
+            console.error(err);
+            toast.error('Помилка', err instanceof Error ? err.message : 'Не вдалося оновити послугу');
+        } finally {
+            setIsLocalLoading(false);
+        }
+    };
+
+    const handleDeleteService = async () => {
+        if (!selectedService) return;
+        setIsLocalLoading(true);
+        try {
+            await deleteService(selectedService.id);
+            toast.success('Послугу видалено', 'Успіх');
+            setSelectedService(null);
+        } catch (err) {
+            console.error(err);
+            toast.error('Помилка', err instanceof Error ? err.message : 'Не вдалося видалити послугу');
+        } finally {
+            setIsLocalLoading(false);
+            setIsDeleteDialogOpen(false);
         }
     };
 
@@ -45,15 +100,16 @@ export function ServicesLayout() {
         setIsEditModalOpen(true);
     };
 
-    const filteredServices = services.filter(service => {
+    const filteredServices = useMemo(() => services.filter(service => {
         if (searchQuery && !service.name.toLowerCase().includes(searchQuery.toLowerCase())) {
             return false;
         }
         if (filters.category && service.category !== filters.category) {
             return false;
         }
-        if (filters.status && service.status !== filters.status) {
-            return false;
+        if (filters.status) {
+            if (filters.status === 'active' && !service.isActive) return false;
+            if (filters.status !== 'active' && service.status && service.status !== filters.status) return false;
         }
         if (filters.priceFrom && service.price < filters.priceFrom) {
             return false;
@@ -62,10 +118,12 @@ export function ServicesLayout() {
             return false;
         }
         return true;
-    });
+    }), [services, filters, searchQuery]);
 
     return (
         <div className="p-4 sm:p-6">
+            <GlobalLoader isLoading={isLoading || isLocalLoading} />
+
             <ServicesHeader
                 onAddService={() => setIsAddModalOpen(true)}
                 searchQuery={searchQuery}

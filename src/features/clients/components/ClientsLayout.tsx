@@ -14,18 +14,20 @@ import { ConfirmDialog } from '@/shared/components/ui/ConfirmDialog';
 import { Loader } from '@/shared/components/ui/Loader';
 import { Skeleton } from '@/shared/components/ui/Skeleton';
 import { GlobalLoader } from '@/shared/components/ui/GlobalLoader';
-import { CLIENTS_MOCK } from '../data/mockClients';
 import { DEFAULT_ITEMS_PER_PAGE } from '../constants';
 import type { ClientSegment, ClientFilters, Client, AddClientFormData, ExportExcelOptions } from '../types';
+import { useClients } from '../hooks/useClients';
+import { clientsApi } from '@/lib/api/clients';
+import { USE_MOCK_DATA } from '@/lib/config';
 
 export function ClientsLayout() {
     const toast = useToast();
-    const [isLoading, setIsLoading] = useState(false);
+    const [isLoadingLocal, setIsLoadingLocal] = useState(false);
 
     const [searchQuery, setSearchQuery] = useState('');
     const [activeSegment, setActiveSegment] = useState<ClientSegment>('repeat');
     const [filters, setFilters] = useState<ClientFilters>({});
-    const [selectedClients, setSelectedClients] = useState<Set<string>>(new Set());
+    const [selectedClients, setSelectedClients] = useState<Set<string | number>>(new Set());
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(DEFAULT_ITEMS_PER_PAGE);
 
@@ -38,30 +40,52 @@ export function ClientsLayout() {
 
     const [selectedClient, setSelectedClient] = useState<Client | null>(null);
 
+    const {
+        clients,
+        isLoading,
+        error,
+        createClient,
+        updateClient,
+        deleteClient,
+    } = useClients({
+        search: searchQuery,
+        segment: activeSegment,
+        page: currentPage,
+        limit: itemsPerPage,
+    });
+
+    useEffect(() => {
+        if (error) {
+            toast.error('Помилка', error);
+        }
+    }, [error, toast]);
+
     const filteredClients = useMemo(() => {
-        let result = CLIENTS_MOCK.filter(
-            (client) => client.segment === activeSegment
-        );
+        let result = [...clients];
+
+        if (activeSegment) {
+            result = result.filter((client) => client.segment === activeSegment);
+        }
 
         if (searchQuery) {
             const query = searchQuery.toLowerCase();
             result = result.filter(
                 (client) =>
                     `${client.firstName} ${client.middleName || ''} ${client.lastName || ''}`.toLowerCase().includes(query) ||
-                    client.phone.includes(query) ||
+                    client.phone?.toLowerCase().includes(query) ||
                     client.email?.toLowerCase().includes(query)
             );
         }
 
         return result;
-    }, [activeSegment, searchQuery]);
+    }, [clients, activeSegment, searchQuery]);
 
     const paginatedClients = useMemo(() => {
         const startIndex = (currentPage - 1) * itemsPerPage;
         return filteredClients.slice(startIndex, startIndex + itemsPerPage);
     }, [filteredClients, currentPage, itemsPerPage]);
 
-    const handleToggleClient = (clientId: string) => {
+    const handleToggleClient = (clientId: string | number) => {
         const newSelected = new Set(selectedClients);
         if (newSelected.has(clientId)) {
             newSelected.delete(clientId);
@@ -115,35 +139,131 @@ export function ClientsLayout() {
         setIsDeleteClientModalOpen(true);
     };
 
-    const handleSaveClient = (data: AddClientFormData) => {
-        console.log('Зберегти клієнта:', data);
+    const buildBirthDate = (data: AddClientFormData) => {
+        if (data.birthYear && data.birthMonth && data.birthDay) {
+            return `${data.birthYear}-${data.birthMonth}-${data.birthDay}`;
+        }
+        return undefined;
     };
 
-    const handleUpdateClient = (id: string, data: AddClientFormData) => {
-        console.log('Оновити клієнта:', id, data);
+    const handleSaveClient = async (data: AddClientFormData) => {
+        setIsLoadingLocal(true);
+        try {
+            await createClient({
+                firstName: data.firstName,
+                lastName: data.lastName || '',
+                middleName: data.middleName,
+                phone: data.phone,
+                email: data.email,
+                cardNumber: data.cardNumber,
+                birthDate: buildBirthDate(data),
+                gender: data.gender,
+                source: data.category,
+                discount: data.discount,
+                bonusBalance: 0,
+                totalVisits: 0,
+                totalSpent: 0,
+                segment: 'new',
+            });
+            toast.success('Клієнта створено', 'Успіх');
+            setIsAddClientModalOpen(false);
+        } catch (err) {
+            console.error(err);
+            toast.error('Помилка', err instanceof Error ? err.message : 'Не вдалося створити клієнта');
+        } finally {
+            setIsLoadingLocal(false);
+        }
     };
 
-    const handleConfirmDelete = () => {
-        if (selectedClient) {
-            console.log('Видалити клієнта:', selectedClient.id);
+    const handleUpdateClient = async (id: string | number, data: AddClientFormData) => {
+        if (!selectedClient) return;
+        setIsLoadingLocal(true);
+        try {
+            await updateClient(id, {
+                firstName: data.firstName,
+                lastName: data.lastName,
+                middleName: data.middleName,
+                phone: data.phone,
+                email: data.email,
+                cardNumber: data.cardNumber,
+                birthDate: buildBirthDate(data),
+                gender: data.gender,
+                source: data.category,
+                discount: data.discount,
+            });
+            toast.success('Клієнта оновлено', 'Успіх');
+            setIsEditClientModalOpen(false);
+        } catch (err) {
+            console.error(err);
+            toast.error('Помилка', err instanceof Error ? err.message : 'Не вдалося оновити клієнта');
+        } finally {
+            setIsLoadingLocal(false);
+        }
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!selectedClient) return;
+        setIsLoadingLocal(true);
+        try {
+            await deleteClient(selectedClient.id);
             toast.success('Клієнта видалено', 'Успіх');
             setIsDeleteClientModalOpen(false);
             setSelectedClient(null);
             setIsClientDetailsModalOpen(false);
+        } catch (err) {
+            console.error(err);
+            toast.error('Помилка', err instanceof Error ? err.message : 'Не вдалося видалити клієнта');
+        } finally {
+            setIsLoadingLocal(false);
         }
     };
 
-    const handleImportExcel = (file: File) => {
-        console.log('Імпорт Excel файлу:', file.name);
+    const handleImportExcel = async (file: File) => {
+        try {
+            setIsLoadingLocal(true);
+            if (!USE_MOCK_DATA) {
+                await clientsApi.import(file);
+                toast.success('Імпортовано', 'Дані клієнтів оновлено');
+            } else {
+                toast.info('Демо режим', 'Імпорт не виконується в демо режимі');
+            }
+        } catch (err) {
+            console.error(err);
+            toast.error('Помилка імпорту', err instanceof Error ? err.message : 'Не вдалося імпортувати файл');
+        } finally {
+            setIsLoadingLocal(false);
+            setIsImportExcelModalOpen(false);
+        }
     };
 
-    const handleExportExcel = (options: ExportExcelOptions) => {
-        console.log('Експорт в Excel з опціями:', options);
+    const handleExportExcel = async (options: ExportExcelOptions) => {
+        try {
+            setIsLoadingLocal(true);
+            if (!USE_MOCK_DATA) {
+                const blob = await clientsApi.export(options as any);
+                const url = window.URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = 'clients.xlsx';
+                link.click();
+                window.URL.revokeObjectURL(url);
+                toast.success('Експорт виконано', 'Файл завантажено');
+            } else {
+                toast.info('Демо режим', 'Експорт не виконується в демо режимі');
+            }
+        } catch (err) {
+            console.error(err);
+            toast.error('Помилка експорту', err instanceof Error ? err.message : 'Не вдалося експортувати');
+        } finally {
+            setIsLoadingLocal(false);
+            setIsExportExcelModalOpen(false);
+        }
     };
 
     return (
         <div className="p-6">
             <GlobalLoader isLoading={isLoading} />
+            <GlobalLoader isLoading={isLoadingLocal} />
 
             <ClientsHeader
                 searchQuery={searchQuery}

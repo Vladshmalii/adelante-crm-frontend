@@ -15,6 +15,7 @@ import {
     ChevronLeft,
     User,
     Briefcase,
+    Plus,
 } from 'lucide-react';
 import { DatePicker } from '@/shared/components/ui/DatePicker';
 import { ThemeToggle } from '@/shared/components/ui/ThemeToggle';
@@ -66,10 +67,28 @@ interface SidebarProps {
     activeSection?: string;
     isMobileMenuOpen?: boolean;
     onMobileMenuClose?: () => void;
+    isCollapsed?: boolean;
+    onCollapseChange?: (collapsed: boolean) => void;
 }
 
-export function Sidebar({ activeSection = 'calendar', isMobileMenuOpen = false, onMobileMenuClose }: SidebarProps) {
-    const [isCollapsed, setIsCollapsed] = useState(false);
+export function Sidebar({
+    activeSection = 'calendar',
+    isMobileMenuOpen = false,
+    onMobileMenuClose,
+    isCollapsed: externalIsCollapsed,
+    onCollapseChange
+}: SidebarProps) {
+    const [internalIsCollapsed, setInternalIsCollapsed] = useState(false);
+    const isCollapsed = externalIsCollapsed !== undefined ? externalIsCollapsed : internalIsCollapsed;
+
+    const handleCollapseToggle = () => {
+        const newCollapsed = !isCollapsed;
+        if (onCollapseChange) {
+            onCollapseChange(newCollapsed);
+        } else {
+            setInternalIsCollapsed(newCollapsed);
+        }
+    };
     const [selectedDate, setSelectedDate] = useState('');
     const searchParams = useSearchParams();
     const currentTab = searchParams.get('tab');
@@ -83,38 +102,58 @@ export function Sidebar({ activeSection = 'calendar', isMobileMenuOpen = false, 
     return (
         <aside
             className={clsx(
-                'fixed left-0 top-0 h-screen bg-sidebar text-sidebar-foreground transition-all duration-300 shadow-xl',
+                'fixed left-0 top-0 h-screen bg-sidebar text-sidebar-foreground shadow-xl',
                 'flex flex-col border-r border-sidebar-border',
-                'lg:z-40',
-                isCollapsed ? 'lg:w-16' : 'lg:w-64',
-                'z-40 w-64',
-                isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+                'z-50 transition-all duration-300 ease-in-out',
+                'w-64', // Base width for mobile and expanded desktop
+                isCollapsed && 'lg:w-16', // Collapsed width for desktop
+                isMobileMenuOpen ? 'translate-x-0' : 'max-lg:-translate-x-full'
             )}
+            style={{
+                backgroundColor: 'hsl(var(--sidebar))',
+            } as React.CSSProperties}
         >
             <div className="h-16 flex items-center justify-between px-4 border-b border-sidebar-border">
-                {!isCollapsed && (
-                    <div className="flex items-center gap-2 animate-fade-in">
-                        <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center shadow-lg shadow-primary/20">
-                            <Calendar className="w-5 h-5 text-primary-foreground" />
-                        </div>
-                        <span className="font-heading font-bold text-lg tracking-tight">Adelante CRM</span>
+                <div
+                    className="flex items-center gap-2 overflow-hidden transition-all duration-300"
+                    style={{
+                        opacity: isCollapsed ? 0 : 1,
+                        width: isCollapsed ? 0 : 'auto',
+                        pointerEvents: isCollapsed ? 'none' : 'auto',
+                    }}
+                >
+                    <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center shadow-lg shadow-primary/20 flex-shrink-0">
+                        <Calendar className="w-5 h-5 text-primary-foreground" />
                     </div>
-                )}
+                    <span className="font-heading font-bold text-lg tracking-tight whitespace-nowrap">Adelante CRM</span>
+                </div>
                 <button
-                    onClick={() => setIsCollapsed(!isCollapsed)}
-                    className="hidden lg:block p-1.5 hover:bg-sidebar-active rounded-lg transition-colors ml-auto text-sidebar-muted hover:text-sidebar-foreground"
+                    onClick={handleCollapseToggle}
+                    className="hidden lg:block p-1.5 hover:bg-sidebar-active rounded-lg transition-colors text-sidebar-muted hover:text-sidebar-foreground flex-shrink-0"
+                    style={{
+                        marginLeft: isCollapsed ? 'auto' : undefined,
+                    }}
                 >
                     <ChevronLeft
                         className={clsx(
-                            'w-5 h-5 transition-transform duration-300',
+                            'w-5 h-5 transition-transform duration-300 ease-in-out',
                             isCollapsed && 'rotate-180'
                         )}
                     />
                 </button>
             </div>
 
-            {!isCollapsed && (
-                <div className="px-3 py-4 border-b border-sidebar-border">
+            <div
+                className="border-b border-sidebar-border overflow-hidden transition-all duration-300"
+                style={{
+                    opacity: isCollapsed ? 0 : 1,
+                    maxHeight: isCollapsed ? 0 : '400px',
+                    paddingTop: isCollapsed ? 0 : '1rem',
+                    paddingBottom: isCollapsed ? 0 : '1rem',
+                    pointerEvents: isCollapsed ? 'none' : 'auto',
+                }}
+            >
+                <div className="px-3">
                     <DatePicker
                         value={selectedDate}
                         onChange={handleDateChange}
@@ -122,7 +161,29 @@ export function Sidebar({ activeSection = 'calendar', isMobileMenuOpen = false, 
                         theme="dark"
                     />
                 </div>
-            )}
+            </div>
+
+            <div className="px-2 mt-4 mb-2">
+                <button
+                    onClick={() => router.push(`/calendar?create=${Date.now()}`)}
+                    className={clsx(
+                        'w-full flex items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-md shadow-primary/20 hover:bg-primary/90 transition-all duration-200 group active:scale-95',
+                        isCollapsed ? 'p-2.5' : 'gap-2 px-3 py-2.5'
+                    )}
+                    title={isCollapsed ? 'Додати запис' : undefined}
+                >
+                    <Plus className={clsx("w-4 h-4 flex-shrink-0 transition-transform duration-200 group-hover:rotate-90")} />
+                    <span
+                        className="text-sm font-semibold overflow-hidden whitespace-nowrap transition-all duration-300 font-heading"
+                        style={{
+                            opacity: isCollapsed ? 0 : 1,
+                            width: isCollapsed ? 0 : 'auto',
+                        }}
+                    >
+                        Додати запис
+                    </span>
+                </button>
+            </div>
 
             <nav className="flex-1 overflow-y-auto py-4 scrollbar-thin">
                 <ul className="space-y-1 px-2">
@@ -137,18 +198,24 @@ export function Sidebar({ activeSection = 'calendar', isMobileMenuOpen = false, 
                                     href={item.href}
                                     onClick={() => onMobileMenuClose?.()}
                                     className={clsx(
-                                        'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group relative overflow-hidden',
+                                        'flex items-center rounded-lg transition-all duration-200 group relative',
                                         isActive
                                             ? 'bg-primary hover:bg-primary-hover text-primary-foreground shadow-md shadow-primary/30'
                                             : 'text-sidebar-muted hover:text-sidebar-foreground hover:bg-sidebar-active',
-                                        isCollapsed && 'justify-center'
+                                        isCollapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2.5'
                                     )}
                                     title={isCollapsed ? item.label : undefined}
                                 >
                                     <Icon className={clsx("w-5 h-5 flex-shrink-0 transition-transform duration-200", !isActive && "group-hover:scale-110")} />
-                                    {!isCollapsed && (
-                                        <span className="text-sm font-medium animate-fade-in">{item.label}</span>
-                                    )}
+                                    <span
+                                        className="text-sm font-medium overflow-hidden whitespace-nowrap transition-all duration-300"
+                                        style={{
+                                            opacity: isCollapsed ? 0 : 1,
+                                            width: isCollapsed ? 0 : 'auto',
+                                        }}
+                                    >
+                                        {item.label}
+                                    </span>
                                 </Link>
 
                                 {isActive && hasSubItems && !isCollapsed && (
@@ -182,20 +249,26 @@ export function Sidebar({ activeSection = 'calendar', isMobileMenuOpen = false, 
                 </ul>
             </nav>
 
-            {!isCollapsed && (
-                <div className="p-4 border-t border-sidebar-border animate-fade-in-up">
-                    <div className="flex items-center gap-3 mb-3">
-                        <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary/60 rounded-full flex items-center justify-center shadow-lg">
-                            <User className="w-5 h-5 text-sidebar-foreground" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold truncate font-heading">Адміністратор</p>
-                            <p className="text-xs text-sidebar-muted truncate">admin@salon.ua</p>
-                        </div>
-                        <ThemeToggle className="text-sidebar-muted hover:text-sidebar-foreground" />
+            <div
+                className="border-t border-sidebar-border overflow-hidden transition-all duration-300"
+                style={{
+                    opacity: isCollapsed ? 0 : 1,
+                    maxHeight: isCollapsed ? 0 : '200px',
+                    padding: isCollapsed ? 0 : '1rem',
+                    pointerEvents: isCollapsed ? 'none' : 'auto',
+                }}
+            >
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary/60 rounded-full flex items-center justify-center shadow-lg flex-shrink-0">
+                        <User className="w-5 h-5 text-sidebar-foreground" />
                     </div>
+                    <div className="flex-1 min-w-0 overflow-hidden">
+                        <p className="text-sm font-semibold truncate font-heading">Адміністратор</p>
+                        <p className="text-xs text-sidebar-muted truncate">admin@salon.ua</p>
+                    </div>
+                    <ThemeToggle className="text-sidebar-muted hover:text-sidebar-foreground flex-shrink-0" />
                 </div>
-            )}
+            </div>
         </aside>
     );
 }

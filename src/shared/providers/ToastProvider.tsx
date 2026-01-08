@@ -3,6 +3,7 @@
 import { createContext, ReactNode, useCallback, useContext, useMemo, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Toast, ToastVariant } from '../components/ui/Toast';
+import clsx from 'clsx';
 
 interface ToastItem {
     id: string;
@@ -45,7 +46,7 @@ export function ToastProvider({ children }: ToastProviderProps) {
             setToasts(prev => prev.map(t => (t.id === id ? { ...t, isVisible: false } : t)));
             setTimeout(() => {
                 remove(id);
-            }, 200);
+            }, 500); // Increased to match the smoother animation
         },
         [remove]
     );
@@ -87,23 +88,26 @@ export function ToastProvider({ children }: ToastProviderProps) {
             {children}
             {mounted &&
                 createPortal(
-                    <div className="fixed inset-0 flex items-start justify-end px-4 py-6 pointer-events-none z-[9999]">
-                        <div className="flex flex-col gap-3 w-full max-w-sm">
-                            {toasts.map((toast) => (
-                                <div
-                                    key={toast.id}
-                                    className={`transform transition-all duration-200 ease-out ${toast.isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}
-                                >
-                                    <Toast
-                                        id={toast.id}
-                                        title={toast.title}
-                                        message={toast.message}
-                                        variant={toast.variant}
-                                        onClose={hide}
-                                    />
-                                </div>
-                            ))}
-                        </div>
+                    <div className="fixed top-24 right-4 lg:right-8 z-[9999] pointer-events-none flex flex-col items-end gap-3 w-full max-w-sm">
+                        {toasts.map((toast) => (
+                            <div
+                                key={toast.id}
+                                className={clsx(
+                                    "w-full transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)]",
+                                    toast.isVisible
+                                        ? "opacity-100 translate-x-0 scale-100"
+                                        : "opacity-0 translate-x-12 scale-90"
+                                )}
+                            >
+                                <Toast
+                                    id={toast.id}
+                                    title={toast.title}
+                                    message={toast.message}
+                                    variant={toast.variant}
+                                    onClose={hide}
+                                />
+                            </div>
+                        ))}
                     </div>,
                     document.body
                 )}

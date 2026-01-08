@@ -6,6 +6,7 @@ import { Button } from '@/shared/components/ui/Button';
 import { Badge } from '@/shared/components/ui/Badge';
 import type { Staff } from '../types';
 import { mockUserProfile } from '@/features/profile/data/mockProfile';
+import { getRoleLabel } from '../utils/roleTranslations';
 import { User, Phone, Mail, Calendar, Banknote, Percent, Briefcase, Clock, Eye, EyeOff } from 'lucide-react';
 
 interface StaffDetailsModalProps {
@@ -30,14 +31,6 @@ export function StaffDetailsModal({ isOpen, onClose, onEdit, onDelete, staff }: 
         return `${day}.${month}.${year}`;
     };
 
-    const getRoleLabel = (role: string) => {
-        const labels: Record<string, string> = {
-            'master': 'Майстер',
-            'administrator': 'Адміністратор',
-            'manager': 'Менеджер'
-        };
-        return labels[role] || role;
-    };
 
     const getStatusLabel = (status: string) => {
         const labels: Record<string, string> = {

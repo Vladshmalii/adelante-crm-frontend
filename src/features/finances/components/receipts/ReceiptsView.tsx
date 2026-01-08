@@ -12,8 +12,8 @@ import { EditReceiptModal } from '../../modals/EditReceiptModal';
 import { ReceiptDetailsModal } from '../../modals/ReceiptDetailsModal';
 
 export function ReceiptsView() {
-    const [dateFrom, setDateFrom] = useState('2025-11-22');
-    const [dateTo, setDateTo] = useState('2025-11-28');
+    const [dateFrom, setDateFrom] = useState('2025-12-29');
+    const [dateTo, setDateTo] = useState('2026-01-04');
     const [cashRegister, setCashRegister] = useState('all');
     const [employee, setEmployee] = useState('all');
     const [status, setStatus] = useState('all');

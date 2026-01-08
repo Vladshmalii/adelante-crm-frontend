@@ -1,24 +1,29 @@
-export type StaffRole = 'master' | 'administrator' | 'manager';
+export type StaffRole = 'master' | 'administrator' | 'manager' | string;
 
-export type StaffStatus = 'active' | 'vacation' | 'sick' | 'fired';
+export type StaffStatus = 'active' | 'vacation' | 'sick' | 'fired' | string;
 
 export type StaffGender = 'male' | 'female' | 'other';
 
 export interface Staff {
-    id: string;
+    id: string | number;
     firstName: string;
     middleName?: string;
     lastName?: string;
     phone: string;
     email?: string;
     role: StaffRole;
+    position?: string;
     status: StaffStatus;
-    salary: number;
-    commission: number;
-    hireDate: string;
+    isActive: boolean;
+    salary?: number;
+    commission?: number;
+    hireDate?: string;
     avatar?: string;
     specialization?: string;
+    specializations?: string[];
     workSchedule?: string;
+    createdAt?: string;
+    updatedAt?: string;
 }
 
 export interface StaffFilters {

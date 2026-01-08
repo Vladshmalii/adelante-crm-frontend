@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useToast } from '@/shared/hooks/useToast';
 import { InventoryHeader } from './InventoryHeader';
 import { InventoryFilters } from './InventoryFilters';
@@ -12,12 +12,15 @@ import { StockMovementModal } from '../modals/StockMovementModal';
 import { ImportExcelModal } from '@/features/clients/modals/ImportExcelModal';
 import { InventoryExportModal } from '../modals/InventoryExportModal';
 import { ConfirmDialog } from '@/shared/components/ui/ConfirmDialog';
-import { MOCK_INVENTORY } from '../data/mockInventory';
 import { Product, InventoryFilters as FilterType, AddProductFormData, StockMovementFormData, InventoryExportOptions } from '../types';
+import { useInventory } from '../hooks/useInventory';
+import { GlobalLoader } from '@/shared/components/ui/GlobalLoader';
+import { USE_MOCK_DATA } from '@/lib/config';
+import { inventoryApi } from '@/lib/api/inventory';
 
 export function InventoryLayout() {
     const toast = useToast();
-    const [products, setProducts] = useState<Product[]>(MOCK_INVENTORY);
+    const { products, isLoading, error, createProduct, updateProduct, deleteProduct, createStockMovement, loadProducts } = useInventory();
     const [searchQuery, setSearchQuery] = useState('');
     const [filters, setFilters] = useState<FilterType>({});
 
@@ -29,6 +32,16 @@ export function InventoryLayout() {
     const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+
+    useEffect(() => {
+        if (error) {
+            toast.error('Помилка', error);
+        }
+    }, [error, toast]);
+
+    useEffect(() => {
+        loadProducts();
+    }, [loadProducts]);
 
     const filteredProducts = useMemo(() => {
         return products.filter(product => {
@@ -62,39 +75,65 @@ export function InventoryLayout() {
         });
     }, [products, searchQuery, filters]);
 
-    const handleAddProduct = (data: AddProductFormData) => {
-        const newProduct: Product = {
-            id: Date.now().toString(),
-            ...data,
-        };
-        setProducts([...products, newProduct]);
-    };
-
-    const handleEditProduct = (id: string, data: AddProductFormData) => {
-        setProducts(products.map(p => p.id === id ? { ...p, ...data } : p));
-    };
-
-    const handleDeleteProduct = () => {
-        if (selectedProduct) {
-            setProducts(products.filter(p => p.id !== selectedProduct.id));
-            toast.success('Товар видалено', 'Успіх');
-            setIsDeleteModalOpen(false);
-            setSelectedProduct(null);
+    const handleAddProduct = async (data: AddProductFormData) => {
+        try {
+            await createProduct({
+                ...data,
+                quantity: data.quantity ?? 0,
+                minQuantity: data.minQuantity ?? 0,
+                costPrice: data.costPrice ?? 0,
+                isActive: true,
+            } as any);
+            toast.success('Товар створено', 'Успіх');
+            setIsAddModalOpen(false);
+        } catch (err) {
+            console.error(err);
+            toast.error('Помилка', err instanceof Error ? err.message : 'Не вдалося створити товар');
         }
     };
 
-    const handleStockMovement = (data: StockMovementFormData) => {
-        setProducts(products.map(p => {
-            if (p.id === data.productId) {
-                let newQuantity = p.quantity;
-                if (data.type === 'in') newQuantity += data.quantity;
-                if (data.type === 'out') newQuantity = Math.max(0, newQuantity - data.quantity);
-                if (data.type === 'adjustment') newQuantity = data.quantity;
+    const handleEditProduct = async (id: string | number, data: AddProductFormData) => {
+        if (!selectedProduct) return;
+        try {
+            await updateProduct(id, {
+                ...data,
+            } as any);
+            toast.success('Товар оновлено', 'Успіх');
+            setIsEditModalOpen(false);
+            setSelectedProduct(null);
+        } catch (err) {
+            console.error(err);
+            toast.error('Помилка', err instanceof Error ? err.message : 'Не вдалося оновити товар');
+        }
+    };
 
-                return { ...p, quantity: newQuantity };
-            }
-            return p;
-        }));
+    const handleDeleteProduct = async () => {
+        if (!selectedProduct) return;
+        try {
+            await deleteProduct(selectedProduct.id);
+            toast.success('Товар видалено', 'Успіх');
+            setIsDeleteModalOpen(false);
+            setSelectedProduct(null);
+        } catch (err) {
+            console.error(err);
+            toast.error('Помилка', err instanceof Error ? err.message : 'Не вдалося видалити товар');
+        }
+    };
+
+    const handleStockMovement = async (data: StockMovementFormData) => {
+        try {
+            await createStockMovement({
+                productId: data.productId,
+                type: data.type,
+                quantity: data.quantity,
+                reason: data.reason,
+            } as any);
+            toast.success('Рух по складу оновлено', 'Успіх');
+            setIsMovementModalOpen(false);
+        } catch (err) {
+            console.error(err);
+            toast.error('Помилка', err instanceof Error ? err.message : 'Не вдалося оновити рух по складу');
+        }
     };
 
     const openEditModal = (product: Product) => {
@@ -112,16 +151,32 @@ export function InventoryLayout() {
         setIsMovementModalOpen(true);
     };
 
-    const handleImport = (file: File) => {
-        console.log('Importing file:', file.name);
+    const handleImport = async (file: File) => {
+        toast.info('Імпорт', USE_MOCK_DATA ? 'Демо режим: імпорт не виконується' : `Імпорт ${file.name}`);
     };
 
-    const handleExport = (options: InventoryExportOptions) => {
-        console.log('Exporting inventory with options:', options);
+    const handleExport = async (options: InventoryExportOptions) => {
+        try {
+            if (!USE_MOCK_DATA) {
+                const blob = await inventoryApi.exportProducts(options as any);
+                const url = window.URL.createObjectURL(blob as any);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = 'inventory.xlsx';
+                link.click();
+                window.URL.revokeObjectURL(url);
+            } else {
+                toast.info('Демо режим', 'Експорт не виконується в демо режимі');
+            }
+        } catch (err) {
+            console.error(err);
+            toast.error('Помилка експорту', err instanceof Error ? err.message : 'Не вдалося експортувати');
+        }
     };
 
     return (
         <div className="p-4 sm:p-6">
+            <GlobalLoader isLoading={isLoading} />
             <InventoryHeader
                 searchQuery={searchQuery}
                 onSearchChange={setSearchQuery}

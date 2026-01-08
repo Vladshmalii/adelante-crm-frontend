@@ -1,6 +1,7 @@
 import { StaffActionsMenu } from './StaffActionsMenu';
 import { Checkbox } from '@/shared/components/ui/Checkbox';
 import type { Staff } from '../types';
+import { getRoleLabel } from '../utils/roleTranslations';
 
 interface StaffTableRowProps {
     staff: Staff;
@@ -13,12 +14,6 @@ interface StaffTableRowProps {
     onStatistics: () => void;
     isEven: boolean;
 }
-
-const ROLE_LABELS: Record<string, string> = {
-    master: 'Майстер',
-    administrator: 'Адміністратор',
-    manager: 'Менеджер',
-};
 
 export function StaffTableRow({
     staff,
@@ -80,7 +75,7 @@ export function StaffTableRow({
                 {staff.email ? 'Приховано' : '—'}
             </td>
             <td className="px-4 py-3 text-sm text-foreground hidden md:table-cell">
-                {ROLE_LABELS[staff.role]}
+                {getRoleLabel(staff.role)}
             </td>
             <td className="px-4 py-3 text-sm text-muted-foreground hidden lg:table-cell">
                 {staff.specialization || '—'}

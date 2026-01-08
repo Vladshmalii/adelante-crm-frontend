@@ -1,10 +1,13 @@
 import { ChevronDown, Search, Check, X } from 'lucide-react';
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
+import clsx from 'clsx';
 
 export interface DropdownOption {
     value: string | number;
     label: string;
+    description?: string;
+    icon?: React.ReactNode;
     group?: string;
 }
 
@@ -19,6 +22,7 @@ interface DropdownProps {
     error?: string;
     multiple?: boolean;
     grouping?: boolean;
+    collapsible?: boolean;
 }
 
 export function Dropdown({
@@ -32,6 +36,7 @@ export function Dropdown({
     error,
     multiple = false,
     grouping = false,
+    collapsible = false,
 }: DropdownProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [shouldRender, setShouldRender] = useState(false);
@@ -39,6 +44,7 @@ export function Dropdown({
     const [searchQuery, setSearchQuery] = useState('');
     const [coords, setCoords] = useState<{ top: number; left: number; width: number } | null>(null);
     const [dropdownPosition, setDropdownPosition] = useState<'bottom' | 'top'>('bottom');
+    const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
     const dropdownRef = useRef<HTMLDivElement>(null);
     const searchInputRef = useRef<HTMLInputElement>(null);
     const buttonRef = useRef<HTMLButtonElement>(null);
@@ -139,6 +145,23 @@ export function Dropdown({
         const selectedOption = options.find(opt => opt.value === value);
         return selectedOption?.label || placeholder;
     }, [value, options, multiple, placeholder]);
+
+    useEffect(() => {
+        if (isOpen && grouping && collapsible) {
+            const initialExpanded: Record<string, boolean> = {};
+            Object.keys(groupedOptions).forEach(group => {
+                initialExpanded[group] = true;
+            });
+            setExpandedGroups(initialExpanded);
+        }
+    }, [isOpen, grouping, collapsible]);
+
+    const toggleGroup = (groupName: string) => {
+        setExpandedGroups(prev => ({
+            ...prev,
+            [groupName]: !prev[groupName]
+        }));
+    };
 
     const filteredOptions = useMemo(() => {
         return searchable && searchQuery
@@ -251,28 +274,61 @@ export function Dropdown({
             <div className="overflow-y-auto scrollbar-thin">
                 {Object.keys(groupedOptions).length > 0 ? (
                     Object.entries(groupedOptions).map(([groupName, groupOptions]) => (
-                        <div key={groupName}>
+                        <div key={groupName} className="border-b border-border/50 last:border-0">
                             {grouping && (
-                                <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/30 sticky top-0 backdrop-blur-sm">
-                                    {groupName}
-                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => collapsible && toggleGroup(groupName)}
+                                    className={clsx(
+                                        "w-full px-3 py-2 text-xs font-bold text-muted-foreground bg-muted/20 sticky top-0 backdrop-blur-sm flex items-center justify-between transition-colors",
+                                        collapsible && "hover:bg-muted/40 cursor-pointer"
+                                    )}
+                                >
+                                    <span>{groupName}</span>
+                                    {collapsible && (
+                                        <ChevronDown
+                                            size={12}
+                                            className={clsx("transition-transform duration-200", expandedGroups[groupName] && "rotate-180")}
+                                        />
+                                    )}
+                                </button>
                             )}
-                            {groupOptions.map((option) => {
-                                const active = isSelected(option.value);
-                                return (
-                                    <button
-                                        key={option.value}
-                                        onClick={() => handleSelect(option.value)}
-                                        className={`w-full px-3 py-2 text-left text-sm transition-colors flex items-center justify-between ${active
-                                            ? 'bg-primary/10 text-primary font-medium hover:bg-primary/20'
-                                            : 'text-foreground hover:bg-muted'
-                                            }`}
-                                    >
-                                        <span className="truncate">{option.label}</span>
-                                        {active && <Check size={16} className="flex-shrink-0 ml-2" />}
-                                    </button>
-                                );
-                            })}
+                            <div className={clsx(
+                                "overflow-hidden transition-all duration-300",
+                                collapsible && !expandedGroups[groupName] ? "max-h-0" : "max-h-[1000px]"
+                            )}>
+                                {groupOptions.map((option) => {
+                                    const active = isSelected(option.value);
+                                    return (
+                                        <button
+                                            key={option.value}
+                                            onClick={() => handleSelect(option.value)}
+                                            className={`w-full px-3 py-2.5 text-left text-sm transition-all flex items-center gap-3 ${active
+                                                ? 'bg-primary/10 text-primary font-medium'
+                                                : 'text-foreground hover:bg-muted/50'
+                                                }`}
+                                        >
+                                            {option.icon && (
+                                                <div className={clsx(
+                                                    "flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center bg-muted/50",
+                                                    active && "bg-primary/20"
+                                                )}>
+                                                    {option.icon}
+                                                </div>
+                                            )}
+                                            <div className="flex-1 min-w-0">
+                                                <div className="font-semibold truncate">{option.label}</div>
+                                                {option.description && (
+                                                    <div className="text-[10px] text-muted-foreground truncate leading-tight">
+                                                        {option.description}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            {active && <Check size={16} className="flex-shrink-0 ml-2" />}
+                                        </button>
+                                    );
+                                })}
+                            </div>
                         </div>
                     ))
                 ) : (

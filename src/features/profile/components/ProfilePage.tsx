@@ -4,22 +4,19 @@ import { useState } from 'react';
 import { UserCircle, Mail, Phone, Calendar, MapPin, Users, Briefcase, Banknote, Clock, Edit2, Save, X } from 'lucide-react';
 import { UserProfile, ProfileFormData } from '../types';
 import { StaffRole } from '@/features/staff/types';
+import { getRoleLabel } from '@/features/staff/utils/roleTranslations';
 
 interface ProfilePageProps {
     profile: UserProfile;
     onSave: (data: ProfileFormData) => void;
 }
 
-const ROLE_LABELS: Record<StaffRole, string> = {
-    master: 'Майстер',
-    administrator: 'Адміністратор',
-    manager: 'Менеджер',
-};
-
-const EDITABLE_FIELDS_BY_ROLE: Record<StaffRole, (keyof ProfileFormData)[]> = {
+const EDITABLE_FIELDS_BY_ROLE: Record<string, (keyof ProfileFormData)[]> = {
     master: ['phone', 'email', 'address', 'emergencyContact', 'emergencyPhone'],
     administrator: ['firstName', 'lastName', 'phone', 'email', 'birthDate', 'address', 'emergencyContact', 'emergencyPhone', 'specialization', 'workSchedule'],
+    admin: ['firstName', 'lastName', 'phone', 'email', 'birthDate', 'address', 'emergencyContact', 'emergencyPhone', 'specialization', 'workSchedule'],
     manager: ['phone', 'email', 'address', 'emergencyContact', 'emergencyPhone'],
+    receptionist: ['phone', 'email', 'address', 'emergencyContact', 'emergencyPhone'],
 };
 
 export function ProfilePage({ profile, onSave }: ProfilePageProps) {
@@ -37,7 +34,7 @@ export function ProfilePage({ profile, onSave }: ProfilePageProps) {
         workSchedule: profile.workSchedule,
     });
 
-    const editableFields = EDITABLE_FIELDS_BY_ROLE[profile.role];
+    const editableFields = EDITABLE_FIELDS_BY_ROLE[profile.role] || [];
 
     const handleChange = (field: keyof ProfileFormData, value: string) => {
         setFormData({ ...formData, [field]: value });
@@ -162,7 +159,7 @@ export function ProfilePage({ profile, onSave }: ProfilePageProps) {
                         <h2 className="text-xl font-semibold text-foreground">
                             {profile.firstName} {profile.lastName}
                         </h2>
-                        <p className="text-sm text-muted-foreground">{ROLE_LABELS[profile.role]}</p>
+                        <p className="text-sm text-muted-foreground">{getRoleLabel(profile.role)}</p>
                     </div>
                 </div>
 
@@ -188,7 +185,7 @@ export function ProfilePage({ profile, onSave }: ProfilePageProps) {
                 </div>
             )}
 
-            {profile.role === 'administrator' && (
+            {(profile.role === 'administrator' || profile.role === 'admin') && (
                 <div className="bg-card border border-border rounded-lg p-6 mb-6">
                     <h3 className="text-lg font-semibold text-foreground mb-4">Адміністративна інформація</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

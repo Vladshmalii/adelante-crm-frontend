@@ -1,14 +1,16 @@
 import apiClient, { ApiResponse } from './client';
 
 export interface Service {
-    id: string;
+    id: number;
     name: string;
     description?: string;
     category: string;
     duration: number;
     price: number;
+    color?: string;
     isActive: boolean;
     createdAt: string;
+    updatedAt?: string;
 }
 
 export interface CreateServiceRequest {
@@ -29,11 +31,11 @@ export interface ServiceFilters {
 }
 
 export const servicesApi = {
-    getAll: async (filters?: ServiceFilters): Promise<ApiResponse<Service[]>> => {
+    getAll: async (filters?: ServiceFilters): Promise<Service[]> => {
         return apiClient.get('/services', filters);
     },
 
-    getById: async (id: string): Promise<Service> => {
+    getById: async (id: number): Promise<Service> => {
         return apiClient.get(`/services/${id}`);
     },
 
@@ -41,11 +43,11 @@ export const servicesApi = {
         return apiClient.post('/services', data);
     },
 
-    update: async (id: string, data: Partial<CreateServiceRequest>): Promise<Service> => {
+    update: async (id: number, data: Partial<CreateServiceRequest>): Promise<Service> => {
         return apiClient.put(`/services/${id}`, data);
     },
 
-    delete: async (id: string): Promise<void> => {
+    delete: async (id: number): Promise<void> => {
         return apiClient.delete(`/services/${id}`);
     },
 

@@ -7,32 +7,50 @@ import clsx from 'clsx';
 interface ModalProps {
     isOpen: boolean;
     onClose: () => void;
-    title?: string;
+    title?: ReactNode;
+    header?: ReactNode;
     children: ReactNode;
-    /**
-     * sm, md, lg, xl - центрированная модалка фиксированной ширины
-     * xs - компактная модалка
-     * full - полноэкранная модалка (desktop тоже занимает всю ширину/высоту)
-     */
-    size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'full';
+    footer?: ReactNode;
+    size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'full' | '2xl';
 }
 
 export function Modal({
     isOpen,
     onClose,
     title,
+    header,
     children,
+    footer,
     size = 'md'
 }: ModalProps) {
     useEffect(() => {
-        if (isOpen) {
-            document.body.style.overflow = 'hidden';
-        } else {
-            document.body.style.overflow = 'unset';
+        if (!isOpen) return;
+
+        const body = document.body;
+        const html = document.documentElement;
+
+        // Count open modals to handle nested/multiple modals
+        const currentCount = parseInt(body.getAttribute('data-modals-open') || '0');
+        const newCount = currentCount + 1;
+        body.setAttribute('data-modals-open', newCount.toString());
+
+        if (newCount === 1) {
+            const scrollbarWidth = window.innerWidth - html.clientWidth;
+            body.style.overflow = 'hidden';
+            if (scrollbarWidth > 0) {
+                body.style.paddingRight = `${scrollbarWidth}px`;
+            }
         }
 
         return () => {
-            document.body.style.overflow = 'unset';
+            const currentCount = parseInt(body.getAttribute('data-modals-open') || '0');
+            const newCount = Math.max(0, currentCount - 1);
+            body.setAttribute('data-modals-open', newCount.toString());
+
+            if (newCount === 0) {
+                body.style.overflow = '';
+                body.style.paddingRight = '';
+            }
         };
     }, [isOpen]);
 
@@ -50,9 +68,9 @@ export function Modal({
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 animate-fade-in">
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center sm:p-4 animate-fade-in">
             <div
-                className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
+                className="absolute inset-0 bg-black/60 backdrop-blur-md transition-opacity"
                 onClick={onClose}
             />
 
@@ -60,36 +78,46 @@ export function Modal({
                 className={clsx(
                     'relative bg-card shadow-2xl w-full animate-scale-in border-t sm:border border-border',
                     'max-h-[95vh] sm:max-h-[90vh] flex flex-col',
-                    'rounded-t-2xl sm:rounded-xl',
+                    'rounded-t-3xl sm:rounded-2xl overflow-hidden',
                     {
                         'sm:max-w-sm': size === 'xs',
                         'sm:max-w-md': size === 'sm',
                         'sm:max-w-2xl': size === 'md',
                         'sm:max-w-4xl': size === 'lg',
                         'sm:max-w-6xl': size === 'xl',
+                        'sm:max-w-7xl': size === '2xl',
 
                         'sm:max-w-none sm:h-screen sm:max-h-screen sm:rounded-none sm:border-0': size === 'full',
                     }
                 )}
             >
-                {title && (
-                    <div className="flex items-center justify-between p-4 sm:p-6 border-b border-border flex-shrink-0">
-                        <h2 className="text-lg sm:text-xl font-semibold text-foreground font-heading">{title}</h2>
-                        <button
-                            onClick={onClose}
-                            className="p-1 rounded-lg hover:bg-accent hover:text-accent-foreground transition-colors text-muted-foreground"
-                        >
-                            <X className="w-5 h-5" />
-                        </button>
+                {(title || header) && (
+                    <div className="flex-shrink-0 bg-card z-10">
+                        {header ? header : (
+                            <div className="flex items-center justify-between p-5 sm:p-7 border-b border-border">
+                                <h2 className="text-xl sm:text-2xl font-bold text-foreground font-heading tracking-tight">{title}</h2>
+                                <button
+                                    onClick={onClose}
+                                    className="p-2 rounded-xl hover:bg-accent hover:text-accent-foreground transition-all text-muted-foreground hover:scale-110 active:scale-95"
+                                >
+                                    <X className="w-6 h-6" />
+                                </button>
+                            </div>
+                        )}
                     </div>
                 )}
 
                 <div className={clsx(
-                    'overflow-y-auto scrollbar-thin flex-1',
-                    title ? 'p-4 sm:p-6' : 'p-4 sm:p-6'
+                    'overflow-y-auto custom-scrollbar flex-1 p-5 sm:p-7',
                 )}>
                     {children}
                 </div>
+
+                {footer && (
+                    <div className="p-5 sm:p-7 border-t border-border flex-shrink-0 bg-secondary/30 backdrop-blur-xl z-10">
+                        {footer}
+                    </div>
+                )}
             </div>
         </div>
     );

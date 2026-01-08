@@ -1,14 +1,12 @@
 'use client';
 
-import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, Layers, LayoutGrid, CalendarRange } from 'lucide-react';
 import { format } from 'date-fns';
 import { uk } from 'date-fns/locale';
 import clsx from 'clsx';
 import { CalendarView } from '@/features/calendar/types';
 import { NotificationsDropdown, Notification } from '@/shared/components/ui/NotificationsDropdown';
 import { ProfileDropdown } from '@/shared/components/ui/ProfileDropdown';
-import { Button } from '@/shared/components/ui/Button';
-import { ButtonGroup } from '@/shared/components/ui/ButtonGroup';
 import { GlobalSearch } from '@/shared/components/layout/GlobalSearch';
 import { StaffRole } from '@/features/staff/types';
 
@@ -73,82 +71,105 @@ export function TopBar({
         onDateChange(newDate);
     };
 
-    const formattedDate = format(currentDate, 'd MMMM, EEEE', { locale: uk });
+    const dayName = format(currentDate, 'EEEE', { locale: uk });
+    const dateFormatted = format(currentDate, 'd MMMM, yyyy', { locale: uk });
+
+    const viewOptions = [
+        { id: 'day', label: 'День', icon: LayoutGrid },
+        { id: 'week', label: 'Тиждень', icon: Layers },
+        { id: 'month', label: 'Місяць', icon: CalendarRange },
+    ] as const;
 
     return (
-        <div className="h-16 bg-background/80 backdrop-blur-md border-b border-border flex items-center justify-between px-3 sm:px-6 sticky top-0 z-30 transition-all">
-            <div className="flex items-center gap-2 sm:gap-4 animate-fade-in-down">
-                <button
-                    onClick={goToToday}
-                    className="px-2 sm:px-4 py-2 text-xs sm:text-sm font-medium text-foreground bg-card border border-border rounded-lg hover:bg-accent hover:text-accent-foreground transition-all shadow-sm hover:shadow-md active:scale-95"
-                >
-                    <span className="hidden sm:inline">Сьогодні</span>
-                    <span className="sm:hidden">Сьог.</span>
-                </button>
+        <header className="h-20 bg-background/80 backdrop-blur-xl border-b border-border/50 sticky top-0 z-40 transition-all flex items-center px-4 sm:px-8">
+            <div className="max-w-[1600px] w-full mx-auto flex items-center justify-between gap-4">
 
-                <ButtonGroup variant="ghost" size="sm">
-                    <Button
-                        onClick={goToPrevious}
-                        leftIcon={<ChevronLeft className="w-4 h-4" />}
-                    >
-                        <span className="sr-only">Попередній</span>
-                    </Button>
-                    <Button
-                        onClick={goToNext}
-                        leftIcon={<ChevronRight className="w-4 h-4" />}
-                    >
-                        <span className="sr-only">Наступний</span>
-                    </Button>
-                </ButtonGroup>
-
-                <h1 className="text-sm sm:text-lg font-bold text-foreground capitalize font-heading tracking-tight">
-                    <span className="hidden md:inline">{formattedDate}</span>
-                    <span className="md:hidden">{format(currentDate, 'd MMM', { locale: uk })}</span>
-                </h1>
-            </div>
-
-            <div className="flex items-center gap-2 sm:gap-4 animate-fade-in-down" style={{ animationDelay: '0.1s' }}>
-                <ButtonGroup variant="ghost" size="sm">
-                    {(['day', 'week', 'month'] as CalendarView[]).map((v) => (
-                        <Button
-                            key={v}
-                            onClick={() => onViewChange(v)}
-                            variant={view === v ? 'primary' : 'secondary'}
+                {/* DATE NAVIGATION */}
+                <div className="flex items-center gap-6">
+                    <div className="flex items-center bg-muted/40 p-1.5 rounded-2xl border border-border/10">
+                        <button
+                            onClick={goToPrevious}
+                            className="p-2 hover:bg-background hover:text-primary rounded-xl transition-all active:scale-90 text-muted-foreground"
                         >
-                            <span className="hidden sm:inline">
-                                {v === 'day' && 'День'}
-                                {v === 'week' && 'Тиждень'}
-                                {v === 'month' && 'Місяць'}
-                            </span>
-                            <span className="sm:hidden">
-                                {v === 'day' && 'Д'}
-                                {v === 'week' && 'Т'}
-                                {v === 'month' && 'М'}
-                            </span>
-                        </Button>
-                    ))}
-                </ButtonGroup>
+                            <ChevronLeft className="w-5 h-5" />
+                        </button>
 
-                <div>
-                    <GlobalSearch />
+                        <button
+                            onClick={goToToday}
+                            className="px-4 py-2 text-xs font-black uppercase tracking-wider text-foreground hover:text-primary transition-all"
+                        >
+                            Сьогодні
+                        </button>
+
+                        <button
+                            onClick={goToNext}
+                            className="p-2 hover:bg-background hover:text-primary rounded-xl transition-all active:scale-90 text-muted-foreground"
+                        >
+                            <ChevronRight className="w-5 h-5" />
+                        </button>
+                    </div>
+
+                    <div className="flex flex-col">
+                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary leading-none mb-1">
+                            {dayName}
+                        </span>
+                        <h1 className="text-lg font-black text-foreground font-heading tracking-tight leading-none flex items-center gap-2">
+                            {dateFormatted}
+                            <Calendar className="w-4 h-4 text-muted-foreground/30" />
+                        </h1>
+                    </div>
                 </div>
 
-                <NotificationsDropdown
-                    notifications={notifications}
-                    onMarkAsRead={onMarkNotificationAsRead}
-                    onMarkAllAsRead={onMarkAllNotificationsAsRead}
-                    onDelete={onDeleteNotification}
-                />
+                {/* SEARCH & VIEW & USER */}
+                <div className="flex items-center gap-6">
+                    {/* View Switcher - Premium Style */}
+                    <div className="hidden xl:flex bg-muted/40 p-1 rounded-xl border border-border/10">
+                        {viewOptions.map((opt) => {
+                            const Icon = opt.icon;
+                            const isActive = view === opt.id;
+                            return (
+                                <button
+                                    key={opt.id}
+                                    onClick={() => onViewChange(opt.id as CalendarView)}
+                                    className={clsx(
+                                        "flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all duration-300",
+                                        isActive
+                                            ? "bg-background text-primary shadow-sm"
+                                            : "text-muted-foreground hover:text-foreground"
+                                    )}
+                                >
+                                    <Icon className={clsx("w-3.5 h-3.5", isActive ? "text-primary" : "text-muted-foreground/50")} />
+                                    {opt.label}
+                                </button>
+                            );
+                        })}
+                    </div>
 
-                <ProfileDropdown
-                    userName={userName}
-                    userRole={userRole}
-                    userAvatar={userAvatar}
-                    onProfileClick={onProfileClick}
-                    onSettingsClick={onSettingsClick}
-                    onLogout={onLogout}
-                />
+                    <div className="h-8 w-px bg-border/50 hidden sm:block" />
+
+                    <div className="flex items-center gap-3">
+                        <GlobalSearch />
+
+                        <NotificationsDropdown
+                            notifications={notifications}
+                            onMarkAsRead={onMarkNotificationAsRead}
+                            onMarkAllAsRead={onMarkAllNotificationsAsRead}
+                            onDelete={onDeleteNotification}
+                        />
+
+                        <div className="h-8 w-px bg-border/50" />
+
+                        <ProfileDropdown
+                            userName={userName}
+                            userRole={userRole}
+                            userAvatar={userAvatar}
+                            onProfileClick={onProfileClick}
+                            onSettingsClick={onSettingsClick}
+                            onLogout={onLogout}
+                        />
+                    </div>
+                </div>
             </div>
-        </div>
+        </header>
     );
 }

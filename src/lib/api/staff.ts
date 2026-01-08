@@ -1,17 +1,21 @@
 import apiClient, { ApiResponse } from './client';
 
 export interface StaffMember {
-    id: string;
+    id: number;
     firstName: string;
     lastName: string;
     phone: string;
     email?: string;
     position: string;
     specializations: string[];
+    hireDate?: string;
+    salary?: number;
+    commission?: number;
     avatar?: string;
     isActive: boolean;
     schedule?: Record<string, { start: string; end: string }>;
     createdAt: string;
+    updatedAt?: string;
 }
 
 export interface CreateStaffRequest {
@@ -32,11 +36,11 @@ export interface StaffFilters {
 }
 
 export const staffApi = {
-    getAll: async (filters?: StaffFilters): Promise<ApiResponse<StaffMember[]>> => {
+    getAll: async (filters?: StaffFilters): Promise<StaffMember[]> => {
         return apiClient.get('/staff', filters);
     },
 
-    getById: async (id: string): Promise<StaffMember> => {
+    getById: async (id: number): Promise<StaffMember> => {
         return apiClient.get(`/staff/${id}`);
     },
 
@@ -44,20 +48,20 @@ export const staffApi = {
         return apiClient.post('/staff', data);
     },
 
-    update: async (id: string, data: Partial<CreateStaffRequest>): Promise<StaffMember> => {
+    update: async (id: number, data: Partial<CreateStaffRequest>): Promise<StaffMember> => {
         return apiClient.put(`/staff/${id}`, data);
     },
 
-    delete: async (id: string): Promise<void> => {
+    delete: async (id: number): Promise<void> => {
         return apiClient.delete(`/staff/${id}`);
     },
 
-    getSchedule: async (id: string, params?: { dateFrom?: string; dateTo?: string }) => {
+    getSchedule: async (id: number, params?: { dateFrom?: string; dateTo?: string }) => {
         return apiClient.get(`/staff/${id}/schedule`, params);
     },
 
-    updateSchedule: async (id: string, schedule: Record<string, { start: string; end: string }>) => {
-        return apiClient.post(`/staff/${id}/schedule`, { schedule });
+    updateSchedule: async (id: number, data: { work_days: Record<string, any>; exceptions?: any[] }) => {
+        return apiClient.post(`/staff/${id}/schedule`, data);
     },
 };
 

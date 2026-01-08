@@ -4,57 +4,57 @@
 
 @layer base {
     :root {
-        --background: 0 0% 94.5%;
-        --foreground: 0 0% 15%;
+        --background: 0 0% 98%;
+        --foreground: 0 0% 10%;
 
-        --primary: 123 42% 20%;
+        --primary: 155 40% 25%;
         --primary-foreground: 0 0% 100%;
-        --primary-hover: 123 42% 26%;
-        --primary-active: 123 42% 16%;
-        --primary-disabled: 123 15% 45%;
+        --primary-hover: 155 40% 30%;
+        --primary-active: 155 40% 20%;
+        --primary-disabled: 155 10% 85%;
 
-        --primary-text: 123 45% 28%;
-        --primary-text-hover: 123 50% 22%;
+        --primary-text: 155 45% 22%;
+        --primary-text-hover: 155 50% 18%;
 
-        --secondary: 0 0% 90%;
+        --secondary: 0 0% 95%;
         --secondary-foreground: 0 0% 20%;
-        --secondary-hover: 0 0% 85%;
+        --secondary-hover: 0 0% 92%;
 
-        --accent: 150 35% 45%;
+        --accent: 38 85% 45%;
         --accent-foreground: 0 0% 100%;
-        --accent-hover: 150 35% 50%;
+        --accent-hover: 38 85% 50%;
 
-        --destructive: 0 50% 50%;
+        --destructive: 0 75% 50%;
         --destructive-foreground: 0 0% 100%;
-        --destructive-hover: 0 50% 45%;
+        --destructive-hover: 0 75% 45%;
 
-        --warning: 38 92% 50%;
+        --warning: 42 100% 45%;
         --warning-foreground: 0 0% 10%;
 
-        --success: 142 50% 40%;
+        --success: 145 50% 35%;
         --success-foreground: 0 0% 100%;
 
-        --muted: 0 0% 92%;
-        --muted-foreground: 0 0% 45%;
+        --muted: 0 0% 96%;
+        --muted-foreground: 0 0% 40%;
 
         --card: 0 0% 100%;
-        --card-foreground: 0 0% 15%;
-        --card-hover: 0 0% 98%;
+        --card-foreground: 0 0% 10%;
+        --card-hover: 0 0% 99%;
 
-        --sidebar: 0 0% 13%;
+        --sidebar: 0 0% 10%;
         --sidebar-foreground: 0 0% 98%;
-        --sidebar-muted: 0 0% 75%;
-        --sidebar-border: 0 0% 30%;
-        --sidebar-accent: 0 0% 25%;
-        --sidebar-active: 0 0% 35%;
+        --sidebar-muted: 0 0% 65%;
+        --sidebar-border: 0 0% 18%;
+        --sidebar-accent: 0 0% 15%;
+        --sidebar-active: 155 40% 25%;
 
-        --border: 0 0% 85%;
-        --border-hover: 0 0% 75%;
+        --border: 0 0% 92%;
+        --border-hover: 0 0% 88%;
         --input: 0 0% 100%;
-        --input-border: 0 0% 80%;
-        --ring: 123 42% 20%;
+        --input-border: 0 0% 85%;
+        --ring: 155 40% 25%;
 
-        --hover-overlay: 0 0% 0%;
+        --hover-overlay: 0 0% 10%;
 
         --radius: 0.75rem;
     }
@@ -122,6 +122,7 @@
     html {
         font-family: var(--font-sf-ui), system-ui, sans-serif;
         scroll-behavior: smooth;
+        scrollbar-gutter: stable;
     }
 
     h1,
@@ -138,6 +139,12 @@
         color: hsl(var(--foreground));
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* Вимкнути transition на background для body та html */
+    html,
+    body {
+        transition: none !important;
     }
 
     * {
@@ -246,25 +253,19 @@
 
 @layer utilities {
     .diagonal-stripes {
-        background-image: linear-gradient(45deg,
-                rgba(0, 0, 0, 0.05) 25%,
-                transparent 25%,
-                transparent 50%,
-                rgba(0, 0, 0, 0.05) 50%,
-                rgba(0, 0, 0, 0.05) 75%,
-                transparent 75%,
-                transparent);
-        background-size: 10px 10px;
+        background-image: repeating-linear-gradient(45deg,
+                transparent,
+                transparent 7px,
+                rgba(0, 0, 0, 0.03) 7px,
+                rgba(0, 0, 0, 0.03) 14px);
+        background-size: 100% 100%;
     }
 
     .dark .diagonal-stripes {
-        background-image: linear-gradient(45deg,
-                rgba(255, 255, 255, 0.05) 25%,
-                transparent 25%,
-                transparent 50%,
-                rgba(255, 255, 255, 0.05) 50%,
-                rgba(255, 255, 255, 0.05) 75%,
-                transparent 75%,
-                transparent);
+        background-image: repeating-linear-gradient(45deg,
+                transparent,
+                transparent 7px,
+                rgba(255, 255, 255, 0.03) 7px,
+                rgba(255, 255, 255, 0.03) 14px);
     }
 }

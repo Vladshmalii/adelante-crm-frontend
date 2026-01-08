@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:api": "node ./tests/api-smoke.mjs",
+    "test:frontend": "node ./tests/frontend-smoke.mjs",
+    "test": "npm run test:api && npm run test:frontend"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.1.0",

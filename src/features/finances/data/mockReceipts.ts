@@ -3,7 +3,7 @@ import { FinanceReceipt } from '../types';
 export const mockReceipts: FinanceReceipt[] = [
     {
         id: '1',
-        date: '2025-11-28T10:30:00',
+        date: '2026-01-04T10:30:00',
         receiptNumber: 'ЧК-001234',
         documentNumber: 'ДОК-2025-001234',
         cashRegister: 'Каса 1',
@@ -16,7 +16,7 @@ export const mockReceipts: FinanceReceipt[] = [
     },
     {
         id: '2',
-        date: '2025-11-28T11:15:00',
+        date: '2026-01-04T11:15:00',
         receiptNumber: 'ЧК-001235',
         documentNumber: 'ДОК-2025-001235',
         cashRegister: 'Каса 1',
@@ -29,7 +29,7 @@ export const mockReceipts: FinanceReceipt[] = [
     },
     {
         id: '3',
-        date: '2025-11-28T12:00:00',
+        date: '2026-01-04T12:00:00',
         receiptNumber: 'ЧК-001236',
         documentNumber: 'ДОК-2025-001236',
         cashRegister: 'Каса 2',
@@ -42,7 +42,7 @@ export const mockReceipts: FinanceReceipt[] = [
     },
     {
         id: '4',
-        date: '2025-11-27T16:45:00',
+        date: '2026-01-03T16:45:00',
         receiptNumber: 'ЧК-001220',
         documentNumber: 'ДОК-2025-001220',
         cashRegister: 'Каса 1',
@@ -55,7 +55,7 @@ export const mockReceipts: FinanceReceipt[] = [
     },
     {
         id: '5',
-        date: '2025-11-27T14:20:00',
+        date: '2026-01-03T14:20:00',
         receiptNumber: 'ЧК-001215',
         documentNumber: 'ДОК-2025-001215',
         cashRegister: 'Каса 2',
@@ -68,7 +68,7 @@ export const mockReceipts: FinanceReceipt[] = [
     },
     {
         id: '6',
-        date: '2025-11-27T10:00:00',
+        date: '2026-01-03T10:00:00',
         receiptNumber: 'ЧК-001210',
         documentNumber: 'ДОК-2025-001210',
         cashRegister: 'Каса 1',
@@ -81,7 +81,7 @@ export const mockReceipts: FinanceReceipt[] = [
     },
     {
         id: '7',
-        date: '2025-11-26T13:15:00',
+        date: '2026-01-02T13:15:00',
         receiptNumber: 'ЧК-001195',
         documentNumber: 'ДОК-2025-001195',
         cashRegister: 'Каса 2',
@@ -94,7 +94,7 @@ export const mockReceipts: FinanceReceipt[] = [
     },
     {
         id: '8',
-        date: '2025-11-26T11:00:00',
+        date: '2026-01-02T11:00:00',
         receiptNumber: 'ЧК-001190',
         documentNumber: 'ДОК-2025-001190',
         cashRegister: 'Каса 1',
@@ -107,7 +107,7 @@ export const mockReceipts: FinanceReceipt[] = [
     },
     {
         id: '9',
-        date: '2025-11-25T17:00:00',
+        date: '2026-01-01T17:00:00',
         receiptNumber: 'ЧК-001175',
         documentNumber: 'ДОК-2025-001175',
         cashRegister: 'Каса 2',
@@ -120,7 +120,7 @@ export const mockReceipts: FinanceReceipt[] = [
     },
     {
         id: '10',
-        date: '2025-11-25T14:30:00',
+        date: '2026-01-01T14:30:00',
         receiptNumber: 'ЧК-001170',
         documentNumber: 'ДОК-2025-001170',
         cashRegister: 'Каса 1',

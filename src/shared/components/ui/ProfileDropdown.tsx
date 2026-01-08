@@ -4,6 +4,7 @@ import { User, Settings, LogOut, UserCircle } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { StaffRole } from '@/features/staff/types';
+import { getRoleLabel } from '@/features/staff/utils/roleTranslations';
 
 interface ProfileDropdownProps {
     userName: string;
@@ -13,12 +14,6 @@ interface ProfileDropdownProps {
     onSettingsClick: () => void;
     onLogout: () => void;
 }
-
-const ROLE_LABELS: Record<StaffRole, string> = {
-    master: 'Майстер',
-    administrator: 'Адміністратор',
-    manager: 'Менеджер',
-};
 
 export function ProfileDropdown({
     userName,
@@ -110,7 +105,7 @@ export function ProfileDropdown({
                             {userName}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                            {ROLE_LABELS[userRole]}
+                            {getRoleLabel(userRole)}
                         </p>
                     </div>
                 </div>

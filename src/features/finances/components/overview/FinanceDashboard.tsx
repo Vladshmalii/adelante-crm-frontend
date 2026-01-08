@@ -9,8 +9,8 @@ import { FinancePaymentSplit } from './FinancePaymentSplit';
 import { mockCashRegisters } from '../../data/mockCashRegisters';
 
 export function FinanceDashboard() {
-    const [dateFrom, setDateFrom] = useState('2025-11-22');
-    const [dateTo, setDateTo] = useState('2025-11-28');
+    const [dateFrom, setDateFrom] = useState('2025-12-29');
+    const [dateTo, setDateTo] = useState('2026-01-04');
     const [location, setLocation] = useState('all');
     const [cashRegister, setCashRegister] = useState('all');
 

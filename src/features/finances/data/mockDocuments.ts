@@ -4,7 +4,7 @@ export const mockDocuments: FinanceDocument[] = [
     {
         id: '1',
         number: 'ЧК-2025-001234',
-        date: '2025-11-28T10:30:00',
+        date: '2026-01-04T10:30:00',
         type: 'receipt',
         contentType: 'services',
         amount: 1250,
@@ -18,7 +18,7 @@ export const mockDocuments: FinanceDocument[] = [
     {
         id: '2',
         number: 'РХ-2025-000089',
-        date: '2025-11-28T09:00:00',
+        date: '2026-01-04T09:00:00',
         type: 'invoice',
         contentType: 'mixed',
         amount: 4500,
@@ -32,7 +32,7 @@ export const mockDocuments: FinanceDocument[] = [
     {
         id: '3',
         number: 'ВД-2025-000023',
-        date: '2025-11-27T18:00:00',
+        date: '2026-01-03T18:00:00',
         type: 'expense',
         contentType: 'products',
         amount: 8500,
@@ -46,7 +46,7 @@ export const mockDocuments: FinanceDocument[] = [
     {
         id: '4',
         number: 'ПР-2025-000045',
-        date: '2025-11-27T15:30:00',
+        date: '2026-01-03T15:30:00',
         type: 'income',
         contentType: 'services',
         amount: 12300,
@@ -60,7 +60,7 @@ export const mockDocuments: FinanceDocument[] = [
     {
         id: '5',
         number: 'АКТ-2025-000012',
-        date: '2025-11-26T16:00:00',
+        date: '2026-01-02T16:00:00',
         type: 'act',
         contentType: 'services',
         amount: 15000,
@@ -74,7 +74,7 @@ export const mockDocuments: FinanceDocument[] = [
     {
         id: '6',
         number: 'ВД-2025-000024',
-        date: '2025-11-26T14:00:00',
+        date: '2026-01-02T14:00:00',
         type: 'expense',
         contentType: 'products',
         amount: 3200,
@@ -88,7 +88,7 @@ export const mockDocuments: FinanceDocument[] = [
     {
         id: '7',
         number: 'ЧК-2025-001195',
-        date: '2025-11-26T13:15:00',
+        date: '2026-01-02T13:15:00',
         type: 'receipt',
         contentType: 'mixed',
         amount: 2100,
@@ -102,7 +102,7 @@ export const mockDocuments: FinanceDocument[] = [
     {
         id: '8',
         number: 'РХ-2025-000088',
-        date: '2025-11-25T11:00:00',
+        date: '2026-01-01T11:00:00',
         type: 'invoice',
         contentType: 'services',
         amount: 6500,
@@ -116,7 +116,7 @@ export const mockDocuments: FinanceDocument[] = [
     {
         id: '9',
         number: 'ПР-2025-000044',
-        date: '2025-11-25T17:00:00',
+        date: '2026-01-01T17:00:00',
         type: 'income',
         contentType: 'mixed',
         amount: 14200,
@@ -130,7 +130,7 @@ export const mockDocuments: FinanceDocument[] = [
     {
         id: '10',
         number: 'ЧК-2025-001165',
-        date: '2025-11-25T10:15:00',
+        date: '2026-01-01T10:15:00',
         type: 'receipt',
         contentType: 'services',
         amount: 650,

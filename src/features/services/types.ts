@@ -2,15 +2,19 @@ export type ServiceCategory = 'hair' | 'nails' | 'face' | 'body' | 'makeup' | 'o
 export type ServiceStatus = 'active' | 'inactive' | 'archived';
 
 export interface Service {
-    id: string;
+    id: string | number;
     name: string;
-    category: ServiceCategory;
+    category: string;
     description?: string;
     duration: number; // в хвилинах
     price: number;
-    status: ServiceStatus;
-    staff?: string[]; // ID співробітників, які надають цю послугу
     color?: string;
+    isActive: boolean;
+    createdAt?: string;
+    updatedAt?: string;
+    // Залишаємо для сумісності з моками
+    status?: ServiceStatus;
+    staff?: string[];
 }
 
 export interface ServiceFilters {

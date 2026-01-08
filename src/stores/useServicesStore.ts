@@ -8,12 +8,14 @@ interface ServicesState {
     filters: ServiceFilters;
 
     fetchServices: (filters?: ServiceFilters) => Promise<void>;
-    fetchServiceById: (id: string) => Promise<void>;
+    fetchServiceById: (id: number) => Promise<void>;
     createService: (data: CreateServiceRequest) => Promise<void>;
-    updateService: (id: string, data: Partial<CreateServiceRequest>) => Promise<void>;
-    deleteService: (id: string) => Promise<void>;
+    updateService: (id: number, data: Partial<CreateServiceRequest>) => Promise<void>;
+    deleteService: (id: number) => Promise<void>;
     setFilters: (filters: ServiceFilters) => void;
     selectService: (service: Service | null) => void;
+    setServices: (services: Service[]) => void;
+    setLoading: (isLoading: boolean) => void;
 }
 
 export const useServicesStore = create<ServicesState>((set) => ({
@@ -26,7 +28,7 @@ export const useServicesStore = create<ServicesState>((set) => ({
         set({ isLoading: true });
         try {
             const response = await servicesApi.getAll(filters);
-            set({ services: response.data || [] });
+            set({ services: response || [] });
         } catch (error) {
             console.error('Failed to fetch services:', error);
         } finally {
@@ -93,4 +95,6 @@ export const useServicesStore = create<ServicesState>((set) => ({
 
     setFilters: (filters) => set({ filters }),
     selectService: (service) => set({ selectedService: service }),
+    setServices: (services) => set({ services }),
+    setLoading: (isLoading) => set({ isLoading }),
 }));

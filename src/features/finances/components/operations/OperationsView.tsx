@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { OperationsFilters } from './OperationsFilters';
 import { OperationsTable } from './OperationsTable';
@@ -8,13 +8,16 @@ import { CreateOperationModal } from '../../modals/CreateOperationModal';
 import { EditOperationModal } from '../../modals/EditOperationModal';
 import { OperationDetailsModal } from '../../modals/OperationDetailsModal';
 import { Button } from '@/shared/components/ui/Button';
-import { mockOperations } from '../../data/mockOperations';
 import { FinanceOperation } from '../../types';
+import { useFinances } from '../../hooks/useFinances';
+import { GlobalLoader } from '@/shared/components/ui/GlobalLoader';
+import { useToast } from '@/shared/hooks/useToast';
+import { USE_MOCK_DATA } from '@/lib/config';
 
 export function OperationsView() {
 
-    const [dateFrom, setDateFrom] = useState('2025-11-22');
-    const [dateTo, setDateTo] = useState('2025-11-28');
+    const [dateFrom, setDateFrom] = useState('2025-12-29');
+    const [dateTo, setDateTo] = useState('2026-01-04');
     const [operationType, setOperationType] = useState('all');
     const [cashRegister, setCashRegister] = useState('all');
     const [employee, setEmployee] = useState('all');
@@ -24,14 +27,48 @@ export function OperationsView() {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
     const [selectedOperation, setSelectedOperation] = useState<FinanceOperation | null>(null);
+    const [isLocalLoading, setIsLocalLoading] = useState(false);
+    const toast = useToast();
+
+    const {
+        operations,
+        isLoading,
+        error,
+        loadOperations,
+        createOperation,
+    } = useFinances({
+        dateFrom,
+        dateTo,
+        type: operationType === 'all' ? undefined : operationType,
+    });
+
+    useEffect(() => {
+        if (error) toast.error('Помилка', error);
+    }, [error, toast]);
+
+    useEffect(() => {
+        loadOperations();
+    }, [dateFrom, dateTo, operationType]);
 
     const handleApply = () => {
-        console.log('Applying filters...');
+        loadOperations();
     };
 
-    const handleCreateOperation = (data: any) => {
-        console.log('Create operation:', data);
-        // TODO: Implement creation logic
+    const handleCreateOperation = async (data: any) => {
+        setIsLocalLoading(true);
+        try {
+            await createOperation({
+                ...data,
+                date: data.date || dateTo,
+            });
+            toast.success('Операцію створено', 'Успіх');
+            setIsCreateModalOpen(false);
+        } catch (err) {
+            console.error(err);
+            toast.error('Помилка', err instanceof Error ? err.message : 'Не вдалося створити операцію');
+        } finally {
+            setIsLocalLoading(false);
+        }
     };
 
     const handleOpenDetails = (operation: FinanceOperation) => {
@@ -44,14 +81,27 @@ export function OperationsView() {
         setIsEditModalOpen(true);
     };
 
-    const handleSaveEdit = (data: FinanceOperation) => {
-        console.log('Edit operation:', data);
+    const handleSaveEdit = () => {
+        toast.info('Редагування', USE_MOCK_DATA ? 'Демо режим: зміни не зберігаються' : 'API не підтримує оновлення операцій');
         setIsEditModalOpen(false);
         setSelectedOperation(null);
     };
 
+    const filteredOperations = useMemo(() => {
+        let result = [...operations];
+        if (clientSearch) {
+            const query = clientSearch.toLowerCase();
+            result = result.filter((op) => (op as any).counterparty?.toLowerCase().includes(query));
+        }
+        if (paymentMethod !== 'all') {
+            result = result.filter((op) => (op as any).paymentMethodId?.toString() === paymentMethod);
+        }
+        return result;
+    }, [operations, clientSearch, paymentMethod]);
+
     return (
         <div className="flex flex-col h-full">
+            <GlobalLoader isLoading={isLoading || isLocalLoading} />
             <div className="p-4 border-b border-border bg-card flex justify-between items-center">
                 <h2 className="text-lg font-semibold font-heading">Операції</h2>
                 <Button onClick={() => setIsCreateModalOpen(true)} variant="primary">
@@ -79,7 +129,7 @@ export function OperationsView() {
             />
             <div className="flex-1 overflow-auto">
                 <OperationsTable
-                    operations={mockOperations}
+                    operations={filteredOperations}
                     onView={handleOpenDetails}
                     onEdit={handleOpenEdit}
                 />

@@ -8,32 +8,42 @@ export interface LoginRequest {
 export interface LoginResponse {
     access_token: string;
     refresh_token: string;
+    token_type: string;
     user: {
-        id: string;
+        id: number;
         email: string;
-        name: string;
+        first_name: string;
+        last_name: string;
+        phone?: string;
         role: string;
         avatar?: string;
+        is_active: boolean;
+        is_verified: boolean;
+        telegram_id?: number;
+        telegram_username?: string;
+        created_at: string;
     };
 }
 
 export interface RegisterRequest {
     email: string;
     password: string;
-    name: string;
-    phone?: string;
+    first_name: string;
+    last_name: string;
+    phone: string;
+    salon_name: string;
 }
 
 export const authApi = {
     login: async (data: LoginRequest): Promise<LoginResponse> => {
         const response = await apiClient.post<LoginResponse>('/auth/login', data);
-        apiClient.setAuthToken(response.access_token);
+        apiClient.setAuthToken(response.access_token, response.refresh_token);
         return response;
     },
 
     register: async (data: RegisterRequest): Promise<LoginResponse> => {
         const response = await apiClient.post<LoginResponse>('/auth/register', data);
-        apiClient.setAuthToken(response.access_token);
+        apiClient.setAuthToken(response.access_token, response.refresh_token);
         return response;
     },
 
@@ -59,6 +69,12 @@ export const authApi = {
 
     me: async () => {
         return apiClient.get<LoginResponse['user']>('/auth/me');
+    },
+
+    setup: async (data: LoginRequest): Promise<LoginResponse> => {
+        const response = await apiClient.post<LoginResponse>('/auth/setup', data);
+        apiClient.setAuthToken(response.access_token, response.refresh_token);
+        return response;
     },
 };
 

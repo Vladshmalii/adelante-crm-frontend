@@ -88,7 +88,7 @@ export const mockCertificates: Certificate[] = [
         balance: 1000,
         purchasedBy: 'Іван Петренко',
         purchasedFor: 'Олена Шевченко',
-        purchasedAt: '2025-11-15',
+        purchasedAt: '2025-12-22',
         validUntil: '2026-11-15',
         isUsed: false,
     },
@@ -112,7 +112,7 @@ export const mockCertificates: Certificate[] = [
         purchasedAt: '2025-08-01',
         validUntil: '2026-08-01',
         isUsed: true,
-        usedAt: '2025-11-20',
+        usedAt: '2025-12-27',
     },
 ];
 

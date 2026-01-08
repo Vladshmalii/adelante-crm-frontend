@@ -22,7 +22,8 @@ export function ClientsTableRow({
     onDelete,
     isEven,
 }: ClientsTableRowProps) {
-    const formatDate = (dateString: string) => {
+    const formatDate = (dateString?: string) => {
+        if (!dateString) return '—';
         const date = new Date(dateString);
         const day = date.getDate().toString().padStart(2, '0');
         const month = (date.getMonth() + 1).toString().padStart(2, '0');
@@ -78,7 +79,7 @@ export function ClientsTableRow({
             <td className="px-4 py-3 text-sm font-medium text-foreground hidden lg:table-cell">
                 {client.totalSpent.toLocaleString('uk-UA')} ₴
             </td>
-            <td className="px-4 py-3 text-sm text-foreground hidden lg:table-cell">{client.visits}</td>
+            <td className="px-4 py-3 text-sm text-foreground hidden lg:table-cell">{client.totalVisits}</td>
             <td className="px-4 py-3 text-sm text-foreground hidden xl:table-cell">{client.discount}%</td>
             <td className="px-4 py-3 text-sm text-muted-foreground hidden lg:table-cell">
                 {formatDate(client.lastVisit)}

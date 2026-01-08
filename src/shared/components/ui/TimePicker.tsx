@@ -30,7 +30,7 @@ export function TimePicker({
 }: TimePickerProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [hour, minute] = useMemo(() => {
-        if (!value || !value.includes(":")) return ["", ""];
+        if (!value || typeof value !== 'string' || !value.includes(":")) return ["", ""];
         const [h, m] = value.split(":");
         return [h || "", m || ""];
     }, [value]);

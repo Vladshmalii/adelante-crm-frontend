@@ -8,20 +8,41 @@ export type ClientCategory = 'vip' | 'regular' | 'new' | 'inactive';
 
 export type ClientImportance = 'high' | 'medium' | 'low';
 
+export interface Visit {
+    id: string | number;
+    clientId: string | number;
+    appointmentId?: string;
+    date: string;
+    serviceName: string;
+    staffId: string | number;
+    staffName: string;
+    notes: string;
+    photos: string[];
+    status: 'completed';
+}
+
 export interface Client {
-    id: string;
+    id: string | number;
     firstName: string;
     middleName?: string;
     lastName?: string;
-
     phone: string;
     email?: string;
+    birthDate?: string;
+    cardNumber?: string;
+    gender?: string;
+    source?: string;
+    notes?: string;
+    discount?: number;
+    bonusBalance?: number;
+    totalVisits: number;
     totalSpent: number;
-    visits: number;
-    discount: number;
-    lastVisit: string;
-    firstVisit: string;
     segment: ClientSegment;
+    createdAt?: string;
+    updatedAt?: string;
+    lastVisit?: string;
+    firstVisit?: string;
+    visits?: Visit[];
 }
 
 export interface ClientFilters {
