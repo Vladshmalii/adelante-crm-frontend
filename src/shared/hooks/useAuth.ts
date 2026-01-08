@@ -1,23 +1,32 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { authApi } from '@/lib/api/auth';
-import { USE_MOCK_DATA } from '@/lib/config';
+import { USE_MOCK_DATA, BASE_PATH } from '@/lib/config';
 
 export function useAuth() {
     const { user, setUser, clearUser, isAuthenticated } = useAuthStore();
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const router = useRouter();
 
-    // Перевіряємо аут user при завантаженні
-    useEffect(() => {
-        checkAuth();
-    }, []);
-
-    const checkAuth = async () => {
+    const checkAuth = useCallback(async () => {
         try {
             if (USE_MOCK_DATA) {
-                // У режимі демо завжди авторизовані
-                if (!user) {
+                const token = localStorage.getItem('auth_token');
+
+                if (!token) {
+                    clearUser();
+                    if (typeof window !== 'undefined') {
+                        const loginPath = BASE_PATH ? `${BASE_PATH}/login` : '/login';
+                        router.replace(loginPath);
+                    }
+                    return;
+                }
+
+                const currentUser = useAuthStore.getState().user;
+                // Якщо токен є, але користувача ще немає — ставимо дефолтного демо
+                if (!currentUser) {
                     setUser({
                         id: 1,
                         email: 'demo@adelante.com',
@@ -38,6 +47,12 @@ export function useAuth() {
             if (!token) {
                 console.log('[useAuth.checkAuth] No token, clearing user');
                 clearUser();
+                
+                // Перенаправляємо на логін, якщо користувач неавторизований
+                if (typeof window !== 'undefined') {
+                    const loginPath = BASE_PATH ? `${BASE_PATH}/login` : '/login';
+                    router.replace(loginPath);
+                }
                 return;
             }
 
@@ -52,8 +67,17 @@ export function useAuth() {
         } catch (err) {
             console.error('[useAuth.checkAuth] Failed to check auth:', err);
             clearUser();
+            if (typeof window !== 'undefined') {
+                const loginPath = BASE_PATH ? `${BASE_PATH}/login` : '/login';
+                router.replace(loginPath);
+            }
         }
-    };
+    }, [setUser, clearUser, router]);
+
+    // Перевіряємо аут user при завантаженні
+    useEffect(() => {
+        checkAuth();
+    }, [checkAuth]);
 
     const login = async (email: string, password: string) => {
         try {
@@ -63,7 +87,19 @@ export function useAuth() {
             if (USE_MOCK_DATA) {
                 // Мокова авторизація
                 await new Promise((resolve) => setTimeout(resolve, 500));
-                
+
+                const mockAccess = 'mock_token';
+                const mockRefresh = 'mock_refresh_token';
+
+                localStorage.setItem('auth_token', mockAccess);
+                localStorage.setItem('refresh_token', mockRefresh);
+
+                // Ставимо куку, щоб middleware бачив токен у демо
+                if (typeof document !== 'undefined') {
+                    const path = BASE_PATH || '/';
+                    document.cookie = `auth_token=${mockAccess}; path=${path}; max-age=${60 * 60 * 24 * 30}`;
+                }
+
                 setUser({
                     id: 1,
                     email: email,
@@ -76,8 +112,8 @@ export function useAuth() {
                 });
                 
                 return {
-                    access_token: 'mock_token',
-                    refresh_token: 'mock_refresh_token',
+                    access_token: mockAccess,
+                    refresh_token: mockRefresh,
                 };
             } else {
                 // Реальна авторизація
@@ -179,12 +215,20 @@ export function useAuth() {
             // Очищаємо локальні дані
             localStorage.removeItem('auth_token');
             localStorage.removeItem('refresh_token');
+            if (typeof document !== 'undefined') {
+                const path = BASE_PATH || '/';
+                document.cookie = `auth_token=; path=${path}; max-age=0`;
+            }
             clearUser();
         } catch (err) {
             console.error('Failed to logout:', err);
             // Очищаємо дані навіть при помилці
             localStorage.removeItem('auth_token');
             localStorage.removeItem('refresh_token');
+            if (typeof document !== 'undefined') {
+                const path = BASE_PATH || '/';
+                document.cookie = `auth_token=; path=${path}; max-age=0`;
+            }
             clearUser();
         } finally {
             setIsLoading(false);
