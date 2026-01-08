@@ -109,7 +109,7 @@ export function StaffColumn({
         <div className={clsx('flex-1 min-w-[180px] sm:min-w-[240px] relative transition-all', className)}>
             {/* COLUMN HEADER - Clean Typography & Accent bar */}
             <div className={clsx(
-                "h-20 px-4 flex items-center border-b border-r border-border/40 sticky top-0 z-30 group/header overflow-hidden transition-colors",
+                "min-h-16 sm:min-h-20 px-3 sm:px-4 py-3 flex items-center gap-3 border-b border-r border-border/40 sticky top-0 z-30 group/header overflow-hidden transition-colors",
                 staff.id === 'unassigned' ? "bg-muted/10" : "bg-background/95 backdrop-blur-md"
             )}>
                 <div className={clsx(
@@ -117,7 +117,7 @@ export function StaffColumn({
                     staff.id === 'unassigned' ? "bg-muted-foreground/30" : "bg-primary/20 group-hover/header:bg-primary"
                 )} />
                 <div className="flex flex-col min-w-0 pl-1">
-                    <span className="text-sm font-bold tracking-tight text-foreground truncate font-heading group-hover/header:text-primary transition-colors">
+                    <span className="text-sm font-bold tracking-tight text-foreground truncate font-heading group-hover/header:text-primary transition-colors leading-tight">
                         {staff.name}
                     </span>
                     <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground opacity-60 truncate">
