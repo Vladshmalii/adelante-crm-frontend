@@ -14,6 +14,8 @@ interface CalendarGridProps {
     onAppointmentClick: (appointment: Appointment) => void;
     onSlotClick: (staffId: string, time: string) => void;
     isAdmin: boolean;
+    slotDuration: number;
+    isFitToScreen: boolean;
 }
 
 const SLOT_HEIGHT = 80;
@@ -21,10 +23,10 @@ const START_HOUR = 8;
 const END_HOUR = 21;
 const WORK_END_HOUR = 19;
 
-const generateTimeSlots = (): TimeSlot[] => {
+const generateTimeSlots = (slotDuration: number): TimeSlot[] => {
     const slots: TimeSlot[] = [];
     for (let hour = START_HOUR; hour <= END_HOUR; hour++) {
-        for (let minute = 0; minute < 60; minute += 30) {
+        for (let minute = 0; minute < 60; minute += slotDuration) {
             const label = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
             slots.push({
                 hour,
@@ -95,8 +97,10 @@ export function CalendarGrid({
     onAppointmentClick,
     onSlotClick,
     isAdmin,
+    slotDuration,
+    isFitToScreen,
 }: CalendarGridProps) {
-    const timeSlots = generateTimeSlots();
+    const timeSlots = generateTimeSlots(slotDuration);
     const containerRef = useRef<HTMLDivElement>(null);
 
     const initialScrollDone = useRef(false);
@@ -107,7 +111,7 @@ export function CalendarGrid({
             const currentMinute = now.getMinutes();
 
             const minutesFromStart = (currentHour - START_HOUR) * 60 + currentMinute;
-            const scrollPosition = (minutesFromStart / 30) * SLOT_HEIGHT;
+            const scrollPosition = (minutesFromStart / slotDuration) * SLOT_HEIGHT;
             const offset = scrollPosition - 120;
 
             containerRef.current.scrollTop = Math.max(0, offset);
@@ -193,21 +197,24 @@ export function CalendarGrid({
             </div>
 
             {/* Scrolling Content - Unassigned + Staff */}
-            <div className="flex flex-1">
+            <div className={clsx(
+                "flex flex-1",
+                isFitToScreen ? "w-full" : "min-w-max"
+            )}>
                 {/* Unassigned Staff - Regular flow */}
-                <div className="min-w-[180px] sm:min-w-[220px] border-r border-border/10">
-                    <StaffColumn
-                        staff={unassignedStaff}
-                        appointments={addBreakAppointments(unassignedAppointments)}
-                        timeSlots={timeSlots}
-                        slotHeight={SLOT_HEIGHT}
-                        startHour={START_HOUR}
-                        onAppointmentClick={onAppointmentClick}
-                        onSlotClick={onSlotClick}
-                        isAdmin={isAdmin}
-                        className=""
-                    />
-                </div>
+                <StaffColumn
+                    staff={unassignedStaff}
+                    appointments={addBreakAppointments(unassignedAppointments)}
+                    timeSlots={timeSlots}
+                    slotHeight={SLOT_HEIGHT}
+                    slotDuration={slotDuration}
+                    isFitToScreen={isFitToScreen}
+                    startHour={START_HOUR}
+                    onAppointmentClick={onAppointmentClick}
+                    onSlotClick={onSlotClick}
+                    isAdmin={isAdmin}
+                    className="border-r border-border/10"
+                />
 
                 {/* Regular Staff Columns */}
                 {staff.map((staffMember) => {
@@ -224,10 +231,13 @@ export function CalendarGrid({
                             appointments={staffAppointmentsWithBreaks}
                             timeSlots={timeSlots}
                             slotHeight={SLOT_HEIGHT}
+                            slotDuration={slotDuration}
+                            isFitToScreen={isFitToScreen}
                             startHour={START_HOUR}
                             onAppointmentClick={onAppointmentClick}
                             onSlotClick={onSlotClick}
                             isAdmin={isAdmin}
+                            className={isFitToScreen ? "border-r border-border/10 last:border-0" : ""}
                         />
                     );
                 })}

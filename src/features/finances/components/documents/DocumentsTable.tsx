@@ -11,57 +11,33 @@ interface DocumentsTableProps {
 
 export function DocumentsTable({ documents, onView, onEdit }: DocumentsTableProps) {
     return (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto rounded-2xl border border-border/50 bg-card shadow-sm mx-4">
             <table className="w-full">
-                <thead className="bg-secondary/50">
-                <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                        №
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                        Дата
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                        Тип
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                        Вміст
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                        Сума
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                        Послуг
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                        Товарів
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                        Контрагент
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                        Коментар
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                        Автор
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                        Статус
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                        Дії
-                    </th>
-                </tr>
+                <thead className="bg-secondary/20 border-b border-border/50">
+                    <tr>
+                        <th className="px-4 py-4 text-left text-[11px] font-black text-muted-foreground/70 uppercase tracking-widest">№</th>
+                        <th className="px-4 py-4 text-left text-[11px] font-black text-muted-foreground/70 uppercase tracking-widest">Дата</th>
+                        <th className="px-4 py-4 text-left text-[11px] font-black text-muted-foreground/70 uppercase tracking-widest">Тип</th>
+                        <th className="px-4 py-4 text-left text-[11px] font-black text-muted-foreground/70 uppercase tracking-widest">Вміст</th>
+                        <th className="px-4 py-4 text-left text-[11px] font-black text-muted-foreground/70 uppercase tracking-widest">Сума</th>
+                        <th className="px-4 py-4 text-center text-[11px] font-black text-muted-foreground/70 uppercase tracking-widest">Послуг</th>
+                        <th className="px-4 py-4 text-center text-[11px] font-black text-muted-foreground/70 uppercase tracking-widest">Товарів</th>
+                        <th className="px-4 py-4 text-left text-[11px] font-black text-muted-foreground/70 uppercase tracking-widest">Контрагент</th>
+                        <th className="px-4 py-4 text-left text-[11px] font-black text-muted-foreground/70 uppercase tracking-widest">Коментар</th>
+                        <th className="px-4 py-4 text-left text-[11px] font-black text-muted-foreground/70 uppercase tracking-widest">Автор</th>
+                        <th className="px-4 py-4 text-left text-[11px] font-black text-muted-foreground/70 uppercase tracking-widest">Статус</th>
+                        <th className="px-4 py-4 text-right text-[11px] font-black text-muted-foreground/70 uppercase tracking-widest">Дії</th>
+                    </tr>
                 </thead>
-                <tbody>
-                {documents.map((document) => (
-                    <DocumentRow
-                        key={document.id}
-                        document={document}
-                        onView={onView}
-                        onEdit={onEdit}
-                    />
-                ))}
+                <tbody className="divide-y divide-border/40">
+                    {documents.map((document) => (
+                        <DocumentRow
+                            key={document.id}
+                            document={document}
+                            onView={onView}
+                            onEdit={onEdit}
+                        />
+                    ))}
                 </tbody>
             </table>
         </div>

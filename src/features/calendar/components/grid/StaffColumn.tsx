@@ -12,6 +12,8 @@ interface StaffColumnProps {
     appointments: Appointment[];
     timeSlots: TimeSlot[];
     slotHeight: number;
+    slotDuration: number;
+    isFitToScreen: boolean;
     startHour: number;
     onAppointmentClick: (appointment: Appointment) => void;
     onSlotClick: (staffId: string, time: string) => void;
@@ -24,6 +26,8 @@ export function StaffColumn({
     appointments,
     timeSlots,
     slotHeight,
+    slotDuration,
+    isFitToScreen,
     startHour,
     onAppointmentClick,
     onSlotClick,
@@ -36,7 +40,7 @@ export function StaffColumn({
 
     const getCurrentTimePosition = () => {
         const totalMinutes = (currentHour - startHour) * 60 + currentMinute;
-        return (totalMinutes / 30) * slotHeight;
+        return (totalMinutes / slotDuration) * slotHeight;
     };
 
     const getProcessedAppointments = () => {
@@ -65,10 +69,14 @@ export function StaffColumn({
 
         return groups.flatMap(group => {
             return group.map((apt, index) => {
-                const top = ((apt.startMins - startHour * 60) / 30) * slotHeight;
-                const height = ((apt.endMins - apt.startMins) / 30) * slotHeight;
-                const width = 100 / group.length;
-                const left = width * index;
+                const top = ((apt.startMins - startHour * 60) / slotDuration) * slotHeight;
+                const height = ((apt.endMins - apt.startMins) / slotDuration) * slotHeight;
+                
+                // Стек вместо разделения ширины
+                // Каждая следующая карточка накладывается со смещением
+                const offset = index * 10; // 10% смещение
+                const width = 100 - offset;
+                const left = offset;
 
                 return {
                     ...apt,
@@ -91,7 +99,7 @@ export function StaffColumn({
 
     const isSlotOccupied = (hour: number, minute: number) => {
         const slotStart = hour * 60 + minute;
-        const slotEnd = slotStart + 30;
+        const slotEnd = slotStart + slotDuration;
 
         return appointments.some(apt => {
             const [hStart, mStart] = apt.startTime.split(':').map(Number);
@@ -106,10 +114,16 @@ export function StaffColumn({
     const currentTimeTop = getCurrentTimePosition();
 
     return (
-        <div className={clsx('flex-1 min-w-[180px] sm:min-w-[240px] relative transition-all', className)}>
+        <div className={clsx(
+            'relative transition-all',
+            isFitToScreen 
+                ? (staff.id === 'unassigned' ? 'flex-[0.6] min-w-0' : 'flex-1 min-w-0') 
+                : 'min-w-[180px] sm:min-w-[240px]',
+            className
+        )}>
             {/* COLUMN HEADER - Clean Typography & Accent bar */}
             <div className={clsx(
-                "min-h-16 sm:min-h-20 px-3 sm:px-4 py-3 flex items-center gap-3 border-b border-r border-border/40 sticky top-0 z-30 group/header overflow-hidden transition-colors",
+                "h-20 px-3 sm:px-4 py-3 flex items-center gap-3 border-b border-r border-border/40 sticky top-0 z-30 group/header overflow-hidden transition-colors",
                 staff.id === 'unassigned' ? "bg-muted/10" : "bg-background/95 backdrop-blur-md"
             )}>
                 <div className={clsx(

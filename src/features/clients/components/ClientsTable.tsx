@@ -36,13 +36,13 @@ export function ClientsTable({
     }
 
     return (
-        <div className="overflow-x-auto rounded-lg border border-border">
+        <div className="overflow-x-auto rounded-2xl border border-border/50 bg-card shadow-sm mx-4">
             <table className="w-full">
                 <ClientsTableHeader
                     allSelected={allSelected}
                     onToggleAll={onToggleAll}
                 />
-                <tbody>
+                <tbody className="divide-y divide-border/40">
                     {clients.map((client, index) => (
                         <ClientsTableRow
                             key={client.id}

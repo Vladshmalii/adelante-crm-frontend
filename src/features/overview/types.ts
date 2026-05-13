@@ -4,6 +4,13 @@ export type RecordStatus = 'completed' | 'confirmed' | 'pending' | 'cancelled';
 export type PaymentStatus = 'paid' | 'unpaid' | 'partial';
 export type RecordSource = 'online' | 'phone' | 'admin' | 'walk-in';
 
+export interface RecordHistoryItem {
+    date: string;
+    author: string;
+    action: string;
+    details?: string;
+}
+
 export interface Record {
     id: string;
     employee: string;
@@ -11,10 +18,21 @@ export interface Record {
     client: string;
     phone: string;
     visitTime: string;
+    createdAt: string;
     createdBy: string;
     status: RecordStatus;
     paymentStatus: PaymentStatus;
     source: RecordSource;
+    amount?: number;
+    // Audit fields
+    actualStartTime?: string;
+    actualEndTime?: string;
+    closedBy?: string;
+    closedAt?: string;
+    paymentMethod?: 'cash' | 'card' | 'mixed';
+    internalNotes?: string;
+    photos?: string[];
+    history?: RecordHistoryItem[];
 }
 
 export interface RecordsFilters {

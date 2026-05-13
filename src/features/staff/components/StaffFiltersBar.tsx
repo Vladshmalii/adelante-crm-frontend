@@ -1,7 +1,6 @@
-'use client';
-
-import { X } from 'lucide-react';
+import { X, SlidersHorizontal } from 'lucide-react';
 import { Dropdown } from '@/shared/components/ui/Dropdown';
+import { Button } from '@/shared/components/ui/Button';
 import type { StaffFilters } from '../types';
 
 interface StaffFiltersBarProps {
@@ -22,47 +21,53 @@ export function StaffFiltersBar({
     const hasActiveFilters = Object.values(filters).some((v) => v);
 
     return (
-        <div className="mb-6 pb-4 border-b border-border">
-            <div className="flex flex-col sm:flex-row gap-3 items-end">
-                <div className="w-full grid grid-cols-2 sm:flex sm:flex-row gap-3">
-                    <div className="w-full sm:w-48">
-                        <Dropdown
-                            placeholder="За посадою"
-                            value={filters.role || ''}
-                            options={[
-                                { value: '', label: 'Всі' },
-                                { value: 'master', label: 'Майстри' },
-                                { value: 'administrator', label: 'Адміністратори' },
-                                { value: 'manager', label: 'Менеджери' },
-                            ]}
-                            onChange={(value) => handleFilterChange('role', value)}
-                        />
+        <div className="p-5 rounded-2xl bg-secondary/30 border border-border/50 mb-6">
+            <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                    <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                        <SlidersHorizontal size={18} />
                     </div>
-
-                    <div className="w-full sm:w-56">
-                        <Dropdown
-                            placeholder="За зарплатою"
-                            value={filters.salary || ''}
-                            options={[
-                                { value: '', label: 'Всі' },
-                                { value: '20000', label: 'Більше 20000₴' },
-                                { value: '15000-20000', label: '15000-20000₴' },
-                                { value: '15000', label: 'Менше 15000₴' },
-                            ]}
-                            onChange={(value) => handleFilterChange('salary', value)}
-                        />
-                    </div>
+                    <h3 className="font-bold text-foreground">Параметри фільтрації</h3>
                 </div>
-
                 {hasActiveFilters && (
-                    <button
+                    <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={onClearFilters}
-                        className="flex items-center gap-1.5 px-3 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                        className="h-8 text-xs font-bold text-muted-foreground hover:text-destructive transition-colors gap-1.5"
                     >
-                        <X size={16} />
+                        <X size={14} />
                         Очистити
-                    </button>
+                    </Button>
                 )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <Dropdown
+                    label="Посада"
+                    placeholder="Всі посади"
+                    value={filters.role || ''}
+                    options={[
+                        { value: '', label: 'Всі посади' },
+                        { value: 'master', label: 'Майстри' },
+                        { value: 'administrator', label: 'Адміністратори' },
+                        { value: 'manager', label: 'Менеджери' },
+                    ]}
+                    onChange={(value) => handleFilterChange('role', value)}
+                />
+
+                <Dropdown
+                    label="Заробітна плата"
+                    placeholder="Всі суми"
+                    value={filters.salary || ''}
+                    options={[
+                        { value: '', label: 'Всі суми' },
+                        { value: '20000', label: 'Більше 20 000 ₴' },
+                        { value: '15000-20000', label: '15 000 - 20 000 ₴' },
+                        { value: '15000', label: 'Менше 15 000 ₴' },
+                    ]}
+                    onChange={(value) => handleFilterChange('salary', value)}
+                />
             </div>
         </div>
     );

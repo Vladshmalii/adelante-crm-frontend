@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useInventoryStore } from '@/stores/useInventoryStore';
 import { inventoryApi } from '@/lib/api/inventory';
 import { MOCK_INVENTORY } from '../data/mockInventory';
@@ -20,7 +20,7 @@ export function useInventory(options: UseInventoryOptions = {}) {
         loadProducts();
     }, [options.search, options.category, options.type, options.stockStatus]);
 
-    const loadProducts = async () => {
+    const loadProducts = useCallback(async () => {
         try {
             setLoading(true);
             setError(null);
@@ -81,7 +81,7 @@ export function useInventory(options: UseInventoryOptions = {}) {
         } finally {
             setLoading(false);
         }
-    };
+    }, [options.search, options.category, options.type, options.stockStatus, setProducts, setLoading]);
 
     const createProduct = async (data: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>) => {
         try {

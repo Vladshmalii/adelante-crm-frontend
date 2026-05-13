@@ -39,9 +39,6 @@ export function InventoryLayout() {
         }
     }, [error, toast]);
 
-    useEffect(() => {
-        loadProducts();
-    }, [loadProducts]);
 
     const filteredProducts = useMemo(() => {
         return products.filter(product => {

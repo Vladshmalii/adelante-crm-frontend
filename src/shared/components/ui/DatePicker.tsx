@@ -1,6 +1,7 @@
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import clsx from 'clsx';
 
 interface DatePickerProps {
     label?: string;
@@ -268,7 +269,7 @@ export function DatePicker({
         <div className="relative">
 
             {label && (
-                <label className="block text-sm font-medium text-foreground mb-1.5">
+                <label className="block text-[11px] font-black text-muted-foreground uppercase tracking-widest mb-1.5 ml-1">
                     {label}
                 </label>
             )}
@@ -278,19 +279,21 @@ export function DatePicker({
                 type="button"
                 onClick={handleToggle}
                 disabled={disabled}
-
-                className={`w-full flex items-center gap-2 px-3 py-2 text-sm
-          bg-background border rounded-lg transition-colors
+                className={`w-full flex items-center gap-3 px-4 h-[42px] text-sm
+          bg-background border rounded-xl transition-all duration-200
           ${disabled
                         ? 'opacity-50 cursor-not-allowed'
-                        : 'hover:border-primary/50 cursor-pointer'
+                        : 'hover:border-primary/50 hover:bg-primary/[0.01] cursor-pointer'
                     }
-          ${error ? 'border-destructive' : 'border-border'}
-          ${isOpen ? 'ring-2 ring-ring border-transparent' : ''}
+          ${error ? 'border-destructive' : 'border-border/50'}
+          ${isOpen ? 'ring-2 ring-primary/20 border-primary' : ''}
         `}
             >
-                <Calendar size={16} className="text-muted-foreground" />
-                <span className={value ? 'text-foreground' : 'text-muted-foreground'}>
+                <Calendar size={18} className="text-muted-foreground/60" />
+                <span className={clsx(
+                    "truncate",
+                    value ? 'text-foreground font-medium' : 'text-muted-foreground'
+                )}>
                     {value ? formatDate(value) : placeholder}
                 </span>
             </button>

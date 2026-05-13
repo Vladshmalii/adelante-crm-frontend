@@ -1,5 +1,7 @@
 import { Dropdown } from '@/shared/components/ui/Dropdown';
 import { RangeDatePicker } from '@/shared/components/ui/RangeDatePicker';
+import { Button } from '@/shared/components/ui/Button';
+import { SlidersHorizontal } from 'lucide-react';
 import { CHANGE_ENTITIES, CHANGE_ACTIONS } from '../../constants';
 import type { ChangesFilters as Filters } from '../../types';
 
@@ -9,7 +11,7 @@ interface ChangesFiltersProps {
 }
 
 const AUTHORS = [
-    { value: '', label: 'Всі' },
+    { value: '', label: 'Всі автори' },
     { value: 'Адміністратор', label: 'Адміністратор' },
     { value: 'Система', label: 'Система' },
     { value: 'Олена Коваль', label: 'Олена Коваль' },
@@ -31,7 +33,14 @@ export function ChangesFilters({ filters, onFiltersChange }: ChangesFiltersProps
     };
 
     return (
-        <div className="space-y-4 mb-6">
+        <div className="p-5 rounded-2xl bg-secondary/30 border border-border/50 mb-6 mx-4">
+            <div className="flex items-center gap-2 mb-4">
+                <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                    <SlidersHorizontal size={18} />
+                </div>
+                <h3 className="font-bold text-foreground">Параметри фільтрації</h3>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <RangeDatePicker
                     label="Період"
@@ -43,7 +52,7 @@ export function ChangesFilters({ filters, onFiltersChange }: ChangesFiltersProps
                     label="Сутність"
                     value={filters.entity || ''}
                     options={[
-                        { value: '', label: 'Всі' },
+                        { value: '', label: 'Всі сутності' },
                         ...CHANGE_ENTITIES.map(e => ({ value: e.value, label: e.label })),
                     ]}
                     onChange={(value) => updateFilter('entity', value)}
@@ -58,17 +67,19 @@ export function ChangesFilters({ filters, onFiltersChange }: ChangesFiltersProps
                     label="Дія"
                     value={filters.action || ''}
                     options={[
-                        { value: '', label: 'Всі' },
+                        { value: '', label: 'Всі дії' },
                         ...CHANGE_ACTIONS.map(a => ({ value: a.value, label: a.label })),
                     ]}
                     onChange={(value) => updateFilter('action', value)}
                 />
-            </div>
-
-            <div className="flex justify-end">
-                <button className="px-6 py-2 text-sm font-medium text-accent-foreground bg-accent hover:bg-accent/90 rounded-lg transition-colors">
-                    Показати
-                </button>
+                <div className="lg:col-span-4 flex justify-end mt-2">
+                    <Button 
+                        variant="primary"
+                        className="h-[42px] px-8 rounded-xl font-bold shadow-lg shadow-primary/10 active:scale-95 transition-all"
+                    >
+                        Показати зміни
+                    </Button>
+                </div>
             </div>
         </div>
     );

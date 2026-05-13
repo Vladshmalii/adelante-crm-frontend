@@ -17,10 +17,17 @@ export function ReceiptsView() {
     const [cashRegister, setCashRegister] = useState('all');
     const [employee, setEmployee] = useState('all');
     const [status, setStatus] = useState('all');
+    const [searchQuery, setSearchQuery] = useState('');
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
     const [selectedReceipt, setSelectedReceipt] = useState<FinanceReceipt | null>(null);
+
+    const filteredReceipts = mockReceipts.filter(r => 
+        r.receiptNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        r.client.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        r.documentNumber.toLowerCase().includes(searchQuery.toLowerCase())
+    );
 
     const handleApply = () => {
         console.log('Applying filters...');
@@ -48,10 +55,14 @@ export function ReceiptsView() {
 
     return (
         <div className="flex flex-col h-full">
-            <div className="p-4 border-b border-border bg-card flex justify-between items-center">
+            <div className="p-4 border-b border-border bg-card flex justify-between items-center mb-6">
                 <h2 className="text-lg font-semibold font-heading">Каси / чеки</h2>
-                <Button onClick={() => setIsCreateModalOpen(true)} variant="primary">
-                    <Plus className="w-4 h-4 mr-2" />
+                <Button 
+                    onClick={() => setIsCreateModalOpen(true)} 
+                    variant="primary"
+                    className="h-[42px] px-6 rounded-xl font-bold"
+                >
+                    <Plus className="w-5 h-5 mr-2" />
                     Створити чек
                 </Button>
             </div>
@@ -62,16 +73,18 @@ export function ReceiptsView() {
                 cashRegister={cashRegister}
                 employee={employee}
                 status={status}
+                searchQuery={searchQuery}
                 onDateFromChange={setDateFrom}
                 onDateToChange={setDateTo}
                 onCashRegisterChange={setCashRegister}
                 onEmployeeChange={setEmployee}
                 onStatusChange={setStatus}
+                onSearchQueryChange={setSearchQuery}
                 onApply={handleApply}
             />
             <div className="flex-1 overflow-auto">
                 <ReceiptsTable
-                    receipts={mockReceipts}
+                    receipts={filteredReceipts}
                     onView={handleOpenDetails}
                     onEdit={handleOpenEdit}
                 />

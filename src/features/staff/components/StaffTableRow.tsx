@@ -2,6 +2,8 @@ import { StaffActionsMenu } from './StaffActionsMenu';
 import { Checkbox } from '@/shared/components/ui/Checkbox';
 import type { Staff } from '../types';
 import { getRoleLabel } from '../utils/roleTranslations';
+import { Badge } from '@/shared/components/ui/Badge';
+import clsx from 'clsx';
 
 interface StaffTableRowProps {
     staff: Staff;
@@ -51,43 +53,45 @@ export function StaffTableRow({
 
     return (
         <tr
-            className={`
-        border-b border-border transition-colors hover:bg-secondary/50
-        ${isEven ? 'bg-background' : 'bg-secondary/30'}
-      `}
+            className={clsx(
+                'border-b border-border/50 transition-all duration-300 hover:bg-primary/[0.02]',
+                isEven ? 'bg-background' : 'bg-secondary/20'
+            )}
         >
-            <td className="px-4 py-3">
+            <td className="px-4 py-4">
                 <Checkbox
                     checked={isSelected}
                     onChange={onToggleSelect}
                 />
             </td>
-            <td className="px-4 py-3">
+            <td className="px-4 py-4">
                 <button
                     onClick={onStaffClick}
-                    className="text-sm font-medium text-primary hover:text-primary/80 transition-colors"
+                    className="text-sm font-bold text-foreground hover:text-primary transition-colors text-left"
                 >
                     {getPublicName(staff.firstName, staff.middleName)}
                 </button>
             </td>
-            <td className="px-4 py-3 text-sm text-foreground">{getMaskedPhone(staff.phone)}</td>
-            <td className="px-4 py-3 text-sm text-muted-foreground hidden xl:table-cell">
-                {staff.email ? 'Приховано' : '—'}
+            <td className="px-4 py-4 text-sm font-medium text-foreground/80">{getMaskedPhone(staff.phone)}</td>
+            <td className="px-4 py-4 text-sm text-muted-foreground hidden xl:table-cell">
+                {staff.email ? '••••' : '—'}
             </td>
-            <td className="px-4 py-3 text-sm text-foreground hidden md:table-cell">
-                {getRoleLabel(staff.role)}
+            <td className="px-4 py-4 hidden md:table-cell">
+                <Badge variant="primary" className="bg-primary/10 text-primary border-none font-bold uppercase text-[10px] tracking-wider">
+                    {getRoleLabel(staff.role)}
+                </Badge>
             </td>
-            <td className="px-4 py-3 text-sm text-muted-foreground hidden lg:table-cell">
+            <td className="px-4 py-4 text-sm text-muted-foreground hidden lg:table-cell">
                 {staff.specialization || '—'}
             </td>
-            <td className="px-4 py-3 text-sm font-medium text-foreground hidden lg:table-cell">
-                {staff.salary !== undefined ? `${staff.salary.toLocaleString('uk-UA')} ₴` : '—'}
+            <td className="px-4 py-4 text-sm font-black text-foreground hidden lg:table-cell">
+                {staff.salary !== undefined ? `₴ ${staff.salary.toLocaleString('uk-UA')}` : '—'}
             </td>
-            <td className="px-4 py-3 text-sm text-foreground hidden xl:table-cell">{staff.commission}%</td>
-            <td className="px-4 py-3 text-sm text-muted-foreground hidden xl:table-cell">
+            <td className="px-4 py-4 text-sm font-bold text-foreground hidden xl:table-cell text-center">{staff.commission}%</td>
+            <td className="px-4 py-4 text-[11px] font-medium text-muted-foreground hidden xl:table-cell">
                 {staff.hireDate ? formatDate(staff.hireDate) : '—'}
             </td>
-            <td className="px-4 py-3">
+            <td className="px-4 py-4 text-right">
                 <StaffActionsMenu
                     onView={onStaffClick}
                     onEdit={onEdit}

@@ -29,6 +29,9 @@ export interface Appointment {
     type: AppointmentType;
     notes?: string;
     price?: number;
+    isForAnotherPerson?: boolean;
+    otherPersonName?: string;
+    otherPersonPhone?: string;
 }
 
 export interface TimeSlot {

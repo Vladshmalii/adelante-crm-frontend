@@ -1,5 +1,6 @@
 import { Plus } from 'lucide-react';
 import { SearchInput } from '@/shared/components/ui/SearchInput';
+import { Button } from '@/shared/components/ui/Button';
 
 interface LoyaltyHeaderProps {
     searchQuery: string;
@@ -28,13 +29,9 @@ export function LoyaltyHeader({
                 </div>
                 {showAddButton && (
                     <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                        <button
-                            onClick={onAddNew}
-                            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-accent-foreground bg-accent hover:bg-accent/90 rounded-lg transition-colors"
-                        >
-                            <Plus size={18} />
+                        <Button onClick={onAddNew} leftIcon={<Plus size={18} />}>
                             {addButtonLabel}
-                        </button>
+                        </Button>
                     </div>
                 )}
             </div>

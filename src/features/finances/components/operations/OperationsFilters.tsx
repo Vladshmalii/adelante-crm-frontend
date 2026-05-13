@@ -1,8 +1,8 @@
 import { DatePicker } from '@/shared/components/ui/DatePicker';
 import { Dropdown } from '@/shared/components/ui/Dropdown';
 import { Button } from '@/shared/components/ui/Button';
-import { Search } from 'lucide-react';
-import { OPERATION_TYPES, OPERATION_STATUSES } from '../../constants';
+import { Search, SlidersHorizontal } from 'lucide-react';
+import { OPERATION_TYPES } from '../../constants';
 import { mockCashRegisters } from '../../data/mockCashRegisters';
 import { mockPaymentMethods } from '../../data/mockPaymentMethods';
 
@@ -58,8 +58,15 @@ export function OperationsFilters({
     ];
 
     return (
-        <div className="p-4 bg-card border-b border-border">
-            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
+        <div className="p-5 rounded-2xl bg-secondary/30 border border-border/50 mb-6 mx-4">
+            <div className="flex items-center gap-2 mb-4">
+                <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                    <SlidersHorizontal size={18} />
+                </div>
+                <h3 className="font-bold text-foreground">Параметри фільтрації</h3>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <DatePicker
                     label="Дата з"
                     value={dateFrom}
@@ -82,9 +89,6 @@ export function OperationsFilters({
                     options={cashRegisterOptions}
                     onChange={(val) => onCashRegisterChange(val as string)}
                 />
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <Dropdown
                     label="Співробітник"
                     value={employee}
@@ -92,7 +96,7 @@ export function OperationsFilters({
                     onChange={(val) => onEmployeeChange(val as string)}
                 />
                 <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">
+                    <label className="block text-[11px] font-black text-muted-foreground uppercase tracking-widest mb-1.5 ml-1">
                         Клієнт
                     </label>
                     <div className="relative">
@@ -102,7 +106,7 @@ export function OperationsFilters({
                             value={clientSearch}
                             onChange={(e) => onClientSearchChange(e.target.value)}
                             placeholder="Ім'я або телефон"
-                            className="w-full pl-9 pr-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
+                            className="w-full h-[42px] pl-9 pr-3 py-2 text-sm bg-background border border-border/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
                         />
                     </div>
                 </div>
@@ -113,7 +117,12 @@ export function OperationsFilters({
                     onChange={(val) => onPaymentMethodChange(val as string)}
                 />
                 <div className="flex items-end">
-                    <Button onClick={onApply} fullWidth>
+                    <Button 
+                        onClick={onApply} 
+                        fullWidth 
+                        variant="primary"
+                        className="h-[42px] rounded-xl font-bold shadow-lg shadow-primary/10 active:scale-95 transition-all"
+                    >
                         Показати
                     </Button>
                 </div>

@@ -5,9 +5,7 @@ import { ProfileSettings } from './ProfileSettings';
 import { RolesSettings } from './RolesSettings';
 import { GeneralSettings } from './GeneralSettings';
 import { ReportsSettings } from './ReportsSettings';
-import { WidgetSettings } from './WidgetSettings';
-
-export type SettingsTab = 'salon' | 'profile' | 'roles' | 'general' | 'reports' | 'widget';
+export type SettingsTab = 'salon' | 'profile' | 'roles' | 'general' | 'reports';
 
 interface SettingsLayoutProps {
 	activeTab: SettingsTab;
@@ -16,7 +14,7 @@ interface SettingsLayoutProps {
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/utils/cn';
-import { Building2, UserCircle, Shield, Settings, BarChart3, Globe } from 'lucide-react';
+import { Building2, UserCircle, Shield, Settings, BarChart3 } from 'lucide-react';
 
 export function SettingsLayout({ activeTab }: SettingsLayoutProps) {
 	const searchParams = useSearchParams();
@@ -27,7 +25,6 @@ export function SettingsLayout({ activeTab }: SettingsLayoutProps) {
 		{ id: 'roles', label: 'Ролі та доступи', icon: Shield },
 		{ id: 'general', label: 'Загальні', icon: Settings },
 		{ id: 'reports', label: 'Звіти', icon: BarChart3 },
-		{ id: 'widget', label: 'Віджет', icon: Globe },
 	];
 
 	return (
@@ -62,7 +59,6 @@ export function SettingsLayout({ activeTab }: SettingsLayoutProps) {
 				{activeTab === 'roles' && <RolesSettings />}
 				{activeTab === 'general' && <GeneralSettings />}
 				{activeTab === 'reports' && <ReportsSettings />}
-				{activeTab === 'widget' && <WidgetSettings />}
 			</div>
 		</div>
 	);

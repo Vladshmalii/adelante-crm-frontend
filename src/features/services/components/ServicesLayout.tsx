@@ -124,15 +124,12 @@ export function ServicesLayout() {
         <div className="p-4 sm:p-6">
             <GlobalLoader isLoading={isLoading || isLocalLoading} />
 
-            <ServicesHeader
-                onAddService={() => setIsAddModalOpen(true)}
-                searchQuery={searchQuery}
-                onSearchChange={setSearchQuery}
-            />
-
             <ServicesFilters
                 filters={filters}
                 onFiltersChange={setFilters}
+                searchQuery={searchQuery}
+                onSearchChange={setSearchQuery}
+                onAddService={() => setIsAddModalOpen(true)}
             />
 
             <div className="mt-6">
@@ -141,7 +138,7 @@ export function ServicesLayout() {
                         <p className="text-muted-foreground">Послуги не знайдено</p>
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                         {filteredServices.map(service => (
                             <ServiceCard
                                 key={service.id}

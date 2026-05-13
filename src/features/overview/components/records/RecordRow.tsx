@@ -1,14 +1,18 @@
-import { Edit2 } from 'lucide-react';
+import { Eye } from 'lucide-react';
 import type { Record } from '../../types';
+import { Badge } from '@/shared/components/ui/Badge';
+import { Button } from '@/shared/components/ui/Button';
 import { RECORD_STATUSES, PAYMENT_STATUSES, RECORD_SOURCES } from '../../constants';
+import clsx from 'clsx';
 
 interface RecordRowProps {
     record: Record;
     isEven: boolean;
+    onView: (record: Record) => void;
 }
 
-export function RecordRow({ record, isEven }: RecordRowProps) {
-    const formatDateTime = (dateString: string) => {
+export function RecordRow({ record, isEven, onView }: RecordRowProps) {
+    const formatDate = (dateString: string) => {
         const date = new Date(dateString);
         const day = date.getDate().toString().padStart(2, '0');
         const month = (date.getMonth() + 1).toString().padStart(2, '0');
@@ -30,58 +34,84 @@ export function RecordRow({ record, isEven }: RecordRowProps) {
         return RECORD_SOURCES.find(s => s.value === source)?.label || source;
     };
 
-    const getStatusColor = (status: string) => {
+    const getStatusVariant = (status: string): any => {
         switch (status) {
-            case 'completed': return 'text-green-600';
-            case 'confirmed': return 'text-blue-600';
-            case 'pending': return 'text-yellow-600';
-            case 'cancelled': return 'text-red-600';
-            default: return 'text-muted-foreground';
+            case 'completed': return 'success';
+            case 'confirmed': return 'primary';
+            case 'pending': return 'warning';
+            case 'cancelled': return 'destructive';
+            default: return 'secondary';
         }
     };
 
-    const getPaymentColor = (status: string) => {
+    const getPaymentVariant = (status: string): any => {
         switch (status) {
-            case 'paid': return 'text-green-600';
-            case 'partial': return 'text-yellow-600';
-            case 'unpaid': return 'text-red-600';
-            default: return 'text-muted-foreground';
+            case 'paid': return 'success';
+            case 'partial': return 'warning';
+            case 'unpaid': return 'destructive';
+            default: return 'secondary';
         }
     };
 
     return (
-        <tr
-            className={`
-        border-b border-border transition-colors hover:bg-secondary/50
-        ${isEven ? 'bg-background' : 'bg-secondary/30'}
-      `}
-        >
-            <td className="px-4 py-3 text-sm text-foreground">{record.employee}</td>
-            <td className="px-4 py-3 text-sm text-foreground">{record.service}</td>
-            <td className="px-4 py-3">
-                <div className="text-sm font-medium text-primary">{record.client}</div>
-                <div className="text-xs text-muted-foreground">{record.phone}</div>
+        <tr className="border-b border-border/50 transition-all duration-300 hover:bg-primary/[0.02]">
+            <td className="px-4 py-4 text-[11px] font-medium text-muted-foreground/60 whitespace-nowrap">
+                {formatDate(record.createdAt)}
             </td>
-            <td className="px-4 py-3 text-sm text-foreground">{formatDateTime(record.visitTime)}</td>
-            <td className="px-4 py-3 text-sm text-muted-foreground">{record.createdBy}</td>
-            <td className="px-4 py-3">
-        <span className={`text-sm font-medium ${getStatusColor(record.status)}`}>
-          {getStatusLabel(record.status)}
-        </span>
+            <td className="px-4 py-4">
+                <span className="text-sm font-bold text-foreground">
+                    {record.employee}
+                </span>
             </td>
-            <td className="px-4 py-3">
-        <span className={`text-sm font-medium ${getPaymentColor(record.paymentStatus)}`}>
-          {getPaymentLabel(record.paymentStatus)}
-        </span>
+            <td className="px-4 py-4">
+                <span className="text-sm font-medium text-foreground/80">
+                    {record.service}
+                </span>
             </td>
-            <td className="px-4 py-3 text-sm text-muted-foreground">{getSourceLabel(record.source)}</td>
-            <td className="px-4 py-3">
-                <button
-                    className="p-1 text-muted-foreground hover:text-foreground transition-colors"
-                    aria-label="Редагувати"
+            <td className="px-4 py-4">
+                <div className="flex flex-col">
+                    <span className="text-sm font-bold text-foreground">
+                        {record.client}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground/60 font-medium">
+                        {record.phone}
+                    </span>
+                </div>
+            </td>
+            <td className="px-4 py-4 text-sm font-medium text-foreground/80 whitespace-nowrap">
+                {formatDate(record.visitTime)}
+            </td>
+            <td className="px-4 py-4 text-sm text-foreground/70">
+                {record.createdBy}
+            </td>
+            <td className="px-4 py-4 text-sm font-black text-foreground">
+                {record.amount ? `₴ ${record.amount.toLocaleString('uk-UA')}` : '—'}
+            </td>
+            <td className="px-4 py-4">
+                <Badge variant={getStatusVariant(record.status)} className="font-bold">
+                    {getStatusLabel(record.status)}
+                </Badge>
+            </td>
+            <td className="px-4 py-4">
+                <Badge variant={getPaymentVariant(record.paymentStatus)} className="font-bold">
+                    {getPaymentLabel(record.paymentStatus)}
+                </Badge>
+            </td>
+            <td className="px-4 py-4">
+                <Badge variant="secondary" className="bg-secondary text-foreground/70 border-none font-bold text-[10px] uppercase">
+                    {getSourceLabel(record.source)}
+                </Badge>
+            </td>
+            <td className="px-4 py-4 text-right">
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-[42px] w-[42px] p-0 rounded-xl bg-secondary/50 hover:bg-primary/10 hover:text-primary transition-all duration-300"
+                    title="Показати деталі"
+                    onClick={() => onView(record)}
                 >
-                    <Edit2 size={16} />
-                </button>
+                    <Eye size={20} />
+                </Button>
             </td>
         </tr>
     );

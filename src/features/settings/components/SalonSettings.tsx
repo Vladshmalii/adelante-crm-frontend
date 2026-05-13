@@ -1,8 +1,10 @@
 import { useState } from 'react';
+import { Save } from 'lucide-react';
 import { DatePicker } from '@/shared/components/ui/DatePicker';
 import { Input } from '@/shared/components/ui/Input';
 import { Textarea } from '@/shared/components/ui/Textarea';
 import { Checkbox } from '@/shared/components/ui/Checkbox';
+import { Button } from '@/shared/components/ui/Button';
 
 type WorkDayKey = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
 
@@ -85,13 +87,9 @@ export function SalonSettings() {
               Основні дані, які бачать клієнти та співробітники.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={handleSave}
-            className="px-4 py-2 text-sm font-medium rounded-lg bg-accent text-accent-foreground hover:bg-accent/90 transition-colors"
-          >
+          <Button onClick={handleSave} leftIcon={<Save size={18} />}>
             Зберегти
-          </button>
+          </Button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">

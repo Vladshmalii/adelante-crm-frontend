@@ -6,6 +6,7 @@ import { Modal } from '@/shared/components/ui/Modal';
 import { Button } from '@/shared/components/ui/Button';
 import { Input } from '@/shared/components/ui/Input';
 import { Dropdown } from '@/shared/components/ui/Dropdown';
+import { Minus, Plus } from 'lucide-react';
 import { Textarea } from '@/shared/components/ui/Textarea';
 import { Product, AddProductFormData, ProductCategory, ProductType, ProductUnit } from '../types';
 import { PRODUCT_CATEGORIES, PRODUCT_TYPES, PRODUCT_UNITS } from '../constants';
@@ -114,52 +115,67 @@ export function EditProductModal({ isOpen, onClose, onSave, product }: EditProdu
                 <div className="p-4 bg-muted/30 rounded-lg border border-border">
                     <h4 className="text-sm font-medium mb-3 text-foreground">Параметри обліку</h4>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <Input
-                            label="Поточний залишок"
-                            type="number"
-                            min="0"
-                            step={formData.type === 'weight' ? '0.001' : '1'}
-                            required
-                            value={formData.quantity}
-                            onChange={(e) => handleChange('quantity', Number(e.target.value))}
-                        />
-                        <Dropdown
-                            label="Одиниця виміру"
-                            value={formData.unit}
-                            options={availableUnits}
-                            onChange={(val) => handleChange('unit', val)}
-                        />
-                        <Input
-                            label="Мін. залишок (для сповіщень)"
-                            type="number"
-                            min="0"
-                            step={formData.type === 'weight' ? '0.001' : '1'}
-                            required
-                            value={formData.minQuantity}
-                            onChange={(e) => handleChange('minQuantity', Number(e.target.value))}
-                        />
+                        <div className="space-y-1.5">
+                            <label className="text-sm font-medium text-foreground">Поточний залишок</label>
+                            <div className="flex items-center bg-background border border-border rounded-xl p-1 h-[42px] focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary transition-all">
+                                <button type="button" onClick={() => handleChange('quantity', Math.max(0, (formData.quantity || 0) - (formData.type === 'weight' ? 0.1 : 1)))} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-all">
+                                    <Minus size={14} strokeWidth={3} />
+                                </button>
+                                <input type="number" step={formData.type === 'weight' ? 0.001 : 1} value={formData.quantity} onChange={(e) => handleChange('quantity', Number(e.target.value))} className="flex-1 bg-transparent text-center font-bold text-sm text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                                <button type="button" onClick={() => handleChange('quantity', (formData.quantity || 0) + (formData.type === 'weight' ? 0.1 : 1))} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-all">
+                                    <Plus size={14} strokeWidth={3} />
+                                </button>
+                            </div>
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="text-sm font-medium text-foreground">Одиниця виміру</label>
+                            <Dropdown
+                                value={formData.unit}
+                                options={availableUnits}
+                                onChange={(val) => handleChange('unit', val)}
+                                className="h-[42px] rounded-xl"
+                            />
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="text-sm font-medium text-foreground">Мін. залишок</label>
+                            <div className="flex items-center bg-background border border-border rounded-xl p-1 h-[42px] focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary transition-all">
+                                <button type="button" onClick={() => handleChange('minQuantity', Math.max(0, (formData.minQuantity || 0) - (formData.type === 'weight' ? 0.1 : 1)))} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-all">
+                                    <Minus size={14} strokeWidth={3} />
+                                </button>
+                                <input type="number" step={formData.type === 'weight' ? 0.001 : 1} value={formData.minQuantity} onChange={(e) => handleChange('minQuantity', Number(e.target.value))} className="flex-1 bg-transparent text-center font-bold text-sm text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                                <button type="button" onClick={() => handleChange('minQuantity', (formData.minQuantity || 0) + (formData.type === 'weight' ? 0.1 : 1))} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-all">
+                                    <Plus size={14} strokeWidth={3} />
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Input
-                        label="Собівартість (за од.)"
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        required
-                        value={formData.costPrice}
-                        onChange={(e) => handleChange('costPrice', Number(e.target.value))}
-                    />
-                    <Input
-                        label="Ціна продажу (за од.)"
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        required
-                        value={formData.price}
-                        onChange={(e) => handleChange('price', Number(e.target.value))}
-                    />
+                    <div className="space-y-1.5">
+                        <label className="text-sm font-medium text-foreground">Собівартість</label>
+                        <div className="flex items-center bg-background border border-border rounded-xl p-1 h-[42px] focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary transition-all">
+                            <button type="button" onClick={() => handleChange('costPrice', Math.max(0, (formData.costPrice || 0) - 10))} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-all">
+                                <Minus size={14} strokeWidth={3} />
+                            </button>
+                            <input type="number" step="0.01" value={formData.costPrice} onChange={(e) => handleChange('costPrice', Number(e.target.value))} className="flex-1 bg-transparent text-center font-bold text-sm text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                            <button type="button" onClick={() => handleChange('costPrice', (formData.costPrice || 0) + 10)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-all">
+                                <Plus size={14} strokeWidth={3} />
+                            </button>
+                        </div>
+                    </div>
+                    <div className="space-y-1.5">
+                        <label className="text-sm font-medium text-foreground">Ціна продажу</label>
+                        <div className="flex items-center bg-background border border-border rounded-xl p-1 h-[42px] focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary transition-all">
+                            <button type="button" onClick={() => handleChange('price', Math.max(0, (formData.price || 0) - 10))} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-all">
+                                <Minus size={14} strokeWidth={3} />
+                            </button>
+                            <input type="number" step="0.01" value={formData.price} onChange={(e) => handleChange('price', Number(e.target.value))} className="flex-1 bg-transparent text-center font-bold text-sm text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                            <button type="button" onClick={() => handleChange('price', (formData.price || 0) + 10)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-all">
+                                <Plus size={14} strokeWidth={3} />
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
                 <Textarea

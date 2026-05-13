@@ -40,10 +40,10 @@ export function StaffActionsMenu({ onView, onEdit, onDelete, onSchedule, onStati
         <div className="relative" ref={menuRef}>
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className="p-1 text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-accent"
+                className="h-[42px] w-[42px] flex items-center justify-center text-muted-foreground hover:text-primary transition-all duration-300 rounded-xl bg-secondary/50 hover:bg-primary/10"
                 aria-label="Дії"
             >
-                <MoreVertical size={18} />
+                <MoreVertical size={20} />
             </button>
 
             {isOpen && (

@@ -28,7 +28,10 @@ export function ClientTag({ segment, size = 'sm' }: ClientTagProps) {
     };
 
     return (
-        <Badge variant={getSegmentVariant(segment)} size={size}>
+        <Badge 
+            variant={getSegmentVariant(segment)} 
+            className="font-black uppercase text-[10px] px-2.5 py-1 tracking-wider"
+        >
             {getSegmentLabel(segment)}
         </Badge>
     );

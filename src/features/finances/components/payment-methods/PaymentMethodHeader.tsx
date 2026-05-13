@@ -9,20 +9,17 @@ export function PaymentMethodHeader({
     onAddClick,
 }: PaymentMethodHeaderProps) {
     return (
-        <div className="p-4 sm:p-6 border-b border-border bg-card">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h2 className="text-2xl font-bold text-foreground font-heading">Методи оплат</h2>
-                    <p className="text-sm text-muted-foreground mt-1">
-                        Налаштування доступних методів оплати для клієнтів
-                    </p>
-                </div>
-                <div className="flex items-center gap-3">
-                    <Button onClick={onAddClick} className="flex items-center gap-2">
-                        <Plus size={18} />
-                        Додати метод оплати
-                    </Button>
-                </div>
+        <div className="p-4 border-b border-border/50 bg-card flex justify-between items-center mb-6">
+            <h2 className="text-lg font-semibold font-heading text-foreground">Методи оплат</h2>
+            <div className="flex items-center gap-3">
+                <Button 
+                    onClick={onAddClick} 
+                    variant="primary"
+                    className="h-[42px] px-6 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-primary/20 transition-all active:scale-95"
+                >
+                    <Plus size={20} />
+                    Додати метод
+                </Button>
             </div>
         </div>
     );

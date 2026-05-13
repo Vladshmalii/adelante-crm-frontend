@@ -88,7 +88,7 @@ export function ToastProvider({ children }: ToastProviderProps) {
             {children}
             {mounted &&
                 createPortal(
-                    <div className="fixed top-24 right-4 lg:right-8 z-[9999] pointer-events-none flex flex-col items-end gap-3 w-full max-w-sm">
+                    <div className="fixed bottom-4 right-4 lg:bottom-8 lg:right-8 z-[9999] pointer-events-none flex flex-col items-end gap-3 w-full max-w-sm">
                         {toasts.map((toast) => (
                             <div
                                 key={toast.id}

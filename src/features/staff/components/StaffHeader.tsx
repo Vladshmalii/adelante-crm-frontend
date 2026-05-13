@@ -1,6 +1,7 @@
 import { Plus } from 'lucide-react';
 import { ExcelDropdown } from '@/shared/components/ui/ExcelDropdown';
 import { SearchInput } from '@/shared/components/ui/SearchInput';
+import { Button } from '@/shared/components/ui/Button';
 
 interface StaffHeaderProps {
     searchQuery: string;
@@ -24,18 +25,19 @@ export function StaffHeader({
                     <SearchInput
                         value={searchQuery}
                         onChange={(e) => onSearchChange(e.target.value)}
-                        placeholder="Пошук (за ім'ям, телефоном або Email)"
+                        placeholder="Пошук співробітника..."
                     />
                 </div>
                 <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
                     <ExcelDropdown onImport={onImportExcel} onExport={onExportExcel} />
-                    <button
+                    <Button
                         onClick={onAddStaff}
-                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-accent-foreground bg-accent hover:bg-accent/90 rounded-lg transition-colors"
+                        variant="primary"
+                        className="h-10 px-6 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-primary/20 transition-all active:scale-95"
                     >
-                        <Plus size={18} />
+                        <Plus size={20} />
                         Додати співробітника
-                    </button>
+                    </Button>
                 </div>
             </div>
         </div>

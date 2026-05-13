@@ -40,13 +40,13 @@ export function StaffTable({
     }
 
     return (
-        <div className="overflow-x-auto rounded-lg border border-border">
+        <div className="overflow-x-auto rounded-2xl border border-border/50 bg-card shadow-sm mx-4">
             <table className="w-full">
                 <StaffTableHeader
                     allSelected={allSelected}
                     onToggleAll={onToggleAll}
                 />
-                <tbody>
+                <tbody className="divide-y divide-border/40">
                     {staff.map((staffMember, index) => (
                         <StaffTableRow
                             key={staffMember.id}

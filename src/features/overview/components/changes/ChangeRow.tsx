@@ -1,13 +1,17 @@
 import { Eye } from 'lucide-react';
 import type { Change } from '../../types';
+import { Badge } from '@/shared/components/ui/Badge';
+import { Button } from '@/shared/components/ui/Button';
 import { CHANGE_ENTITIES, CHANGE_ACTIONS } from '../../constants';
+import clsx from 'clsx';
 
 interface ChangeRowProps {
     change: Change;
     isEven: boolean;
+    onView: (change: Change) => void;
 }
 
-export function ChangeRow({ change, isEven }: ChangeRowProps) {
+export function ChangeRow({ change, isEven, onView }: ChangeRowProps) {
     const formatDateTime = (dateString: string) => {
         const date = new Date(dateString);
         const day = date.getDate().toString().padStart(2, '0');
@@ -26,41 +30,52 @@ export function ChangeRow({ change, isEven }: ChangeRowProps) {
         return CHANGE_ACTIONS.find(a => a.value === action)?.label || action;
     };
 
-    const getActionColor = (action: string) => {
+    const getActionVariant = (action: string): any => {
         switch (action) {
-            case 'created': return 'text-green-600';
-            case 'updated': return 'text-blue-600';
-            case 'deleted': return 'text-red-600';
-            default: return 'text-muted-foreground';
+            case 'created': return 'success';
+            case 'updated': return 'primary';
+            case 'deleted': return 'destructive';
+            default: return 'secondary';
         }
     };
 
     return (
         <tr
-            className={`
-        border-b border-border transition-colors hover:bg-secondary/50
-        ${isEven ? 'bg-background' : 'bg-secondary/30'}
-      `}
+            className={clsx(
+                'border-b border-border/50 transition-all duration-300 hover:bg-primary/[0.02]',
+                isEven ? 'bg-background' : 'bg-secondary/10'
+            )}
         >
-            <td className="px-4 py-3 text-sm text-foreground">{formatDateTime(change.date)}</td>
-            <td className="px-4 py-3">
-                <div className="text-sm font-medium text-primary">{change.entityName}</div>
-                <div className="text-xs text-muted-foreground">{getEntityLabel(change.entity)}</div>
+            <td className="px-4 py-4">
+                <span className="text-sm text-foreground/70 font-medium">{formatDateTime(change.date)}</span>
             </td>
-            <td className="px-4 py-3 text-sm text-foreground">{change.author}</td>
-            <td className="px-4 py-3">
-        <span className={`text-sm font-medium ${getActionColor(change.action)}`}>
-          {getActionLabel(change.action)}
-        </span>
+            <td className="px-4 py-4">
+                <div className="text-sm font-bold text-foreground">{change.entityName}</div>
+                <div className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">{getEntityLabel(change.entity)}</div>
             </td>
-            <td className="px-4 py-3">
-                <button
-                    className="p-1 text-muted-foreground hover:text-foreground transition-colors"
-                    aria-label="Показати деталі"
-                    title={change.details}
+            <td className="px-4 py-4">
+                <span className="text-sm font-medium text-foreground">{change.author}</span>
+            </td>
+            <td className="px-4 py-4">
+                <Badge variant={getActionVariant(change.action)} className="font-bold">
+                    {getActionLabel(change.action)}
+                </Badge>
+            </td>
+            <td className="px-4 py-4">
+                <span className="text-sm text-foreground/60 leading-relaxed max-w-[300px] block truncate" title={change.details}>
+                    {change.details}
+                </span>
+            </td>
+            <td className="px-4 py-4 text-right">
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-[42px] w-[42px] p-0 rounded-xl bg-secondary/50 hover:bg-primary/10 hover:text-primary transition-all duration-300"
+                    title="Показати деталі"
+                    onClick={() => onView(change)}
                 >
-                    <Eye size={16} />
-                </button>
+                    <Eye size={20} />
+                </Button>
             </td>
         </tr>
     );

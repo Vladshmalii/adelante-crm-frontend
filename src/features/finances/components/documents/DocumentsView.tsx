@@ -102,10 +102,14 @@ export function DocumentsView() {
     return (
         <div className="flex flex-col h-full">
             <GlobalLoader isLoading={isLoading || isLocalLoading} />
-            <div className="p-4 border-b border-border bg-card flex justify-between items-center">
+            <div className="p-4 border-b border-border bg-card flex justify-between items-center mb-6">
                 <h2 className="text-lg font-semibold font-heading">Документи</h2>
-                <Button onClick={() => setIsCreateModalOpen(true)} variant="primary">
-                    <Plus className="w-4 h-4 mr-2" />
+                <Button 
+                    onClick={() => setIsCreateModalOpen(true)} 
+                    variant="primary"
+                    className="h-[42px] px-6 rounded-xl font-bold flex items-center gap-2"
+                >
+                    <Plus className="w-5 h-5 mr-2" />
                     Створити документ
                 </Button>
             </div>

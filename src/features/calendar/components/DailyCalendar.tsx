@@ -36,6 +36,8 @@ export function DailyCalendar() {
     const [editModalOpen, setEditModalOpen] = useState(false);
     const [profileModalOpen, setProfileModalOpen] = useState(false);
     const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+    const [slotDuration, setSlotDuration] = useState(30);
+    const isFitToScreen = true; // Завжди вписано в екран
     const [newAppointmentData, setNewAppointmentData] = useState<{
         staffId?: string;
         time?: string;
@@ -289,10 +291,12 @@ export function DailyCalendar() {
                         onAppointmentClick={handleAppointmentClick}
                         onSlotClick={handleSlotClick}
                         isAdmin={isAdmin}
+                        slotDuration={slotDuration}
+                        isFitToScreen={isFitToScreen}
                     />
                 );
         }
-    }, [view, currentDate, filteredStaff, filteredAppointments, isAdmin, handleAppointmentClick, handleSlotClick, handleDayClick]);
+    }, [view, currentDate, filteredStaff, filteredAppointments, isAdmin, handleAppointmentClick, handleSlotClick, handleDayClick, slotDuration, isFitToScreen]);
 
     return (
         <div className="h-full flex flex-col">
@@ -322,6 +326,8 @@ export function DailyCalendar() {
                 selectedStaffIds={selectedStaffIds}
                 onStaffFilterChange={setSelectedStaffIds}
                 appointments={appointments}
+                slotDuration={slotDuration}
+                onSlotDurationChange={setSlotDuration}
             />
 
             <div className="flex-1 min-h-0">

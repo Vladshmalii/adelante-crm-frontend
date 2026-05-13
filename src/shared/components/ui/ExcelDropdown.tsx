@@ -44,7 +44,7 @@ export function ExcelDropdown({ onImport, onExport }: ExcelDropdownProps) {
         <div ref={dropdownRef} className="relative inline-block">
             <button
                 onClick={toggleDropdown}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-foreground bg-secondary hover:bg-secondary/80 rounded-lg transition-colors"
+                className="h-10 flex items-center gap-2 px-4 text-sm font-bold text-foreground bg-secondary/50 hover:bg-secondary/80 rounded-xl border border-border/50 transition-all active:scale-95"
             >
                 <FileSpreadsheet size={18} />
                 Операції з Excel

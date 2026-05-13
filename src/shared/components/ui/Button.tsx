@@ -35,13 +35,13 @@ export function Button({
             disabled={disabled || isLoading}
             className={clsx(
                 'inline-flex items-center justify-center font-medium rounded-lg transition-all duration-200',
-                'focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-ring',
+                'focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-ring',
                 'disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100',
                 'active:scale-95',
                 {
                     'bg-primary text-primary-foreground hover:bg-primary-hover active:bg-primary-active shadow-sm hover:shadow-md disabled:bg-primary-disabled': variant === 'primary',
                     'bg-secondary text-secondary-foreground hover:bg-secondary-hover shadow-sm': variant === 'secondary',
-                    'bg-transparent text-foreground hover:bg-accent hover:text-accent-foreground': variant === 'ghost',
+                    'bg-transparent text-foreground hover:bg-secondary hover:text-secondary-foreground': variant === 'ghost',
                     'bg-destructive text-destructive-foreground hover:bg-destructive-hover shadow-sm': variant === 'danger',
 
                     'px-3 py-1.5 text-sm gap-1.5': size === 'sm',

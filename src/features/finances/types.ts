@@ -42,6 +42,7 @@ export interface FinanceReceipt {
     status: ReceiptStatus;
     balanceAfter: number;
     source: ReceiptSource;
+    author?: string;
 }
 
 export interface PaymentMethod {

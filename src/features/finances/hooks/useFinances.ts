@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useFinancesStore } from '@/stores/useFinancesStore';
 import { financesApi } from '@/lib/api/finances';
 import { mockOperations } from '../data/mockOperations';
@@ -16,11 +16,14 @@ export function useFinances(options: UseFinancesOptions = {}) {
     const { operations, documents, setOperations, setDocuments, setLoading, isLoading } = useFinancesStore();
     const [error, setError] = useState<string | null>(null);
 
+    const optionsRef = useRef(options);
+    
+    // Оновлюємо реф при зміні опцій
     useEffect(() => {
-        loadOperations();
+        optionsRef.current = options;
     }, [options.dateFrom, options.dateTo, options.type, options.category]);
 
-    const loadOperations = async () => {
+    const loadOperations = useCallback(async () => {
         try {
             setLoading(true);
             setError(null);
@@ -71,9 +74,14 @@ export function useFinances(options: UseFinancesOptions = {}) {
         } finally {
             setLoading(false);
         }
-    };
+    }, [options.dateFrom, options.dateTo, options.type, options.category, setLoading, setOperations]);
 
-    const loadDocuments = async (filters?: any) => {
+    // Викликаємо завантаження при зміні параметрів
+    useEffect(() => {
+        loadOperations();
+    }, [loadOperations]);
+
+    const loadDocuments = useCallback(async (filters?: any) => {
         try {
             setLoading(true);
             setError(null);
@@ -107,9 +115,9 @@ export function useFinances(options: UseFinancesOptions = {}) {
         } finally {
             setLoading(false);
         }
-    };
+    }, [setLoading, setDocuments]);
 
-    const createOperation = async (data: any) => {
+    const createOperation = useCallback(async (data: any) => {
         try {
             setLoading(true);
             setError(null);
@@ -137,9 +145,9 @@ export function useFinances(options: UseFinancesOptions = {}) {
         } finally {
             setLoading(false);
         }
-    };
+    }, [operations, setOperations, setLoading]);
 
-    const createDocument = async (data: any) => {
+    const createDocument = useCallback(async (data: any) => {
         try {
             setLoading(true);
             setError(null);
@@ -167,9 +175,9 @@ export function useFinances(options: UseFinancesOptions = {}) {
         } finally {
             setLoading(false);
         }
-    };
+    }, [documents, setDocuments, setLoading]);
 
-    const getDashboard = async (dateFrom: string, dateTo: string) => {
+    const getDashboard = useCallback(async (dateFrom: string, dateTo: string) => {
         try {
             setLoading(true);
             setError(null);
@@ -197,7 +205,7 @@ export function useFinances(options: UseFinancesOptions = {}) {
         } finally {
             setLoading(false);
         }
-    };
+    }, [setLoading]);
 
     return {
         operations,

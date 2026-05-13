@@ -29,13 +29,14 @@ export function LoyaltyTabs({ activeTab, onTabChange }: LoyaltyTabsProps) {
                         className={clsx(
                             'flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors relative whitespace-nowrap',
                             'hover:text-foreground',
-                            isActive
-                                ? 'text-primary border-b-2 border-primary -mb-[2px]'
-                                : 'text-muted-foreground'
+                            isActive ? 'text-primary' : 'text-muted-foreground'
                         )}
                     >
                         <Icon size={18} />
                         <span>{tab.label}</span>
+                        {isActive && (
+                            <span className="absolute bottom-[-1px] left-0 w-full h-[2px] bg-primary" />
+                        )}
                     </button>
                 );
             })}

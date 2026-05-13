@@ -55,3 +55,23 @@ export const CHANGE_ACTIONS: Array<{ value: ChangeAction; label: string }> = [
     { value: 'updated', label: 'Зміна' },
     { value: 'deleted', label: 'Видалення' },
 ];
+
+export const RECORD_STATUS_LABELS: Record<RecordStatus, string> = {
+    completed: 'Завершено',
+    confirmed: 'Підтверджено',
+    pending: 'Очікується',
+    cancelled: 'Скасовано',
+};
+
+export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
+    paid: 'Оплачено',
+    unpaid: 'Не оплачено',
+    partial: 'Частково',
+};
+
+export const RECORD_SOURCE_LABELS: Record<RecordSource, string> = {
+    online: 'Онлайн',
+    phone: 'Телефон',
+    admin: 'Адміністратор',
+    'walk-in': 'Без запису',
+};

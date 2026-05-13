@@ -46,10 +46,6 @@ export function OperationsView() {
         if (error) toast.error('Помилка', error);
     }, [error, toast]);
 
-    useEffect(() => {
-        loadOperations();
-    }, [dateFrom, dateTo, operationType]);
-
     const handleApply = () => {
         loadOperations();
     };
@@ -102,7 +98,7 @@ export function OperationsView() {
     return (
         <div className="flex flex-col h-full">
             <GlobalLoader isLoading={isLoading || isLocalLoading} />
-            <div className="p-4 border-b border-border bg-card flex justify-between items-center">
+            <div className="p-4 border-b border-border bg-card flex justify-between items-center mb-6">
                 <h2 className="text-lg font-semibold font-heading">Операції</h2>
                 <Button onClick={() => setIsCreateModalOpen(true)} variant="primary">
                     <Plus className="w-4 h-4 mr-2" />

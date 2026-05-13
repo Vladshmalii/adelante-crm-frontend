@@ -1,5 +1,7 @@
 import { Eye, Monitor, Pencil, Smartphone, Tablet } from 'lucide-react';
 import { FinanceReceipt } from '../../types';
+import { Badge } from '@/shared/components/ui/Badge';
+import { Button } from '@/shared/components/ui/Button';
 
 interface ReceiptRowProps {
     receipt: FinanceReceipt;
@@ -20,10 +22,10 @@ export function ReceiptRow({ receipt, onView, onEdit }: ReceiptRowProps) {
     };
 
     const getStatusBadge = (status: string) => {
-        const styles: Record<string, string> = {
-            paid: 'bg-green-100 text-green-700',
-            cancelled: 'bg-red-100 text-red-700',
-            partial: 'bg-yellow-100 text-yellow-700',
+        const variants: Record<string, 'success' | 'danger' | 'warning'> = {
+            paid: 'success',
+            cancelled: 'danger',
+            partial: 'warning',
         };
         const labels: Record<string, string> = {
             paid: 'Оплачено',
@@ -31,73 +33,93 @@ export function ReceiptRow({ receipt, onView, onEdit }: ReceiptRowProps) {
             partial: 'Часткова оплата',
         };
         return (
-            <span className={`px-2 py-1 text-xs font-medium rounded ${styles[status]}`}>
+            <Badge variant={variants[status] || 'default'} className="font-black uppercase text-[10px] px-2.5 py-1 tracking-wider">
                 {labels[status]}
-            </span>
+            </Badge>
         );
     };
 
     const getSourceIcon = (source: string) => {
+        const iconClass = "text-muted-foreground/70 group-hover:text-primary transition-colors duration-300";
         switch (source) {
             case 'web':
-                return <Monitor size={16} className="text-muted-foreground" />;
+                return <Monitor size={20} className={iconClass} />;
             case 'mobile':
-                return <Smartphone size={16} className="text-muted-foreground" />;
+                return <Smartphone size={20} className={iconClass} />;
             case 'pos':
-                return <Tablet size={16} className="text-muted-foreground" />;
+                return <Tablet size={20} className={iconClass} />;
             default:
                 return null;
         }
     };
 
     return (
-        <tr className="border-b border-border hover:bg-secondary/50 transition-colors">
-            <td className="px-4 py-3 text-sm text-foreground whitespace-nowrap">
+        <tr className="border-b border-border/50 transition-all duration-300 hover:bg-primary/[0.02]">
+            <td className="px-4 py-4 text-[11px] font-medium text-muted-foreground/60 whitespace-nowrap">
+                #{receipt.id}
+            </td>
+            <td className="px-4 py-4 text-sm font-medium text-foreground/80 whitespace-nowrap">
                 {formatDate(receipt.date)}
             </td>
-            <td className="px-4 py-3 text-sm text-primary font-medium hover:underline cursor-pointer" onClick={() => onView(receipt)}>
-                {receipt.receiptNumber}
+            <td className="px-4 py-4">
+                <span 
+                    className="text-sm font-bold text-foreground hover:text-primary transition-colors cursor-pointer"
+                    onClick={() => onView(receipt)}
+                >
+                    {receipt.receiptNumber}
+                </span>
             </td>
-            <td className="px-4 py-3 text-sm text-muted-foreground">
+            <td className="px-4 py-4 text-sm text-muted-foreground/80 font-medium">
                 {receipt.documentNumber}
             </td>
-            <td className="px-4 py-3 text-sm text-foreground">
+            <td className="px-4 py-4 text-sm text-foreground/80">
                 {receipt.cashRegister}
             </td>
-            <td className="px-4 py-3 text-sm text-foreground">
-                {receipt.client}
+            <td className="px-4 py-4">
+                <span className="text-sm font-bold text-foreground hover:text-primary transition-colors cursor-pointer">
+                    {receipt.client}
+                </span>
             </td>
-            <td className="px-4 py-3 text-sm text-foreground font-medium">
-                ₴ {receipt.amount.toLocaleString()}
+            <td className="px-4 py-4 text-sm font-black text-foreground">
+                ₴ {receipt.amount.toLocaleString('uk-UA')}
             </td>
-            <td className="px-4 py-3 text-sm text-foreground">
-                {receipt.paymentMethod}
+            <td className="px-4 py-4">
+                <Badge variant="secondary" className="bg-secondary text-foreground/70 border-none font-bold text-[10px] uppercase">
+                    {receipt.paymentMethod}
+                </Badge>
             </td>
-            <td className="px-4 py-3">
+            <td className="px-4 py-4">
                 {getStatusBadge(receipt.status)}
             </td>
-            <td className="px-4 py-3 text-sm text-muted-foreground">
-                ₴ {receipt.balanceAfter.toLocaleString()}
+            <td className="px-4 py-4 text-sm font-bold text-foreground/70">
+                ₴ {receipt.balanceAfter.toLocaleString('uk-UA')}
             </td>
-            <td className="px-4 py-3">
-                {getSourceIcon(receipt.source)}
+            <td className="px-4 py-4 text-sm font-medium text-foreground/70">
+                {receipt.author || '—'}
             </td>
-            <td className="px-4 py-3">
-                <div className="flex items-center gap-1">
-                    <button
-                        type="button"
-                        className="p-1 hover:bg-accent hover:text-accent-foreground rounded transition-colors"
+            <td className="px-4 py-4">
+                <div className="flex items-center justify-center">
+                    {getSourceIcon(receipt.source)}
+                </div>
+            </td>
+            <td className="px-4 py-4 text-right">
+                <div className="flex items-center justify-end gap-2">
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-[42px] w-[42px] p-0 rounded-xl bg-secondary/50 hover:bg-primary/10 hover:text-primary transition-all duration-300"
                         onClick={() => onView(receipt)}
                     >
-                        <Eye size={16} />
-                    </button>
-                    <button
-                        type="button"
-                        className="p-1 hover:bg-accent hover:text-accent-foreground rounded transition-colors"
+                        <Eye size={20} />
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-[42px] w-[42px] p-0 rounded-xl bg-secondary/50 hover:bg-primary/10 hover:text-primary transition-all duration-300"
                         onClick={() => onEdit(receipt)}
                     >
-                        <Pencil size={16} />
-                    </button>
+                        <Pencil size={20} />
+                    </Button>
                 </div>
             </td>
         </tr>

@@ -10,20 +10,20 @@ interface InventoryTableProps {
 
 export function InventoryTable({ products, onEdit, onDelete, onMovement }: InventoryTableProps) {
     return (
-        <div className="overflow-x-auto rounded-lg border border-border bg-card">
+        <div className="overflow-x-auto rounded-2xl border border-border/50 bg-card shadow-sm mx-4">
             <table className="w-full text-left">
-                <thead className="bg-muted/50 text-xs uppercase text-muted-foreground font-medium">
+                <thead className="bg-secondary/20 border-b border-border/50">
                     <tr>
-                        <th className="px-4 py-3">Назва / Артикул</th>
-                        <th className="px-4 py-3">Категорія</th>
-                        <th className="px-4 py-3">Тип</th>
-                        <th className="px-4 py-3">Залишок</th>
-                        <th className="px-4 py-3">Статус</th>
-                        <th className="px-4 py-3">Собівартість</th>
-                        <th className="px-4 py-3 w-[120px]">Дії</th>
+                        <th className="px-4 py-4 text-[11px] font-black text-muted-foreground/70 uppercase tracking-widest w-[260px]">Назва / Артикул</th>
+                        <th className="px-4 py-4 text-[11px] font-black text-muted-foreground/70 uppercase tracking-widest w-[160px]">Категорія</th>
+                        <th className="px-4 py-4 text-[11px] font-black text-muted-foreground/70 uppercase tracking-widest w-[140px]">Тип</th>
+                        <th className="px-4 py-4 text-[11px] font-black text-muted-foreground/70 uppercase tracking-widest w-[120px]">Залишок</th>
+                        <th className="px-4 py-4 text-[11px] font-black text-muted-foreground/70 uppercase tracking-widest w-[160px]">Статус</th>
+                        <th className="px-4 py-4 text-[11px] font-black text-muted-foreground/70 uppercase tracking-widest w-[140px]">Собівартість</th>
+                        <th className="px-4 py-4 text-right text-[11px] font-black text-muted-foreground/70 uppercase tracking-widest w-[160px]">Дії</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-border/40">
                     {products.length > 0 ? (
                         products.map((product) => (
                             <InventoryTableRow
@@ -36,7 +36,7 @@ export function InventoryTable({ products, onEdit, onDelete, onMovement }: Inven
                         ))
                     ) : (
                         <tr>
-                            <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
+                            <td colSpan={7} className="px-4 py-12 text-center text-muted-foreground font-medium">
                                 Товарів не знайдено
                             </td>
                         </tr>

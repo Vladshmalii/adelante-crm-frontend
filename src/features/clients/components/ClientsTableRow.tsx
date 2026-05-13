@@ -1,7 +1,9 @@
 import { ClientActionsMenu } from './ClientActionsMenu';
 import { Checkbox } from '@/shared/components/ui/Checkbox';
 import { ClientTag } from '../ui/ClientTag';
+import { Badge } from '@/shared/components/ui/Badge';
 import type { Client } from '../types';
+import clsx from 'clsx';
 
 interface ClientsTableRowProps {
     client: Client;
@@ -50,44 +52,48 @@ export function ClientsTableRow({
 
     return (
         <tr
-            className={`
-        border-b border-border transition-colors hover:bg-secondary/50
-        ${isEven ? 'bg-background' : 'bg-secondary/30'}
-      `}
+            className={clsx(
+                'border-b border-border/50 transition-all duration-300 hover:bg-primary/[0.02]',
+                isEven ? 'bg-background' : 'bg-secondary/20'
+            )}
         >
-            <td className="px-4 py-3">
+            <td className="px-4 py-4">
                 <Checkbox
                     checked={isSelected}
                     onChange={onToggleSelect}
                 />
             </td>
-            <td className="px-4 py-3">
+            <td className="px-4 py-4">
                 <button
                     onClick={onClientClick}
-                    className="text-sm font-medium text-primary hover:text-primary/80 transition-colors"
+                    className="text-sm font-bold text-foreground hover:text-primary transition-colors text-left"
                 >
                     {getPublicName(client.firstName, client.middleName)}
                 </button>
             </td>
-            <td className="px-4 py-3 hidden md:table-cell">
+            <td className="px-4 py-4 hidden md:table-cell">
                 <ClientTag segment={client.segment} />
             </td>
-            <td className="px-4 py-3 text-sm text-foreground">{getMaskedPhone(client.phone)}</td>
-            <td className="px-4 py-3 text-sm text-muted-foreground hidden xl:table-cell">
-                {client.email ? 'Приховано' : '—'}
+            <td className="px-4 py-4 text-sm font-medium text-foreground/80">{getMaskedPhone(client.phone)}</td>
+            <td className="px-4 py-4 text-sm text-muted-foreground hidden xl:table-cell">
+                {client.email ? '••••' : '—'}
             </td>
-            <td className="px-4 py-3 text-sm font-medium text-foreground hidden lg:table-cell">
-                {client.totalSpent.toLocaleString('uk-UA')} ₴
+            <td className="px-4 py-4 text-sm font-black text-foreground hidden lg:table-cell">
+                ₴ {client.totalSpent.toLocaleString('uk-UA')}
             </td>
-            <td className="px-4 py-3 text-sm text-foreground hidden lg:table-cell">{client.totalVisits}</td>
-            <td className="px-4 py-3 text-sm text-foreground hidden xl:table-cell">{client.discount}%</td>
-            <td className="px-4 py-3 text-sm text-muted-foreground hidden lg:table-cell">
+            <td className="px-4 py-4 text-sm font-bold text-foreground hidden lg:table-cell text-center">{client.totalVisits}</td>
+            <td className="px-4 py-4 text-sm font-bold text-primary hidden xl:table-cell text-center">
+                <Badge variant="default" className="bg-primary/10 text-primary border-none">
+                    {client.discount}%
+                </Badge>
+            </td>
+            <td className="px-4 py-4 text-[11px] font-medium text-muted-foreground hidden lg:table-cell">
                 {formatDate(client.lastVisit)}
             </td>
-            <td className="px-4 py-3 text-sm text-muted-foreground hidden xl:table-cell">
+            <td className="px-4 py-4 text-[11px] font-medium text-muted-foreground hidden xl:table-cell">
                 {formatDate(client.firstVisit)}
             </td>
-            <td className="px-4 py-3">
+            <td className="px-4 py-4 text-right">
                 <ClientActionsMenu
                     onView={onClientClick}
                     onEdit={onEdit}

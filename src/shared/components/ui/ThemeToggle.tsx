@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { Sun, Moon, Monitor } from 'lucide-react';
 import { useTheme } from '@/shared/hooks/useTheme';
 import clsx from 'clsx';
@@ -11,6 +12,20 @@ interface ThemeToggleProps {
 
 export function ThemeToggle({ className, variant = 'icon' }: ThemeToggleProps) {
     const { theme, setTheme, isDark } = useTheme();
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
+    if (!mounted) {
+        return (
+            <div className={clsx(
+                variant === 'icon' ? 'w-9 h-9' : 'w-full h-8', 
+                className
+            )} />
+        );
+    }
 
     if (variant === 'icon') {
         return (

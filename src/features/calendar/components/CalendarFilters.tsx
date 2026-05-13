@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Filter, Users, CalendarDays, ShieldCheck, Briefcase, ChevronRight, CheckCircle2, Circle } from 'lucide-react';
+import { Filter, Users, CalendarDays, ShieldCheck, Briefcase, ChevronRight, CheckCircle2, Circle, Clock } from 'lucide-react';
 import { StaffMember, Appointment } from '../types';
 import clsx from 'clsx';
 import { getRoleLabel } from '@/features/staff/utils/roleTranslations';
@@ -11,6 +11,8 @@ interface CalendarFiltersProps {
     selectedStaffIds: string[];
     onStaffFilterChange: (staffIds: string[]) => void;
     appointments: Appointment[];
+    slotDuration: number;
+    onSlotDurationChange: (duration: number) => void;
 }
 
 type FilterCategory = 'all' | 'today' | 'masters' | 'admin';
@@ -20,8 +22,12 @@ export function CalendarFilters({
     selectedStaffIds,
     onStaffFilterChange,
     appointments,
+    slotDuration,
+    onSlotDurationChange,
 }: CalendarFiltersProps) {
     const [activeCategory, setActiveCategory] = useState<FilterCategory>('all');
+
+    const slotOptions = [5, 15, 30, 60];
 
     // Identify who works today (has appointments)
     const workingTodayIds = useMemo(() => {
@@ -119,27 +125,51 @@ export function CalendarFilters({
                         </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2">
-                        <button
-                            onClick={() => handleBulkSelect(true)}
-                            className="px-4 py-2 bg-primary/10 text-primary hover:bg-primary/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
-                            title="Вибрати всіх у цій категорії"
-                        >
-                            Усіх у групі
-                        </button>
-                        <button
-                            onClick={() => onStaffFilterChange(allStaff.map(s => s.id))}
-                            className="px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-primary/20"
-                        >
-                            Усіх
-                        </button>
-                        <div className="w-px h-4 bg-border mx-1" />
-                        <button
-                            onClick={() => onStaffFilterChange([])}
-                            className="px-4 py-2 bg-muted hover:bg-muted/80 text-muted-foreground rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
-                        >
-                            Очистити
-                        </button>
+                    <div className="flex flex-wrap items-center gap-4">
+                        {/* Time Step Selector */}
+                        <div className="flex items-center gap-2 bg-muted/50 p-1 rounded-xl border border-border/50">
+                            <div className="flex items-center gap-1.5 px-2 text-muted-foreground/60">
+                                <Clock className="w-3.5 h-3.5" />
+                            </div>
+                            {slotOptions.map((opt) => (
+                                <button
+                                    key={opt}
+                                    onClick={() => onSlotDurationChange(opt)}
+                                    className={clsx(
+                                        "px-2.5 py-1.5 rounded-lg text-[10px] font-black transition-all",
+                                        slotDuration === opt
+                                            ? "bg-background text-primary shadow-sm"
+                                            : "text-muted-foreground hover:text-foreground"
+                                    )}
+                                >
+                                    {opt}м
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="w-px h-6 bg-border mx-1 hidden sm:block" />
+
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => handleBulkSelect(true)}
+                                className="px-4 py-2 bg-primary/10 text-primary hover:bg-primary/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                                title="Вибрати всіх у цій категорії"
+                            >
+                                Усіх у групі
+                            </button>
+                            <button
+                                onClick={() => onStaffFilterChange(allStaff.map(s => s.id))}
+                                className="px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-primary/20"
+                            >
+                                Усіх
+                            </button>
+                            <button
+                                onClick={() => onStaffFilterChange([])}
+                                className="px-4 py-2 bg-muted hover:bg-muted/80 text-muted-foreground rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                            >
+                                Очистити
+                            </button>
+                        </div>
                     </div>
                 </div>
 

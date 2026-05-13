@@ -1,12 +1,13 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Pencil, Trash2, Copy, ToggleLeft, ToggleRight } from 'lucide-react';
 import { Card } from '@/shared/components/ui/Card';
 import { Badge } from '@/shared/components/ui/Badge';
 import { EmptyState } from '@/shared/components/ui/EmptyState';
 import { Progress } from '@/shared/components/ui/Progress';
 import { useToast } from '@/shared/hooks/useToast';
+import { Button } from '@/shared/components/ui/Button';
 import { mockDiscounts } from '../data/mockLoyalty';
 import type { Discount } from '../types';
 
@@ -18,16 +19,18 @@ interface DiscountsViewProps {
 export function DiscountsView({ searchQuery, onEdit }: DiscountsViewProps) {
     const toast = useToast();
 
+    const [discounts, setDiscounts] = useState(mockDiscounts);
+
     const filteredDiscounts = useMemo(() => {
-        if (!searchQuery) return mockDiscounts;
+        if (!searchQuery) return discounts;
 
         const query = searchQuery.toLowerCase();
-        return mockDiscounts.filter(
+        return discounts.filter(
             (discount) =>
                 discount.name.toLowerCase().includes(query) ||
                 discount.code?.toLowerCase().includes(query)
         );
-    }, [searchQuery]);
+    }, [searchQuery, discounts]);
 
     const handleCopyCode = (code: string) => {
         navigator.clipboard.writeText(code);
@@ -35,11 +38,15 @@ export function DiscountsView({ searchQuery, onEdit }: DiscountsViewProps) {
     };
 
     const handleToggleActive = (discount: Discount) => {
-        console.log('Toggle active:', discount.id);
+        setDiscounts(prev => prev.map(d => 
+            d.id === discount.id ? { ...d, isActive: !d.isActive } : d
+        ));
+        toast.success(`Знижку ${!discount.isActive ? 'увімкнено' : 'вимкнено'}`);
     };
 
     const handleDelete = (discount: Discount) => {
-        console.log('Delete discount:', discount.id);
+        setDiscounts(prev => prev.filter(d => d.id !== discount.id));
+        toast.success('Знижку видалено');
     };
 
     const getDiscountStatus = (discount: Discount) => {
@@ -129,35 +136,31 @@ export function DiscountsView({ searchQuery, onEdit }: DiscountsViewProps) {
                         </div>
 
                         <div className="flex items-center gap-2 pt-3 border-t border-border">
-                            <button
+                            <Button
+                                variant="ghost"
+                                size="sm"
                                 onClick={() => handleToggleActive(discount)}
-                                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-secondary rounded-lg transition-colors"
+                                leftIcon={discount.isActive ? <ToggleRight size={16} className="text-success" /> : <ToggleLeft size={16} />}
                             >
-                                {discount.isActive ? (
-                                    <>
-                                        <ToggleRight size={16} className="text-success" />
-                                        <span className="hidden sm:inline">Активна</span>
-                                    </>
-                                ) : (
-                                    <>
-                                        <ToggleLeft size={16} />
-                                        <span className="hidden sm:inline">Увімкнути</span>
-                                    </>
-                                )}
-                            </button>
+                                <span className="hidden sm:inline">{discount.isActive ? 'Активна' : 'Увімкнути'}</span>
+                            </Button>
                             <div className="flex-1" />
-                            <button
+                            <Button
+                                variant="ghost"
+                                size="sm"
                                 onClick={() => onEdit(discount)}
-                                className="p-2 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-lg transition-colors"
+                                className="px-2"
                             >
                                 <Pencil size={16} />
-                            </button>
-                            <button
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="sm"
                                 onClick={() => handleDelete(discount)}
-                                className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
+                                className="px-2 hover:text-destructive hover:bg-destructive/10"
                             >
                                 <Trash2 size={16} />
-                            </button>
+                            </Button>
                         </div>
                     </Card>
                 );

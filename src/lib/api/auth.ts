@@ -1,4 +1,5 @@
 import apiClient from './client';
+import { USE_MOCK_DATA } from '../config';
 
 export interface LoginRequest {
     email: string;
@@ -68,6 +69,18 @@ export const authApi = {
     },
 
     me: async () => {
+        if (USE_MOCK_DATA) {
+            return {
+                id: 1,
+                email: 'admin@adelante.com',
+                first_name: 'Олександр',
+                last_name: 'Адмін',
+                role: 'admin',
+                is_active: true,
+                is_verified: true,
+                created_at: new Date().toISOString(),
+            };
+        }
         return apiClient.get<LoginResponse['user']>('/auth/me');
     },
 

@@ -1,12 +1,15 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Pencil, Trash2, ToggleLeft, ToggleRight } from 'lucide-react';
 import { Card } from '@/shared/components/ui/Card';
 import { Badge } from '@/shared/components/ui/Badge';
 import { EmptyState } from '@/shared/components/ui/EmptyState';
+import { Button } from '@/shared/components/ui/Button';
 import { mockBonusPrograms } from '../data/mockLoyalty';
 import type { BonusProgram } from '../types';
+
+import { useToast } from '@/shared/hooks/useToast';
 
 interface BonusesViewProps {
     searchQuery: string;
@@ -14,23 +17,30 @@ interface BonusesViewProps {
 }
 
 export function BonusesView({ searchQuery, onEdit }: BonusesViewProps) {
+    const toast = useToast();
+    const [bonuses, setBonuses] = useState(mockBonusPrograms);
+
     const filteredBonuses = useMemo(() => {
-        if (!searchQuery) return mockBonusPrograms;
+        if (!searchQuery) return bonuses;
 
         const query = searchQuery.toLowerCase();
-        return mockBonusPrograms.filter(
+        return bonuses.filter(
             (bonus) =>
                 bonus.name.toLowerCase().includes(query) ||
                 bonus.description.toLowerCase().includes(query)
         );
-    }, [searchQuery]);
+    }, [searchQuery, bonuses]);
 
     const handleToggleActive = (bonus: BonusProgram) => {
-        console.log('Toggle active:', bonus.id);
+        setBonuses(prev => prev.map(b => 
+            b.id === bonus.id ? { ...b, isActive: !b.isActive } : b
+        ));
+        toast.success(`Бонусну програму ${!bonus.isActive ? 'увімкнено' : 'вимкнено'}`);
     };
 
     const handleDelete = (bonus: BonusProgram) => {
-        console.log('Delete bonus:', bonus.id);
+        setBonuses(prev => prev.filter(b => b.id !== bonus.id));
+        toast.success('Бонусну програму видалено');
     };
 
     if (filteredBonuses.length === 0) {
@@ -72,35 +82,31 @@ export function BonusesView({ searchQuery, onEdit }: BonusesViewProps) {
                     </div>
 
                     <div className="flex items-center gap-2 pt-3 border-t border-border">
-                        <button
+                        <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => handleToggleActive(bonus)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-secondary rounded-lg transition-colors"
+                            leftIcon={bonus.isActive ? <ToggleRight size={16} className="text-success" /> : <ToggleLeft size={16} />}
                         >
-                            {bonus.isActive ? (
-                                <>
-                                    <ToggleRight size={16} className="text-success" />
-                                    <span className="hidden sm:inline">Активна</span>
-                                </>
-                            ) : (
-                                <>
-                                    <ToggleLeft size={16} />
-                                    <span className="hidden sm:inline">Увімкнути</span>
-                                </>
-                            )}
-                        </button>
+                            <span className="hidden sm:inline">{bonus.isActive ? 'Активна' : 'Увімкнути'}</span>
+                        </Button>
                         <div className="flex-1" />
-                        <button
+                        <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => onEdit(bonus)}
-                            className="p-2 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-lg transition-colors"
+                            className="px-2"
                         >
                             <Pencil size={16} />
-                        </button>
-                        <button
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => handleDelete(bonus)}
-                            className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
+                            className="px-2 hover:text-destructive hover:bg-destructive/10"
                         >
                             <Trash2 size={16} />
-                        </button>
+                        </Button>
                     </div>
                 </Card>
             ))}

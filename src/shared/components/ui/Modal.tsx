@@ -12,6 +12,7 @@ interface ModalProps {
     children: ReactNode;
     footer?: ReactNode;
     size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'full' | '2xl';
+    position?: 'center' | 'right';
 }
 
 export function Modal({
@@ -21,7 +22,8 @@ export function Modal({
     header,
     children,
     footer,
-    size = 'md'
+    size = 'md',
+    position = 'center'
 }: ModalProps) {
     useEffect(() => {
         if (!isOpen) return;
@@ -29,7 +31,6 @@ export function Modal({
         const body = document.body;
         const html = document.documentElement;
 
-        // Count open modals to handle nested/multiple modals
         const currentCount = parseInt(body.getAttribute('data-modals-open') || '0');
         const newCount = currentCount + 1;
         body.setAttribute('data-modals-open', newCount.toString());
@@ -68,7 +69,10 @@ export function Modal({
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center sm:p-4 animate-fade-in">
+        <div className={clsx(
+            "fixed inset-0 z-[100] flex",
+            position === 'center' ? "items-end sm:items-center justify-center sm:p-4 animate-fade-in" : "justify-end animate-fade-in"
+        )}>
             <div
                 className="absolute inset-0 bg-black/60 backdrop-blur-md transition-opacity"
                 onClick={onClose}
@@ -76,9 +80,15 @@ export function Modal({
 
             <div
                 className={clsx(
-                    'relative bg-card shadow-2xl w-full animate-scale-in border-t sm:border border-border',
-                    'max-h-[95vh] sm:max-h-[90vh] flex flex-col',
-                    'rounded-t-3xl sm:rounded-2xl overflow-hidden',
+                    'relative bg-card shadow-2xl w-full flex flex-col border-border',
+                    position === 'center' && [
+                        'animate-scale-in border-t sm:border',
+                        'max-h-[95vh] sm:max-h-[90vh]',
+                        'rounded-t-3xl sm:rounded-2xl overflow-hidden'
+                    ],
+                    position === 'right' && [
+                        'h-full max-h-screen border-l animate-slide-in-right sm:rounded-l-3xl overflow-hidden'
+                    ],
                     {
                         'sm:max-w-sm': size === 'xs',
                         'sm:max-w-md': size === 'sm',
@@ -86,7 +96,6 @@ export function Modal({
                         'sm:max-w-4xl': size === 'lg',
                         'sm:max-w-6xl': size === 'xl',
                         'sm:max-w-7xl': size === '2xl',
-
                         'sm:max-w-none sm:h-screen sm:max-h-screen sm:rounded-none sm:border-0': size === 'full',
                     }
                 )}

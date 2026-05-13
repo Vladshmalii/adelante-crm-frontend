@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Modal } from '@/shared/components/ui/Modal';
 import { Button } from '@/shared/components/ui/Button';
 import { Input } from '@/shared/components/ui/Input';
+import { Minus, Plus } from 'lucide-react';
 import { Dropdown } from '@/shared/components/ui/Dropdown';
 import { Textarea } from '@/shared/components/ui/Textarea';
 import { Product, StockMovementFormData } from '../types';
@@ -61,15 +62,18 @@ export function StockMovementModal({ isOpen, onClose, onSave, product }: StockMo
                     onChange={(val) => handleChange('type', val)}
                 />
 
-                <Input
-                    label={`Кількість (${unitLabel})`}
-                    type="number"
-                    min="0"
-                    step={product.type === 'weight' ? '0.001' : '1'}
-                    required
-                    value={formData.quantity}
-                    onChange={(e) => handleChange('quantity', Number(e.target.value))}
-                />
+                <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-foreground">Кількість ({unitLabel})</label>
+                    <div className="flex items-center bg-background border border-border rounded-xl p-1 h-[42px] focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary transition-all">
+                        <button type="button" onClick={() => handleChange('quantity', Math.max(0, (formData.quantity || 0) - (product.type === 'weight' ? 0.1 : 1)))} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-all">
+                            <Minus size={14} strokeWidth={3} />
+                        </button>
+                        <input type="number" step={product.type === 'weight' ? 0.001 : 1} value={formData.quantity} onChange={(e) => handleChange('quantity', Number(e.target.value))} className="flex-1 bg-transparent text-center font-bold text-sm text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                        <button type="button" onClick={() => handleChange('quantity', (formData.quantity || 0) + (product.type === 'weight' ? 0.1 : 1))} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-all">
+                            <Plus size={14} strokeWidth={3} />
+                        </button>
+                    </div>
+                </div>
 
                 <Textarea
                     label="Причина / Коментар"

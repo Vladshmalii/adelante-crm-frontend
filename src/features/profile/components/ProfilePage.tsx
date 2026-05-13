@@ -5,6 +5,7 @@ import { UserCircle, Mail, Phone, Calendar, MapPin, Users, Briefcase, Banknote, 
 import { UserProfile, ProfileFormData } from '../types';
 import { StaffRole } from '@/features/staff/types';
 import { getRoleLabel } from '@/features/staff/utils/roleTranslations';
+import { Button } from '@/shared/components/ui/Button';
 
 interface ProfilePageProps {
     profile: UserProfile;
@@ -115,29 +116,17 @@ export function ProfilePage({ profile, onSave }: ProfilePageProps) {
                 <h1 className="text-2xl font-semibold text-foreground font-heading">Мій профіль</h1>
 
                 {!isEditing ? (
-                    <button
-                        onClick={() => setIsEditing(true)}
-                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-accent-foreground bg-accent hover:bg-accent/90 rounded-lg transition-colors"
-                    >
-                        <Edit2 size={18} />
+                    <Button onClick={() => setIsEditing(true)} leftIcon={<Edit2 size={18} />}>
                         Редагувати
-                    </button>
+                    </Button>
                 ) : (
                     <div className="flex items-center gap-2">
-                        <button
-                            onClick={handleCancel}
-                            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-foreground bg-secondary hover:bg-secondary/80 rounded-lg transition-colors"
-                        >
-                            <X size={18} />
+                        <Button variant="secondary" onClick={handleCancel} leftIcon={<X size={18} />}>
                             Скасувати
-                        </button>
-                        <button
-                            onClick={handleSave}
-                            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-accent-foreground bg-accent hover:bg-accent/90 rounded-lg transition-colors"
-                        >
-                            <Save size={18} />
+                        </Button>
+                        <Button onClick={handleSave} leftIcon={<Save size={18} />}>
                             Зберегти
-                        </button>
+                        </Button>
                     </div>
                 )}
             </div>

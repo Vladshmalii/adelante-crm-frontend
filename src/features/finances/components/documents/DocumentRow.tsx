@@ -1,6 +1,8 @@
 import { Eye, Pencil } from 'lucide-react';
 import { FinanceDocument } from '../../types';
 import type { FinanceDocument as ApiFinanceDocument } from '@/lib/api/finances';
+import { Badge } from '@/shared/components/ui/Badge';
+import { Button } from '@/shared/components/ui/Button';
 
 type DocumentLike = FinanceDocument | ApiFinanceDocument;
 
@@ -41,10 +43,10 @@ export function DocumentRow({ document, onView, onEdit }: DocumentRowProps) {
     };
 
     const getStatusBadge = (status: string) => {
-        const styles: Record<string, string> = {
-            draft: 'bg-gray-100 text-gray-700',
-            completed: 'bg-green-100 text-green-700',
-            cancelled: 'bg-red-100 text-red-700',
+        const variants: Record<string, 'success' | 'danger' | 'warning' | 'default'> = {
+            draft: 'default',
+            completed: 'success',
+            cancelled: 'danger',
         };
         const labels: Record<string, string> = {
             draft: 'Чернетка',
@@ -52,9 +54,9 @@ export function DocumentRow({ document, onView, onEdit }: DocumentRowProps) {
             cancelled: 'Скасовано',
         };
         return (
-            <span className={`px-2 py-1 text-xs font-medium rounded ${styles[status]}`}>
+            <Badge variant={variants[status] || 'default'} className="font-black uppercase text-[10px] px-2.5 py-1 tracking-wider">
                 {labels[status]}
-            </span>
+            </Badge>
         );
     };
 
@@ -63,56 +65,60 @@ export function DocumentRow({ document, onView, onEdit }: DocumentRowProps) {
     const author = 'author' in document ? document.author : undefined;
 
     return (
-        <tr className="border-b border-border hover:bg-secondary/50 transition-colors">
-            <td className="px-4 py-3 text-sm text-foreground">
+        <tr className="border-b border-border/50 transition-all duration-300 hover:bg-primary/[0.02]">
+            <td className="px-4 py-4 text-sm font-bold text-foreground">
                 {document.number}
             </td>
-            <td className="px-4 py-3 text-sm text-foreground">
+            <td className="px-4 py-4 text-sm font-medium text-foreground/80">
                 {formatDate(document.date)}
             </td>
-            <td className="px-4 py-3 text-sm text-foreground">
-                {getTypeLabel(document.type)}
+            <td className="px-4 py-4">
+                <Badge variant="secondary" className="bg-secondary text-foreground/70 border-none font-bold text-[10px] uppercase">
+                    {getTypeLabel(document.type)}
+                </Badge>
             </td>
-            <td className="px-4 py-3 text-sm text-foreground">
+            <td className="px-4 py-4 text-sm font-medium text-foreground/70">
                 {getContentTypeLabel(document.contentType)}
             </td>
-            <td className="px-4 py-3 text-sm text-foreground font-medium">
-                ₴ {document.amount.toLocaleString()}
+            <td className="px-4 py-4 text-sm font-black text-foreground">
+                ₴ {document.amount.toLocaleString('uk-UA')}
             </td>
-            <td className="px-4 py-3 text-sm text-muted-foreground text-center">
+            <td className="px-4 py-4 text-sm font-bold text-muted-foreground/80 text-center">
                 {servicesCount ?? '-'}
             </td>
-            <td className="px-4 py-3 text-sm text-muted-foreground text-center">
+            <td className="px-4 py-4 text-sm font-bold text-muted-foreground/80 text-center">
                 {productsCount ?? '-'}
             </td>
-            <td className="px-4 py-3 text-sm text-foreground">
+            <td className="px-4 py-4 text-sm font-bold text-foreground hover:text-primary transition-colors cursor-pointer">
                 {document.counterparty}
             </td>
-            <td className="px-4 py-3 text-sm text-muted-foreground max-w-xs truncate">
-                {document.comment}
+            <td className="px-4 py-4 text-[11px] text-muted-foreground/70 max-w-[200px] truncate italic">
+                {document.comment || '-'}
             </td>
-            <td className="px-4 py-3 text-sm text-muted-foreground">
+            <td className="px-4 py-4 text-sm font-medium text-muted-foreground/80">
                 {author ?? '-'}
             </td>
-            <td className="px-4 py-3">
+            <td className="px-4 py-4">
                 {getStatusBadge(document.status)}
             </td>
-            <td className="px-4 py-3">
-                <div className="flex items-center gap-1">
-                    <button
-                        type="button"
-                        className="p-1 hover:bg-accent hover:text-accent-foreground rounded transition-colors"
+            <td className="px-4 py-4 text-right">
+                <div className="flex items-center justify-end gap-2">
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-[42px] w-[42px] p-0 rounded-xl bg-secondary/50 hover:bg-primary/10 hover:text-primary transition-all duration-300"
                         onClick={() => onView(document)}
                     >
-                        <Eye size={16} />
-                    </button>
-                    <button
-                        type="button"
-                        className="p-1 hover:bg-accent hover:text-accent-foreground rounded transition-colors"
+                        <Eye size={20} />
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-[42px] w-[42px] p-0 rounded-xl bg-secondary/50 hover:bg-primary/10 hover:text-primary transition-all duration-300"
                         onClick={() => onEdit(document)}
                     >
-                        <Pencil size={16} />
-                    </button>
+                        <Pencil size={20} />
+                    </Button>
                 </div>
             </td>
         </tr>

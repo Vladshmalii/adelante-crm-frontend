@@ -26,7 +26,7 @@ export function TimeColumn({ timeSlots, slotHeight }: TimeColumnProps) {
                         )}
                         style={{ height: `${slotHeight}px` }}
                     >
-                        {slot.minute === 0 && (
+                        {slot.minute === 0 ? (
                             <div className={clsx(
                                 "absolute left-0 right-0 flex justify-center z-20",
                                 index === 0 ? "top-2" : "top-0 translate-y-[-50%]"
@@ -40,9 +40,13 @@ export function TimeColumn({ timeSlots, slotHeight }: TimeColumnProps) {
                                     {slot.label}
                                 </span>
                             </div>
-                        )}
-                        {slot.minute === 30 && (
-                            <div className="absolute top-1/2 -translate-y-1/2 right-2 w-1 h-1 rounded-full bg-border/40" />
+                        ) : (
+                            <div className="absolute top-1/2 -translate-y-1/2 right-2 flex items-center gap-1">
+                                <div className="w-1 h-1 rounded-full bg-border/40" />
+                                {timeSlots.length < 50 && (
+                                    <span className="text-[8px] font-medium text-muted-foreground/30">{slot.minute}</span>
+                                )}
+                            </div>
                         )}
                     </div>
                 ))}

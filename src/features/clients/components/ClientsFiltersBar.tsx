@@ -1,5 +1,6 @@
-import { X } from 'lucide-react';
+import { X, SlidersHorizontal } from 'lucide-react';
 import { Dropdown } from '@/shared/components/ui/Dropdown';
+import { Button } from '@/shared/components/ui/Button';
 import type { ClientFilters } from '../types';
 
 interface ClientsFiltersBarProps {
@@ -20,61 +21,66 @@ export function ClientsFiltersBar({
     const hasActiveFilters = Object.values(filters).some((v) => v);
 
     return (
-        <div className="mb-6 pb-4 border-b border-border">
-            <div className="flex flex-col sm:flex-row gap-3 items-end">
-                <div className="w-full grid grid-cols-2 sm:flex sm:flex-row gap-3">
-                    <div className="w-full sm:w-48">
-                        <Dropdown
-                            placeholder="За візитами"
-                            value={filters.visits || ''}
-                            options={[
-                                { value: '', label: 'Всі' },
-                                { value: 'Більше 10', label: 'Більше 10' },
-                                { value: '5-10', label: '5-10' },
-                                { value: 'Менше 5', label: 'Менше 5' },
-                            ]}
-                            onChange={(value) => handleFilterChange('visits', value)}
-                        />
+        <div className="p-5 rounded-2xl bg-secondary/30 border border-border/50 mb-6 mx-4">
+            <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                    <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                        <SlidersHorizontal size={18} />
                     </div>
-
-                    <div className="w-full sm:w-48">
-                        <Dropdown
-                            placeholder="За клієнтами"
-                            value={filters.clients || ''}
-                            options={[
-                                { value: '', label: 'Всі' },
-                                { value: 'VIP', label: 'VIP' },
-                                { value: 'Зі знижкою', label: 'Зі знижкою' },
-                                { value: 'Без знижки', label: 'Без знижки' },
-                            ]}
-                            onChange={(value) => handleFilterChange('clients', value)}
-                        />
-                    </div>
-
-                    <div className="w-full sm:w-56 col-span-2 sm:col-span-1">
-                        <Dropdown
-                            placeholder="За продажами"
-                            value={filters.sales || ''}
-                            options={[
-                                { value: '', label: 'Всі' },
-                                { value: 'Більше 20000₴', label: 'Більше 20000₴' },
-                                { value: '10000-20000₴', label: '10000-20000₴' },
-                                { value: 'Менше 10000₴', label: 'Менше 10000₴' },
-                            ]}
-                            onChange={(value) => handleFilterChange('sales', value)}
-                        />
-                    </div>
+                    <h3 className="font-bold text-foreground">Параметри фільтрації</h3>
                 </div>
-
                 {hasActiveFilters && (
-                    <button
+                    <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={onClearFilters}
-                        className="flex items-center gap-1.5 px-3 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                        className="h-8 text-xs font-bold text-muted-foreground hover:text-destructive transition-colors gap-1.5"
                     >
-                        <X size={16} />
+                        <X size={14} />
                         Очистити
-                    </button>
+                    </Button>
                 )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <Dropdown
+                    label="Візити"
+                    placeholder="Всі візити"
+                    value={filters.visits || ''}
+                    options={[
+                        { value: '', label: 'Всі візити' },
+                        { value: 'Більше 10', label: 'Більше 10' },
+                        { value: '5-10', label: '5-10' },
+                        { value: 'Менше 5', label: 'Менше 5' },
+                    ]}
+                    onChange={(value) => handleFilterChange('visits', value)}
+                />
+
+                <Dropdown
+                    label="Тип клієнта"
+                    placeholder="Всі типи"
+                    value={filters.clients || ''}
+                    options={[
+                        { value: '', label: 'Всі типи' },
+                        { value: 'VIP', label: 'VIP' },
+                        { value: 'Зі знижкою', label: 'Зі знижкою' },
+                        { value: 'Без знижки', label: 'Без знижки' },
+                    ]}
+                    onChange={(value) => handleFilterChange('clients', value)}
+                />
+
+                <Dropdown
+                    label="Продажі"
+                    placeholder="Всі суми"
+                    value={filters.sales || ''}
+                    options={[
+                        { value: '', label: 'Всі суми' },
+                        { value: 'Більше 20000₴', label: 'Більше 20 000 ₴' },
+                        { value: '10000-20000₴', label: '10 000 - 20 000 ₴' },
+                        { value: 'Менше 10000₴', label: 'Менше 10 000 ₴' },
+                    ]}
+                    onChange={(value) => handleFilterChange('sales', value)}
+                />
             </div>
         </div>
     );
