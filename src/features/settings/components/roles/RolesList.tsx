@@ -97,7 +97,7 @@ export function RolesList({ roles, isLoading, onCreate, onEdit, onDelete, onDupl
         <SearchInput
           placeholder="Пошук ролей..."
           value={searchQuery}
-          onChange={setSearchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
           className="max-w-md"
         />
       </div>

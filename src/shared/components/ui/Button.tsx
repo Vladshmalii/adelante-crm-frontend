@@ -3,8 +3,8 @@ import clsx from 'clsx';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
     children: ReactNode;
-    variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
-    size?: 'sm' | 'md' | 'lg';
+    variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'outline';
+    size?: 'sm' | 'md' | 'lg' | 'icon';
     fullWidth?: boolean;
     isLoading?: boolean;
     leftIcon?: ReactNode;
@@ -28,6 +28,7 @@ export function Button({
         sm: 'w-4 h-4',
         md: 'w-5 h-5',
         lg: 'w-6 h-6',
+        icon: 'w-5 h-5',
     }[size];
 
     return (
@@ -43,10 +44,12 @@ export function Button({
                     'bg-secondary text-secondary-foreground hover:bg-secondary-hover shadow-sm': variant === 'secondary',
                     'bg-transparent text-foreground hover:bg-secondary hover:text-secondary-foreground': variant === 'ghost',
                     'bg-destructive text-destructive-foreground hover:bg-destructive-hover shadow-sm': variant === 'danger',
+                    'bg-transparent border border-border text-foreground hover:bg-secondary': variant === 'outline',
 
                     'px-3 py-1.5 text-sm gap-1.5': size === 'sm',
                     'px-4 py-2 text-base gap-2': size === 'md',
                     'px-6 py-3 text-lg gap-2.5': size === 'lg',
+                    'p-2 aspect-square': size === 'icon',
 
                     'w-full': fullWidth,
                 },

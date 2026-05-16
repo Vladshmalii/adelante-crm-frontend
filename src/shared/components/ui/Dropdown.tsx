@@ -23,6 +23,7 @@ interface DropdownProps {
     multiple?: boolean;
     grouping?: boolean;
     collapsible?: boolean;
+    required?: boolean;
     className?: string;
 }
 
@@ -38,6 +39,7 @@ export function Dropdown({
     multiple = false,
     grouping = false,
     collapsible = false,
+    required = false,
     className,
 }: DropdownProps) {
     const [isOpen, setIsOpen] = useState(false);
@@ -358,6 +360,7 @@ export function Dropdown({
             {label && (
                 <label className="block text-[11px] font-black text-muted-foreground uppercase tracking-widest mb-1.5 ml-1">
                     {label}
+                    {required && <span className="text-destructive ml-1">*</span>}
                 </label>
             )}
 

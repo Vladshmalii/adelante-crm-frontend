@@ -10,7 +10,8 @@ interface ConfirmDialogProps {
     onClose: () => void;
     onConfirm: () => void;
     title: string;
-    message: string;
+    message?: string;
+    description?: string;
     confirmText?: string;
     cancelText?: string;
     variant?: 'danger' | 'warning' | 'info';
@@ -22,6 +23,7 @@ export function ConfirmDialog({
     onConfirm,
     title,
     message,
+    description,
     confirmText = 'Підтвердити',
     cancelText = 'Скасувати',
     variant = 'warning'
@@ -30,6 +32,8 @@ export function ConfirmDialog({
         onConfirm();
         onClose();
     };
+
+    const displayMessage = message || description;
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} size="sm">
@@ -49,7 +53,7 @@ export function ConfirmDialog({
                 </h3>
 
                 <p className="text-sm text-muted-foreground mb-6">
-                    {message}
+                    {displayMessage}
                 </p>
 
                 <div className="flex justify-center">
