@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { LoyaltyHeader } from './LoyaltyHeader';
 import { LoyaltyTabs } from './LoyaltyTabs';
 import { BonusesView } from './BonusesView';
@@ -14,8 +15,18 @@ import { GlobalLoader } from '@/shared/components/ui/GlobalLoader';
 import type { BonusProgram, Discount, Certificate, LoyaltyTab } from '../types';
 
 export function LoyaltyLayout() {
+    const searchParams = useSearchParams();
+    const router = useRouter();
+    const pathname = usePathname();
+
     const [isLoading, setIsLoading] = useState(false);
-    const [activeTab, setActiveTab] = useState<LoyaltyTab>('bonuses');
+    
+    const tabParam = searchParams.get('tab') as LoyaltyTab | null;
+    const activeTab = tabParam || 'bonuses';
+
+    const setActiveTab = (id: LoyaltyTab) => {
+        router.push(`${pathname}?tab=${id}`);
+    };
     const [searchQuery, setSearchQuery] = useState('');
 
     const [isCreateBonusModalOpen, setIsCreateBonusModalOpen] = useState(false);

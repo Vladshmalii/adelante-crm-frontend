@@ -1,6 +1,7 @@
 import { MoreVertical, Edit2, Trash2, ArrowRightLeft } from 'lucide-react';
 import { Product } from '../types';
-import { PRODUCT_CATEGORIES, PRODUCT_TYPES, PRODUCT_UNITS } from '../constants';
+import { PRODUCT_UNITS } from '../constants';
+import { useInventoryStore } from '@/stores/useInventoryStore';
 import { Badge } from '@/shared/components/ui/Badge';
 
 interface InventoryTableRowProps {
@@ -11,8 +12,8 @@ interface InventoryTableRowProps {
 }
 
 export function InventoryTableRow({ product, onEdit, onDelete, onMovement }: InventoryTableRowProps) {
-    const categoryLabel = PRODUCT_CATEGORIES.find(c => c.value === product.category)?.label || product.category;
-    const typeLabel = PRODUCT_TYPES.find(t => t.value === product.type)?.label || product.type;
+    const categories = useInventoryStore(state => state.categories);
+    const categoryLabel = categories.find(c => c.value === product.category)?.label || product.category;
     const unitLabel = PRODUCT_UNITS.find(u => u.value === product.unit)?.label || product.unit;
 
     const getStockStatus = () => {
@@ -23,56 +24,82 @@ export function InventoryTableRow({ product, onEdit, onDelete, onMovement }: Inv
 
     const status = getStockStatus();
 
+    const renderQuantity = () => {
+        if (product.unit !== 'pcs' && product.packageVolume) {
+            const packs = Math.floor(product.quantity / product.packageVolume);
+            const remainder = product.quantity % product.packageVolume;
+            
+            return (
+                <div className="flex flex-col">
+                    <div className="font-black text-foreground whitespace-nowrap">
+                        {packs} <span className="text-[10px] text-muted-foreground uppercase font-bold">шт</span>
+                        {remainder > 0 && (
+                            <span className="ml-1 opacity-80">
+                                + {remainder} <span className="text-[10px] text-muted-foreground uppercase font-bold">{unitLabel}</span>
+                            </span>
+                        )}
+                    </div>
+                    <div className="text-[10px] font-medium text-muted-foreground mt-0.5 opacity-70">
+                        Всього: {product.quantity} {unitLabel}
+                    </div>
+                </div>
+            );
+        }
+
+        return (
+            <div className="font-black text-foreground whitespace-nowrap">
+                {product.quantity} <span className="text-[10px] text-muted-foreground uppercase font-bold">{unitLabel}</span>
+            </div>
+        );
+    };
+
     return (
         <tr className="border-b border-border/50 transition-all duration-300 hover:bg-primary/[0.02]">
-            <td className="px-4 py-4">
-                <div className="font-bold text-foreground">{product.name}</div>
-                <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-tight opacity-70">{product.sku}</div>
+            <td className="px-5 py-4">
+                <div className="font-bold text-foreground text-sm">{product.name}</div>
+                <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider opacity-60 mt-0.5">{product.sku}</div>
             </td>
-            <td className="px-4 py-4">
-                <Badge variant="secondary" className="bg-secondary text-foreground/70 border-none font-bold text-[10px] uppercase">
+            <td className="px-5 py-4">
+                <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-secondary/30 text-foreground/80 font-bold text-[10px] uppercase tracking-wider whitespace-nowrap">
                     {categoryLabel}
-                </Badge>
+                </span>
             </td>
-            <td className="px-4 py-4 text-sm font-medium text-foreground/70">{typeLabel}</td>
-            <td className="px-4 py-4">
-                <div className="font-black text-foreground">
-                    {product.quantity} <span className="text-[10px] text-muted-foreground uppercase">{unitLabel}</span>
-                </div>
+            <td className="px-5 py-4">
+                {renderQuantity()}
             </td>
-            <td className="px-4 py-4">
+            <td className="px-5 py-4">
                 <Badge 
                     variant={status.variant} 
-                    className="font-black uppercase text-[10px] tracking-wider px-2 py-0.5"
+                    className="font-black uppercase text-[10px] tracking-wider px-2 py-0.5 whitespace-nowrap"
                 >
                     {status.label}
                 </Badge>
             </td>
-            <td className="px-4 py-4 text-sm font-black text-foreground">
+            <td className="px-5 py-4 text-sm font-black text-foreground whitespace-nowrap">
                 {product.costPrice.toLocaleString('uk-UA')} ₴
             </td>
-            <td className="px-4 py-4 text-right">
+            <td className="px-5 py-4 text-right">
                 <div className="flex items-center justify-end gap-2">
                     <button
                         onClick={() => onMovement(product)}
-                        className="h-[42px] w-[42px] flex items-center justify-center text-muted-foreground hover:text-primary transition-all duration-300 rounded-xl bg-secondary/50 hover:bg-primary/10"
+                        className="h-9 w-9 flex items-center justify-center text-muted-foreground hover:text-primary transition-all duration-300 rounded-xl bg-secondary/50 hover:bg-primary/10"
                         title="Рух товару"
                     >
-                        <ArrowRightLeft size={20} />
+                        <ArrowRightLeft size={16} />
                     </button>
                     <button
                         onClick={() => onEdit(product)}
-                        className="h-[42px] w-[42px] flex items-center justify-center text-muted-foreground hover:text-primary transition-all duration-300 rounded-xl bg-secondary/50 hover:bg-primary/10"
+                        className="h-9 w-9 flex items-center justify-center text-muted-foreground hover:text-primary transition-all duration-300 rounded-xl bg-secondary/50 hover:bg-primary/10"
                         title="Редагувати"
                     >
-                        <Edit2 size={20} />
+                        <Edit2 size={16} />
                     </button>
                     <button
                         onClick={() => onDelete(product)}
-                        className="h-[42px] w-[42px] flex items-center justify-center text-muted-foreground hover:text-destructive transition-all duration-300 rounded-xl bg-secondary/50 hover:bg-destructive/10"
+                        className="h-9 w-9 flex items-center justify-center text-muted-foreground hover:text-destructive transition-all duration-300 rounded-xl bg-secondary/50 hover:bg-destructive/10"
                         title="Видалити"
                     >
-                        <Trash2 size={20} />
+                        <Trash2 size={16} />
                     </button>
                 </div>
             </td>

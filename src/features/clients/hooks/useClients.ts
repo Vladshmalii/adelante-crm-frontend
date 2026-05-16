@@ -55,8 +55,7 @@ export function useClients(options: UseClientsOptions = {}) {
                     filtered = filtered.filter((c) => c.segment === options.segment);
                 }
 
-                // Імітуємо затримку мережі
-                await new Promise((resolve) => setTimeout(resolve, 300));
+                // Імітуємо затримку мережі - ВИДАЛЕНО ДЛЯ ОПТИМІЗАЦІЇ
 
                 setClients(filtered);
             } else {

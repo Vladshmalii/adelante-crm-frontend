@@ -4,7 +4,7 @@ import { StaffMember, Appointment, TimeSlot } from '../../types';
 import { TimeColumn } from './TimeColumn';
 import { StaffColumn } from './StaffColumn';
 import { getRoleLabel } from '@/features/staff/utils/roleTranslations';
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useMemo } from 'react';
 import { List } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -20,12 +20,11 @@ interface CalendarGridProps {
 
 const SLOT_HEIGHT = 80;
 const START_HOUR = 8;
-const END_HOUR = 21;
 const WORK_END_HOUR = 19;
 
-const generateTimeSlots = (slotDuration: number): TimeSlot[] => {
+const generateTimeSlots = (slotDuration: number, maxEndHour: number): TimeSlot[] => {
     const slots: TimeSlot[] = [];
-    for (let hour = START_HOUR; hour <= END_HOUR; hour++) {
+    for (let hour = START_HOUR; hour <= maxEndHour; hour++) {
         for (let minute = 0; minute < 60; minute += slotDuration) {
             const label = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
             slots.push({
@@ -100,7 +99,24 @@ export function CalendarGrid({
     slotDuration,
     isFitToScreen,
 }: CalendarGridProps) {
-    const timeSlots = generateTimeSlots(slotDuration);
+    const maxAppointmentEndHour = useMemo(() => {
+        let maxEndHour = 19; // Default max is 19 (which visually ends the grid at 20:00)
+        appointments.forEach(apt => {
+            if (apt.endTime) {
+                const [endH, endM] = apt.endTime.split(':').map(Number);
+                let requiredEndHour = endH;
+                if (endM === 0) {
+                    requiredEndHour = endH - 1;
+                }
+                if (requiredEndHour > maxEndHour) {
+                    maxEndHour = requiredEndHour;
+                }
+            }
+        });
+        return maxEndHour;
+    }, [appointments]);
+
+    const timeSlots = generateTimeSlots(slotDuration, maxAppointmentEndHour);
     const containerRef = useRef<HTMLDivElement>(null);
 
     const initialScrollDone = useRef(false);

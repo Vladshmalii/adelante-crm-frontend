@@ -15,31 +15,15 @@ const tabs = [
     { id: 'clientBonuses' as const, label: 'Бонуси клієнтів', icon: Users },
 ];
 
+import { PageTabs } from '@/shared/components/ui/PageTabs';
+
 export function LoyaltyTabs({ activeTab, onTabChange }: LoyaltyTabsProps) {
     return (
-        <div className="flex flex-nowrap gap-2 border-b border-border overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
-            {tabs.map((tab) => {
-                const Icon = tab.icon;
-                const isActive = activeTab === tab.id;
-
-                return (
-                    <button
-                        key={tab.id}
-                        onClick={() => onTabChange(tab.id)}
-                        className={clsx(
-                            'flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors relative whitespace-nowrap',
-                            'hover:text-foreground',
-                            isActive ? 'text-primary' : 'text-muted-foreground'
-                        )}
-                    >
-                        <Icon size={18} />
-                        <span>{tab.label}</span>
-                        {isActive && (
-                            <span className="absolute bottom-[-1px] left-0 w-full h-[2px] bg-primary" />
-                        )}
-                    </button>
-                );
-            })}
-        </div>
+        <PageTabs 
+            tabs={tabs} 
+            activeTab={activeTab} 
+            onTabChange={(tabId) => onTabChange(tabId as LoyaltyTab)} 
+            baseHref="/loyalty"
+        />
     );
 }

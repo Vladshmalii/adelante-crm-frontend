@@ -6,7 +6,7 @@ import { Button } from '@/shared/components/ui/Button';
 import { Dropdown } from '@/shared/components/ui/Dropdown';
 import { Checkbox } from '@/shared/components/ui/Checkbox';
 import { InventoryExportOptions, ProductCategory } from '../types';
-import { PRODUCT_CATEGORIES } from '../constants';
+import { useInventoryStore } from '@/stores/useInventoryStore';
 
 interface InventoryExportModalProps {
     isOpen: boolean;
@@ -15,6 +15,7 @@ interface InventoryExportModalProps {
 }
 
 export function InventoryExportModal({ isOpen, onClose, onExport }: InventoryExportModalProps) {
+    const categories = useInventoryStore(state => state.categories);
     const [options, setOptions] = useState<InventoryExportOptions>({
         includeBasicInfo: true,
         includeStockInfo: true,
@@ -54,7 +55,7 @@ export function InventoryExportModal({ isOpen, onClose, onExport }: InventoryExp
                                 onChange={(e) => handleToggle('includeBasicInfo')}
                             />
                             <p className="text-xs text-muted-foreground mt-1 ml-7">
-                                Назва, Артикул, Категорія, Тип товару
+                                Назва, Артикул, Категорія
                             </p>
                         </div>
 
@@ -97,7 +98,7 @@ export function InventoryExportModal({ isOpen, onClose, onExport }: InventoryExp
                     <Dropdown
                         label="Фільтр по категорії (опціонально)"
                         value={options.category || 'all'}
-                        options={[{ value: 'all', label: 'Всі категорії' }, ...PRODUCT_CATEGORIES]}
+                        options={[{ value: 'all', label: 'Всі категорії' }, ...categories]}
                         onChange={handleCategoryChange}
                     />
                 </div>

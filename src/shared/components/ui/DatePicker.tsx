@@ -12,6 +12,7 @@ interface DatePickerProps {
     error?: string;
     inline?: boolean;
     theme?: 'light' | 'dark';
+    workloads?: Record<string, number>;
 }
 
 const DAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Нд'];
@@ -29,6 +30,7 @@ export function DatePicker({
     error,
     inline = false,
     theme = 'light',
+    workloads,
 }: DatePickerProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [viewDate, setViewDate] = useState(new Date());
@@ -203,34 +205,109 @@ export function DatePicker({
                 ))}
             </div>
 
-            <div className="grid grid-cols-7 gap-1">
+            <svg width="0" height="0" className="absolute pointer-events-none">
+                <defs>
+                    <linearGradient id="workload-low" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#34d399" />
+                        <stop offset="100%" stopColor="#059669" />
+                    </linearGradient>
+                    <linearGradient id="workload-medium" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#fbbf24" />
+                        <stop offset="100%" stopColor="#d97706" />
+                    </linearGradient>
+                    <linearGradient id="workload-high" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#f87171" />
+                        <stop offset="100%" stopColor="#dc2626" />
+                    </linearGradient>
+                </defs>
+            </svg>
+
+            <div className="grid grid-cols-7 gap-y-2 gap-x-1">
                 {getDaysInMonth(viewDate).map((date, index) => {
-                    const baseClasses = 'aspect-square rounded transition-colors ' + (isDark ? 'text-xs' : 'text-sm');
                     const invisible = !date ? ' invisible' : '';
 
                     let stateClasses = '';
-                    if (date && isSelectedDate(date)) {
-                        stateClasses = ' bg-primary text-primary-foreground font-medium';
-                    } else if (date && isToday(date)) {
+                    const isSelected = date && isSelectedDate(date);
+                    const isTodayDate = date && isToday(date);
+
+                    if (isSelected) {
+                        stateClasses = isDark
+                            ? ' bg-sidebar-foreground text-sidebar font-bold'
+                            : ' bg-primary text-primary-foreground font-medium';
+                    } else if (isTodayDate) {
                         stateClasses = isDark
                             ? ' bg-primary text-primary-foreground font-semibold'
                             : ' border border-primary text-primary';
                     } else if (date) {
                         stateClasses = isDark
-                            ? ' text-sidebar-foreground/80 hover:bg-sidebar-active hover:text-sidebar-foreground'
+                            ? ' text-sidebar-foreground/80 hover:bg-sidebar-active/80 hover:text-sidebar-foreground'
                             : ' hover:bg-secondary';
                     }
 
+                    const dateString = date ? `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}` : '';
+                    const workload = date && workloads ? workloads[dateString] : undefined;
+
+                    let ring = null;
+                    if (date && workloads && workload !== undefined) {
+                        const radius = 14;
+                        const circumference = 2 * Math.PI * radius;
+                        const strokeDashoffset = Math.max(0, circumference - (workload / 100) * circumference);
+                        
+                        let gradientId = 'url(#workload-low)';
+                        let shadowColor = 'rgba(16, 185, 129, 0.4)';
+                        if (workload > 66) {
+                            gradientId = 'url(#workload-high)';
+                            shadowColor = 'rgba(239, 68, 68, 0.4)';
+                        } else if (workload > 33) {
+                            gradientId = 'url(#workload-medium)';
+                            shadowColor = 'rgba(245, 158, 11, 0.4)';
+                        }
+
+                        ring = (
+                            <svg className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none" viewBox="0 0 32 32">
+                                {/* Background track */}
+                                <circle cx="16" cy="16" r="14" fill="none" stroke={isDark ? '#334155' : '#e2e8f0'} strokeWidth="1.5" strokeDasharray="1 3" />
+                                
+                                {/* Active progress ring */}
+                                {workload > 0 && (
+                                    <>
+                                        {/* Fast Glow Effect (much better performance than CSS drop-shadow) */}
+                                        <circle
+                                            cx="16" cy="16" r="14" fill="none" stroke={shadowColor} strokeWidth="4" opacity="0.4"
+                                            strokeDasharray={circumference} strokeDashoffset={strokeDashoffset} strokeLinecap="round"
+                                            className="transition-all duration-700 ease-out"
+                                        />
+                                        {/* Main Ring */}
+                                        <circle
+                                            cx="16" cy="16" r="14" fill="none" stroke={gradientId} strokeWidth="2"
+                                            strokeDasharray={circumference} strokeDashoffset={strokeDashoffset} strokeLinecap="round"
+                                            className="transition-all duration-700 ease-out"
+                                        />
+                                    </>
+                                )}
+                            </svg>
+                        );
+                    } else if (date && workloads) {
+                        // Workloads enabled but no data for this date
+                        ring = (
+                            <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 32 32">
+                                <circle cx="16" cy="16" r="14" fill="none" stroke={isDark ? '#334155' : '#e2e8f0'} strokeWidth="1.5" strokeDasharray="1 3" />
+                            </svg>
+                        );
+                    }
+
                     return (
-                        <button
-                            key={index}
-                            type="button"
-                            onClick={() => date && handleSelectDate(date)}
-                            disabled={!date}
-                            className={baseClasses + invisible + stateClasses}
-                        >
-                            {date?.getDate()}
-                        </button>
+                        <div key={index} className={`relative flex items-center justify-center w-8 h-8 mx-auto ${invisible}`}>
+                            {ring}
+                            <button
+                                type="button"
+                                onClick={() => date && handleSelectDate(date)}
+                                disabled={!date}
+                                className={`w-[22px] h-[22px] rounded-full flex items-center justify-center transition-colors ${isDark ? 'text-[11px]' : 'text-xs'} ${stateClasses}`}
+                            >
+                                {date?.getDate()}
+                            </button>
+                        </div>
                     );
                 })}
             </div>

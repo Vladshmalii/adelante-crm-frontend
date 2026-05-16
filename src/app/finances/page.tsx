@@ -1,5 +1,6 @@
 'use client';
 
+import { Suspense } from 'react';
 import { AppShell } from '@/shared/components/layout/AppShell';
 import { FeatureHeader } from '@/shared/components/layout/FeatureHeader';
 import { useHeaderActions } from '@/shared/hooks/useHeaderActions';
@@ -39,7 +40,9 @@ export default function FinancesPage() {
                     onLogout={handleLogout}
                 />
                 <div className="flex-1 overflow-hidden">
-                    <FinanceTabs />
+                    <Suspense fallback={<div className="p-8 text-center">Завантаження...</div>}>
+                        <FinanceTabs />
+                    </Suspense>
                 </div>
             </div>
 

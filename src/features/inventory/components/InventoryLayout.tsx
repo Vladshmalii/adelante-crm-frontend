@@ -11,6 +11,7 @@ import { EditProductModal } from '../modals/EditProductModal';
 import { StockMovementModal } from '../modals/StockMovementModal';
 import { ImportExcelModal } from '@/features/clients/modals/ImportExcelModal';
 import { InventoryExportModal } from '../modals/InventoryExportModal';
+import { InventoryCategoriesModal } from '../modals/InventoryCategoriesModal';
 import { ConfirmDialog } from '@/shared/components/ui/ConfirmDialog';
 import { Product, InventoryFilters as FilterType, AddProductFormData, StockMovementFormData, InventoryExportOptions } from '../types';
 import { useInventory } from '../hooks/useInventory';
@@ -30,6 +31,7 @@ export function InventoryLayout() {
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+    const [isCategoriesModalOpen, setIsCategoriesModalOpen] = useState(false);
 
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
@@ -51,10 +53,6 @@ export function InventoryLayout() {
             }
 
             if (filters.category && filters.category !== 'all' && product.category !== filters.category) {
-                return false;
-            }
-
-            if (filters.type && filters.type !== 'all' && product.type !== filters.type) {
                 return false;
             }
 
@@ -180,6 +178,7 @@ export function InventoryLayout() {
                 onAddProduct={() => setIsAddModalOpen(true)}
                 onImport={() => setIsImportModalOpen(true)}
                 onExport={() => setIsExportModalOpen(true)}
+                onCategoriesClick={() => setIsCategoriesModalOpen(true)}
             />
 
             <InventoryStats products={products} />
@@ -226,6 +225,11 @@ export function InventoryLayout() {
                 isOpen={isExportModalOpen}
                 onClose={() => setIsExportModalOpen(false)}
                 onExport={handleExport}
+            />
+
+            <InventoryCategoriesModal
+                isOpen={isCategoriesModalOpen}
+                onClose={() => setIsCategoriesModalOpen(false)}
             />
 
             <ConfirmDialog

@@ -60,8 +60,7 @@ export function useInventory(options: UseInventoryOptions = {}) {
                     filtered = filtered.filter((p) => p.quantity === 0);
                 }
 
-                // Імітуємо затримку мережі
-                await new Promise((resolve) => setTimeout(resolve, 300));
+                // Імітуємо затримку мережі - ВИДАЛЕНО ДЛЯ ОПТИМІЗАЦІЇ
 
                 setProducts(filtered);
             } else {
@@ -194,7 +193,7 @@ export function useInventory(options: UseInventoryOptions = {}) {
                     setProducts(updated);
                 }
 
-                await new Promise((resolve) => setTimeout(resolve, 300));
+
             } else {
                 // Реальний API
                 await inventoryApi.createStockMovement(data);
@@ -212,6 +211,7 @@ export function useInventory(options: UseInventoryOptions = {}) {
 
     return {
         products,
+        categories: useInventoryStore(state => state.categories),
         isLoading,
         error,
         loadProducts,

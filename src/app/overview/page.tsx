@@ -6,6 +6,8 @@ import { AppShell } from '@/shared/components/layout/AppShell';
 import { FeatureHeader } from '@/shared/components/layout/FeatureHeader';
 import { useHeaderActions } from '@/shared/hooks/useHeaderActions';
 import { ProfileModal } from '@/features/profile/modals/ProfileModal';
+import { PageTabs } from '@/shared/components/ui/PageTabs';
+import { ClipboardList, MessageSquare, History } from 'lucide-react';
 import { Button } from '@/shared/components/ui/Button';
 import { RecordsFilters } from '@/features/overview/components/records/RecordsFilters';
 import { RecordsTable } from '@/features/overview/components/records/RecordsTable';
@@ -24,6 +26,12 @@ import type { Record, Review, Change, RecordsFilters as RecordsFiltersType, Revi
 function OverviewContent() {
     const searchParams = useSearchParams();
     const activeTab = searchParams.get('tab') || 'records';
+
+    const tabs = [
+        { id: 'records', label: 'Записи', icon: ClipboardList },
+        { id: 'reviews', label: 'Відгуки', icon: MessageSquare },
+        { id: 'changes', label: 'Зміни даних', icon: History },
+    ];
 
     const [recordsFilters, setRecordsFilters] = useState<RecordsFiltersType>({});
     const [reviewsFilters, setReviewsFilters] = useState<ReviewsFiltersType>({});
@@ -56,11 +64,10 @@ function OverviewContent() {
 
     return (
         <div className="flex flex-col h-[calc(100vh-140px)] min-h-0">
+            <PageTabs tabs={tabs} activeTab={activeTab} baseHref="/overview" />
+            
             {activeTab === 'records' && (
-                <div className="flex flex-col h-full min-h-0">
-                    <div className="px-6 py-4 border-b border-border bg-card/50 backdrop-blur-md sticky top-0 z-10 flex justify-between items-center mb-4">
-                        <h2 className="text-lg font-bold font-heading">Записи</h2>
-                    </div>
+                <div className="flex flex-col h-full min-h-0 mt-4">
                     <div className="flex-1 overflow-y-auto px-6 pb-10 custom-scrollbar">
                         <RecordsFilters
                             filters={recordsFilters}
@@ -75,10 +82,7 @@ function OverviewContent() {
             )}
 
             {activeTab === 'reviews' && (
-                <div className="flex flex-col h-full min-h-0">
-                    <div className="px-6 py-4 border-b border-border bg-card/50 backdrop-blur-md sticky top-0 z-10 flex justify-between items-center mb-4">
-                        <h2 className="text-lg font-bold font-heading">Відгуки</h2>
-                    </div>
+                <div className="flex flex-col h-full min-h-0 mt-4">
                     <div className="flex-1 overflow-y-auto px-6 pb-10 custom-scrollbar">
                         <ReviewsFilters
                             filters={reviewsFilters}
@@ -93,10 +97,7 @@ function OverviewContent() {
             )}
 
             {activeTab === 'changes' && (
-                <div className="flex flex-col h-full min-h-0">
-                    <div className="px-6 py-4 border-b border-border bg-card/50 backdrop-blur-md sticky top-0 z-10 flex justify-between items-center mb-4">
-                        <h2 className="text-lg font-bold font-heading">Зміни даних</h2>
-                    </div>
+                <div className="flex flex-col h-full min-h-0 mt-4">
                     <div className="flex-1 overflow-y-auto px-6 pb-10 custom-scrollbar">
                         <ChangesFilters
                             filters={changesFilters}

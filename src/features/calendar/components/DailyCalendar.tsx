@@ -66,6 +66,17 @@ export function DailyCalendar() {
         }
     }, [searchParams, router]);
 
+    // Handle date param from URL
+    useEffect(() => {
+        const dateParam = searchParams.get('date');
+        if (dateParam) {
+            const parsedDate = new Date(dateParam);
+            if (!isNaN(parsedDate.getTime())) {
+                setCurrentDate(parsedDate);
+            }
+        }
+    }, [searchParams]);
+
     const {
         staff: staffList,
         isLoading: staffLoading,

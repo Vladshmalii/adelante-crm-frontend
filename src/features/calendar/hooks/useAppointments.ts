@@ -67,7 +67,7 @@ export function useAppointments(options: UseAppointmentsOptions = {}) {
                 }
 
                 // Імітуємо затримку мережі
-                await new Promise((resolve) => setTimeout(resolve, 300));
+
 
                 setAppointments(filtered);
             } else {

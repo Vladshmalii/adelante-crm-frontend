@@ -1,6 +1,5 @@
 import type { Product as ApiProduct } from '@/lib/api/inventory';
 
-export type ProductType = 'item' | 'weight';
 export type ProductCategory = 'professional' | 'retail' | 'consumables' | 'equipment';
 export type ProductUnit = 'pcs' | 'ml' | 'l' | 'g' | 'kg';
 export type StockStatus = 'ok' | 'low' | 'out';
@@ -9,8 +8,9 @@ export type StockStatus = 'ok' | 'low' | 'out';
 export type Product = Omit<ApiProduct, 'id' | 'category' | 'type' | 'unit' | 'createdAt' | 'isActive'> & {
     id: string | number;
     category: ProductCategory | string;
-    type: ProductType | string;
+    type?: string;
     unit: ProductUnit | string;
+    packageVolume?: number; // Об'єм однієї упаковки (якщо товар на розлив)
     minQuantity?: number;
     isActive?: boolean;
     createdAt?: string;
@@ -20,7 +20,6 @@ export type Product = Omit<ApiProduct, 'id' | 'category' | 'type' | 'unit' | 'cr
 export interface InventoryFilters {
     search?: string;
     category?: ProductCategory | 'all';
-    type?: ProductType | 'all';
     stockStatus?: StockStatus | 'all';
 }
 
@@ -28,12 +27,12 @@ export interface AddProductFormData {
     name: string;
     sku: string;
     category: ProductCategory;
-    type: ProductType;
     quantity: number;
     unit: ProductUnit;
     price: number;
     costPrice: number;
     minQuantity: number;
+    packageVolume?: number;
     description?: string;
 }
 

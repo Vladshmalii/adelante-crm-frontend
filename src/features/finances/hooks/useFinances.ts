@@ -53,8 +53,7 @@ export function useFinances(options: UseFinancesOptions = {}) {
                     filtered = filtered.filter((o) => o.category === options.category);
                 }
 
-                // Імітуємо затримку мережі
-                await new Promise((resolve) => setTimeout(resolve, 300));
+                // Імітуємо затримку мережі - ВИДАЛЕНО ДЛЯ ОПТИМІЗАЦІЇ
 
                 setOperations(filtered);
             } else {
@@ -100,8 +99,7 @@ export function useFinances(options: UseFinancesOptions = {}) {
                     filtered = filtered.filter((d) => d.status === filters.status);
                 }
 
-                // Імітуємо затримку мережі
-                await new Promise((resolve) => setTimeout(resolve, 300));
+                // Імітуємо затримку мережі - ВИДАЛЕНО ДЛЯ ОПТИМІЗАЦІЇ
 
                 setDocuments(filtered);
             } else {
@@ -183,8 +181,7 @@ export function useFinances(options: UseFinancesOptions = {}) {
             setError(null);
 
             if (USE_MOCK_DATA) {
-                // Мокові дані для дашборду
-                await new Promise((resolve) => setTimeout(resolve, 300));
+                // Мокові дані для дашборду - затримку видалено
                 
                 return {
                     totalRevenue: 125000,

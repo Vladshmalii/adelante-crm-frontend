@@ -50,8 +50,7 @@ export function useServices(options: UseServicesOptions = {}) {
                     filtered = filtered.filter((s) => s.isActive === options.isActive);
                 }
 
-                // Імітуємо затримку мережі
-                await new Promise((resolve) => setTimeout(resolve, 300));
+                // Імітуємо затримку мережі - ВИДАЛЕНО ДЛЯ ОПТИМІЗАЦІЇ
 
                 setServices(filtered);
             } else {

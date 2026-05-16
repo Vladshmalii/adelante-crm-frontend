@@ -7,8 +7,10 @@ interface InventoryState {
     selectedProduct: Product | null;
     isLoading: boolean;
     filters: ProductFilters;
+    categories: { value: string; label: string }[];
 
     setProducts: (products: Product[]) => void;
+    setCategories: (categories: { value: string; label: string }[]) => void;
     setLoading: (value: boolean) => void;
 
     fetchProducts: (filters?: ProductFilters) => Promise<void>;
@@ -26,8 +28,16 @@ export const useInventoryStore = create<InventoryState>((set) => ({
     selectedProduct: null,
     isLoading: false,
     filters: {},
+    categories: [
+        { value: 'professional', label: 'Професійна косметика' },
+        { value: 'retail', label: 'Товари для продажу' },
+        { value: 'consumables', label: 'Витратні матеріали' },
+        { value: 'equipment', label: 'Обладнання' },
+        { value: 'uncategorized', label: 'Без категорії' },
+    ],
 
     setProducts: (products) => set({ products }),
+    setCategories: (categories) => set({ categories }),
     setLoading: (value) => set({ isLoading: value }),
 
     fetchProducts: async (filters) => {

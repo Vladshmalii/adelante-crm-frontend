@@ -55,8 +55,7 @@ export function useStaff(options: UseStaffOptions = {}) {
                     filtered = filtered.filter((s) => s.isActive === options.isActive);
                 }
 
-                // Імітуємо затримку мережі
-                await new Promise((resolve) => setTimeout(resolve, 300));
+                // Імітуємо затримку мережі - ВИДАЛЕНО ДЛЯ ОПТИМІЗАЦІЇ
 
                 setStaff(filtered);
             } else {

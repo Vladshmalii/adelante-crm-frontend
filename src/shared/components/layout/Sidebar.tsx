@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import clsx from 'clsx';
@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { DatePicker } from '@/shared/components/ui/DatePicker';
 import { ThemeToggle } from '@/shared/components/ui/ThemeToggle';
+import { mockAppointments } from '@/features/calendar/data/mockAppointments';
 
 interface NavItem {
     id: string;
@@ -44,9 +45,32 @@ const navItems: NavItem[] = [
             { label: 'Зміни', href: '/overview?tab=changes', tab: 'changes' },
         ]
     },
-    { id: 'finances', label: 'Фінанси', icon: Banknote, href: '/finances' },
+    {
+        id: 'finances',
+        label: 'Фінанси',
+        icon: Banknote,
+        href: '/finances',
+        subItems: [
+            { label: 'Огляд', href: '/finances?tab=overview', tab: 'overview' },
+            { label: 'Операції', href: '/finances?tab=operations', tab: 'operations' },
+            { label: 'Документи', href: '/finances?tab=documents', tab: 'documents' },
+            { label: 'Чеки / Каси', href: '/finances?tab=receipts', tab: 'receipts' },
+            { label: 'Методи оплат', href: '/finances?tab=payment-methods', tab: 'payment-methods' },
+        ]
+    },
     { id: 'inventory', label: 'Склад', icon: Package, href: '/inventory' },
-    { id: 'loyalty', label: 'Лояльність', icon: Gift, href: '/loyalty' },
+    {
+        id: 'loyalty',
+        label: 'Лояльність',
+        icon: Gift,
+        href: '/loyalty',
+        subItems: [
+            { label: 'Бонусні програми', href: '/loyalty?tab=bonuses', tab: 'bonuses' },
+            { label: 'Знижки', href: '/loyalty?tab=discounts', tab: 'discounts' },
+            { label: 'Сертифікати', href: '/loyalty?tab=certificates', tab: 'certificates' },
+            { label: 'Бонуси клієнтів', href: '/loyalty?tab=clientBonuses', tab: 'clientBonuses' },
+        ]
+    },
     {
         id: 'settings',
         label: 'Налаштування',
@@ -98,6 +122,48 @@ export function Sidebar({
         setSelectedDate(date);
         router.push(`/calendar?date=${date}`);
     };
+
+    // Real workloads from mock appointments
+    const mockWorkloads = useMemo(() => {
+        const data: Record<string, number> = {};
+        
+        // Calculate total minutes per day
+        mockAppointments.forEach(apt => {
+            const start = apt.startTime.split(':').map(Number);
+            const end = apt.endTime.split(':').map(Number);
+            const duration = (end[0] * 60 + end[1]) - (start[0] * 60 + start[1]);
+            
+            data[apt.date] = (data[apt.date] || 0) + duration;
+        });
+
+        // Correct math for workload:
+        // Assume 6 staff members available, working 8 hours each = 48 hours = 2880 minutes total capacity per day.
+        const TOTAL_DAILY_CAPACITY_MINS = 2880;
+
+        const workloads: Record<string, number> = {};
+        Object.entries(data).forEach(([dateStr, mins]) => {
+            workloads[dateStr] = Math.min(Math.floor((mins / TOTAL_DAILY_CAPACITY_MINS) * 100), 100);
+        });
+
+        // ДЕМОНСТРАЦІЯ: Штучно додаємо всі варіанти завантаженості для перших днів поточного місяця,
+        // щоб ви могли побачити як виглядають різні комбінації кілець.
+        const now = new Date();
+        const y = now.getFullYear();
+        const m = (now.getMonth() + 1).toString().padStart(2, '0');
+        
+        workloads[`${y}-${m}-01`] = 10;   // Тільки зелене (трохи)
+        workloads[`${y}-${m}-02`] = 25;   // Тільки зелене (майже повне)
+        workloads[`${y}-${m}-03`] = 33;   // Повне зелене
+        workloads[`${y}-${m}-04`] = 45;   // Зелене + трохи жовтого
+        workloads[`${y}-${m}-05`] = 60;   // Зелене + майже повне жовте
+        workloads[`${y}-${m}-06`] = 66;   // Зелене + повне жовте
+        workloads[`${y}-${m}-07`] = 80;   // Зелене + жовте + трохи червоного
+        workloads[`${y}-${m}-08`] = 95;   // Зелене + жовте + майже повне червоне
+        workloads[`${y}-${m}-09`] = 100;  // Всі три кільця повністю заповнені
+        workloads[`${y}-${m}-10`] = 0;    // Повністю порожній день
+
+        return workloads;
+    }, []);
 
     return (
         <aside
@@ -159,6 +225,7 @@ export function Sidebar({
                         onChange={handleDateChange}
                         inline
                         theme="dark"
+                        workloads={mockWorkloads}
                     />
                 </div>
             </div>
@@ -223,7 +290,9 @@ export function Sidebar({
                                         {item.subItems!.map((subItem) => {
                                             const isSubActive = currentTab === subItem.tab ||
                                                 (!currentTab && subItem.tab === 'records' && item.id === 'overview') ||
-                                                (!currentTab && subItem.tab === 'salon' && item.id === 'settings');
+                                                (!currentTab && subItem.tab === 'salon' && item.id === 'settings') ||
+                                                (!currentTab && subItem.tab === 'overview' && item.id === 'finances') ||
+                                                (!currentTab && subItem.tab === 'bonuses' && item.id === 'loyalty');
                                             return (
                                                 <li key={subItem.href}>
                                                     <Link
