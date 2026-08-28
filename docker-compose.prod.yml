@@ -1,0 +1,108 @@
+# Продовий стек (сервер за reverse proxy, домени вже налаштовані зовні).
+# Образи api/ws/worker/beat та ui збираються і пушаться в GHCR через
+# .github/workflows/backend-deploy.yml і frontend-deploy.yml — цей файл
+# лише тягне готові образи й піднімає їх з продовими портами.
+#
+# Запуск на сервері:
+#   docker compose -f docker-compose.prod.yml pull
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# .env поруч із цим файлом — той самий, що й для docker-compose.yml
+# (див. .env.example), плюс ADELANTE_CORS_ORIGINS з продовим доменом фронта.
+
+services:
+  api:
+    image: ghcr.io/vladshmalii/adelante-crm-backend:latest
+    env_file: .env
+    ports:
+      - "8432:8000"
+    depends_on:
+      - postgres-master
+      - redis
+    restart: unless-stopped
+
+  worker:
+    image: ghcr.io/vladshmalii/adelante-crm-backend:latest
+    command: celery -A workers.celery_app:celery worker -Q default,notifications -l info
+    env_file: .env
+    depends_on:
+      - postgres-master
+      - redis
+    restart: unless-stopped
+
+  # Строго один инстанс beat — иначе дубли периодических задач
+  beat:
+    image: ghcr.io/vladshmalii/adelante-crm-backend:latest
+    command: celery -A workers.celery_app:celery beat -l info
+    env_file: .env
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  ws:
+    image: ghcr.io/vladshmalii/adelante-crm-backend:latest
+    command: uvicorn ws.main:app --host 0.0.0.0 --port 8001
+    env_file: .env
+    ports:
+      - "8431:8001"
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  # CI для бота не заводили (не просили) — на проді збирається з сорців,
+  # деплоїться/рестартиться вручну (docker compose -f docker-compose.prod.yml up -d --build bot).
+  bot:
+    build: ./bot
+    env_file: .env
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  ui:
+    image: ghcr.io/vladshmalii/adelante-crm-ui:latest
+    ports:
+      - "3777:3000"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  postgres-master:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: adelante_master
+      POSTGRES_USER: adelante
+      POSTGRES_PASSWORD: ${MASTER_DB_PASSWORD:-adelante}
+    volumes:
+      - master-data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    restart: unless-stopped
+
+  # Один PG-инстанс на все шарды (шард = отдельная database);
+  # при росте нагрузки добавляется второй инстанс, реестр укажет host
+  postgres-shards:
+    image: postgres:17
+    command: postgres -c max_connections=300
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${SHARD_ADMIN_PASSWORD:-postgres}
+    volumes:
+      - shards-data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5433:5432"
+    restart: unless-stopped
+
+  redis:
+    image: redis:7
+    # AOF: Redis — брокер Celery, потеря очереди = потеря уведомлений
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    ports:
+      - "127.0.0.1:6379:6379"
+    restart: unless-stopped
+
+volumes:
+  master-data:
+  shards-data:
+  redis-data:
