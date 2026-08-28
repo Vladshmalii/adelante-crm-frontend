@@ -53,7 +53,7 @@ app.add_middleware(
         "https://adelante.dvms.tech",
         "https://api-adelante.dvms.tech",
         "https://ws-adelante.dvms.tech",
-    ]
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
