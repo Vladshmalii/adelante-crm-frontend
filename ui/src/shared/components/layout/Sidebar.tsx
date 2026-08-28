@@ -4,15 +4,7 @@ import { useState, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import clsx from 'clsx';
-import {
-    Calendar,
-    Users,
-    LayoutDashboard,
-    ChevronLeft,
-    User,
-    Briefcase,
-    Plus,
-} from 'lucide-react';
+import { Calendar, Users, LayoutDashboard, ChevronLeft, User, Briefcase, Plus } from 'lucide-react';
 import { DatePicker } from '@/shared/components/ui/DatePicker';
 import { ThemeToggle } from '@/shared/components/ui/ThemeToggle';
 import { SalonSwitcher } from '@/shared/components/layout/SalonSwitcher';
