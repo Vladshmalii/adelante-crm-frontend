@@ -110,5 +110,5 @@ jobs:
 
             docker compose -f docker-compose.prod.yml pull api worker beat ws
             docker compose -f docker-compose.prod.yml up -d api worker beat ws
-
+ 
             docker image prune -f
