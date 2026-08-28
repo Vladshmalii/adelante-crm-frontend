@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -11,12 +12,15 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
 from app.api.admin.router import router as admin_router
 from app.api.booking.router import router as booking_router
 from app.api.bot.router import router as bot_router
 from app.config import get_settings
 from app.tenancy.registry import EngineRegistry
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -46,6 +50,29 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="Adelante CRM API", lifespan=lifespan)
+
+
+class UnhandledExceptionMiddleware(BaseHTTPMiddleware):
+    """Ловит исключения, не пойманные обработчиками FastAPI (баги, обрывы БД/Redis и т.п.).
+
+    Без этого middleware такое исключение долетает до Starlette ServerErrorMiddleware,
+    которая отдаёт голый текстовый 500 в обход CORSMiddleware (та стоит внутри неё) —
+    браузер видит это как CORS-ошибку, а не как 500. Регистрируется ДО CORSMiddleware,
+    чтобы самому оказаться внутри её обёртки и CORS-заголовки долетали и до 500-х.
+    """
+
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint):
+        try:
+            return await call_next(request)
+        except Exception:
+            logger.exception("Необработанная ошибка: %s %s", request.method, request.url.path)
+            return JSONResponse(
+                status_code=500,
+                content={"message": "Внутренняя ошибка сервера", "code": "internal_error"},
+            )
+
+
+app.add_middleware(UnhandledExceptionMiddleware)
 
 app.add_middleware(
     CORSMiddleware,

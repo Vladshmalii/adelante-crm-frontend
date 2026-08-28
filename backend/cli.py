@@ -18,8 +18,9 @@ from alembic.config import Config as AlembicConfig
 from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, select, text
 
+from app.api import security
 from app.config import get_settings
-from app.models.master import Salon, SalonStatus
+from app.models.master import Administrator, Salon, SalonStatus
 from app.tenancy.registry import CONN_KEY, INVALIDATE_CHANNEL, SLUG_KEY, SalonConnInfo
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -27,8 +28,10 @@ BASE_DIR = Path(__file__).resolve().parent
 app = typer.Typer(help="Управление салонами и миграциями Adelante CRM")
 salon_app = typer.Typer(help="Реестр салонов")
 migrate_app = typer.Typer(help="Alembic-миграции master и шардов")
+administrator_app = typer.Typer(help="Администраторы админ-панели")
 app.add_typer(salon_app, name="salon")
 app.add_typer(migrate_app, name="migrate")
+app.add_typer(administrator_app, name="administrator")
 
 
 def _alembic_cfg(env_name: str) -> AlembicConfig:
@@ -296,6 +299,38 @@ def salon_suspend(slug: str) -> None:
 @salon_app.command("resume")
 def salon_resume(slug: str) -> None:
     _set_status(slug, SalonStatus.ACTIVE)
+
+
+# --- administrator ------------------------------------------------------------
+
+
+@administrator_app.command("create")
+def administrator_create(
+    email: str = typer.Option(...),
+    password: str = typer.Option(..., help="Мин. 8 символов"),
+    first_name: str = typer.Option(...),
+    last_name: str | None = typer.Option(None),
+) -> None:
+    """Создать администратора (первый вход после поднятия проекта — БД пуста, self-service нет)."""
+    if len(password) < 8:
+        typer.secho("Пароль должен быть не короче 8 символов", fg="red")
+        raise typer.Exit(code=1)
+
+    with _master_session() as session:
+        existing = session.scalar(select(Administrator).where(Administrator.email == email))
+        if existing is not None:
+            typer.secho(f"Администратор {email} уже существует (id={existing.id})", fg="yellow")
+            raise typer.Exit(code=1)
+
+        admin = Administrator(
+            email=email,
+            password_hash=security.password_hasher.hash(password),
+            first_name=first_name,
+            last_name=last_name,
+        )
+        session.add(admin)
+        session.commit()
+        typer.secho(f"Администратор {email} создан (id={admin.id})", fg="green")
 
 
 if __name__ == "__main__":
