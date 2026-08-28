@@ -49,7 +49,11 @@ app = FastAPI(title="Adelante CRM API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=get_settings().cors_origins,
+    allow_origins=[
+        "https://adelante.dvms.tech",
+        "https://api-adelante.dvms.tech",
+        "https://ws-adelante.dvms.tech",
+    ]
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
