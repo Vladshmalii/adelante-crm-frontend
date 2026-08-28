@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  IMAGE: ghcr.io/${{ github.repository_owner }}/adelante-crm-ui
+  IMAGE: ghcr.io/vladshmalii/adelante-crm-ui
 
   # Публичные URL прод-бэкенда — вшиваются в клиентский бандл на сборке.
   NEXT_PUBLIC_API_URL: https://api-adelante.dvms.tech/api/admin/v1
