@@ -1,0 +1,8 @@
+export { api, refreshTokens } from './client';
+export { ApiError, errorMessage, unwrap } from './errors';
+export type { components, paths } from './schema.gen';
+
+import type { components } from './schema.gen';
+
+/** Короткий доступ к схемам бекенда: `Schema<'ClientOut'>`. */
+export type Schema<K extends keyof components['schemas']> = components['schemas'][K];
