@@ -45,6 +45,9 @@ export function unwrap<D>(result: FetchResult<D>): D {
 /** Текст для пользователя из любой ошибки мутации/запроса. */
 export function errorMessage(error: unknown) {
   // fetch бросает TypeError, когда запрос не дошёл: нет сети, бекенд лежит, CORS.
-  if (error instanceof TypeError) return "Немає зв'язку з сервером. Спробуйте ще раз.";
+  // Другие TypeError — баги в коде, их текст показываем как есть.
+  if (error instanceof TypeError && /fetch|network|load failed/i.test(error.message)) {
+    return "Немає зв'язку з сервером. Спробуйте ще раз.";
+  }
   return error instanceof Error ? error.message : 'Щось пішло не так';
 }

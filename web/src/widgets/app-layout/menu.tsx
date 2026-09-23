@@ -1,4 +1,10 @@
-import { ScissorOutlined, TeamOutlined, UserOutlined } from '@ant-design/icons';
+import {
+  DashboardOutlined,
+  ScissorOutlined,
+  TeamOutlined,
+  UserOutlined,
+  WalletOutlined,
+} from '@ant-design/icons';
 import type { LinkProps } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
 
@@ -20,4 +26,6 @@ export const menuItems: MenuItem[] = [
   { path: '/clients', name: 'Клієнти', icon: <UserOutlined />, section: 'clients' },
   { path: '/staff', name: 'Співробітники', icon: <TeamOutlined />, section: 'staff' },
   { path: '/services', name: 'Послуги', icon: <ScissorOutlined />, section: 'services' },
+  { path: '/overview', name: 'Огляд', icon: <DashboardOutlined />, section: 'overview' },
+  { path: '/finances', name: 'Фінанси', icon: <WalletOutlined />, section: 'finances' },
 ];

@@ -4,7 +4,7 @@ import type { Schema } from '@/shared/api';
  * Права доступа по ролям — см. docs/ACCESS.md. Здесь только то, что нужно фронту,
  * чтобы спрятать недоступное; настоящие проверки — на бекенде.
  */
-export type Section = 'clients' | 'staff' | 'services' | 'finances';
+export type Section = 'clients' | 'staff' | 'services' | 'overview' | 'finances';
 
 export interface Viewer {
   id: string;
@@ -34,6 +34,7 @@ const SECTIONS: Record<Section, (v: Viewer) => boolean> = {
   clients: () => true,
   staff: (v) => v.isAdmin,
   services: (v) => v.isAdmin,
+  overview: (v) => v.isAdmin,
   finances: (v) => v.isSuperuser,
 };
 

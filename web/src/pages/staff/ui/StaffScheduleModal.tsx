@@ -150,7 +150,7 @@ function Exceptions({ staffId, exceptions }: { staffId: string; exceptions: Exce
 }
 
 interface ExceptionValues {
-  dates: [string, string];
+  dates: [Dayjs, Dayjs];
   type: Schema<'ScheduleExceptionType'>;
   time?: [Dayjs, Dayjs] | null;
   comment?: string;
@@ -170,15 +170,16 @@ function ExceptionForm(props: {
       width={480}
       open={props.open}
       onOpenChange={props.onOpenChange}
-      dateFormatter="string"
+      // Даты и время нужны как Dayjs — форматируем сами (иначе ProForm превратит время в дату).
+      dateFormatter={false}
       modalProps={{ destroyOnHidden: true }}
       initialValues={{ type: 'vacation' }}
       submitter={{ searchConfig: { submitText: 'Додати', resetText: 'Скасувати' } }}
       onFinish={async ({ dates, type, time: range, comment }) => {
         try {
           await add.mutateAsync({
-            dateFrom: dates[0],
-            dateTo: dates[1],
+            dateFrom: dates[0].format('YYYY-MM-DD'),
+            dateTo: dates[1].format('YYYY-MM-DD'),
             type,
             start: range?.[0].format('HH:mm') ?? null,
             end: range?.[1].format('HH:mm') ?? null,

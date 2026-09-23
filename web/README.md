@@ -13,7 +13,8 @@
 | Клиентское состояние     | Zustand (сессия, UI-настройки)                                                                       |
 | HTTP                     | `openapi-fetch` + типы, сгенерированные из OpenAPI бекенда                                           |
 | Валидация URL-параметров | zod                                                                                                  |
-| Даты                     | dayjs (локаль `uk`)                                                                                  |
+| Даты                     | dayjs (локаль `uk`), всё время — в поясе салона `Europe/Kyiv` (`shared/lib/date.ts`)                 |
+| Графики                  | `@ant-design/plots` (только в чанке страницы «Фінанси»)                                              |
 | Качество                 | TypeScript strict, ESLint 10 (typescript-eslint strict, react-hooks, TanStack, boundaries), Prettier |
 | Тесты                    | Vitest + Testing Library (jsdom)                                                                     |
 
@@ -94,7 +95,8 @@ src/
 3. Проверка прав в `beforeLoad`: `requireSection(context.viewer, '<section>')`.
 4. Пункт меню в `src/widgets/app-layout/menu.tsx` (с тем же `section`).
 
-Готовые страницы — образцы для следующих: `pages/clients`, `pages/staff`, `pages/services`.
+Готовые страницы — образцы для следующих: `pages/clients`, `pages/staff`, `pages/services`,
+`pages/overview` (вкладки в URL), `pages/finances` (вкладки, общий период, графики).
 Состояние таблицы (страница, поиск, фильтры, открытая карточка) хранится в URL и валидируется
 zod, данные грузятся в loader роута и через `useQuery` в компоненте, формы — `ModalForm`.
 

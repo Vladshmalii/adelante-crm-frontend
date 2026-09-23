@@ -10,10 +10,11 @@ import { useQuery } from '@tanstack/react-query';
 import { App, AutoComplete } from 'antd';
 
 import { errorMessage, type Schema } from '@/shared/api';
+import { staffOptions, staffRefQueryOptions } from '@/shared/refs';
 import { ColorInput } from '@/shared/ui';
 
 import { useCreateService, useUpdateService } from '../api/services.mutations';
-import { activeMastersQueryOptions, serviceCategoriesQueryOptions } from '../api/services.queries';
+import { serviceCategoriesQueryOptions } from '../api/services.queries';
 import { categoryOptions, statusLabels } from '../model/labels';
 
 type Service = Schema<'app__api__admin__services__ServiceOut'>;
@@ -31,7 +32,7 @@ export function ServiceFormModal({ open, onOpenChange, service }: ServiceFormMod
   const update = useUpdateService();
   const { data: categories = [] } = useQuery({ ...serviceCategoriesQueryOptions(), enabled: open });
   const { data: masters = [], isPending: mastersLoading } = useQuery({
-    ...activeMastersQueryOptions(),
+    ...staffRefQueryOptions('master'),
     enabled: open,
   });
 
@@ -114,10 +115,7 @@ export function ServiceFormModal({ open, onOpenChange, service }: ServiceFormMod
         mode="multiple"
         colProps={{ span: 24 }}
         fieldProps={{ loading: mastersLoading, optionFilterProp: 'label' }}
-        options={masters.map((m) => ({
-          value: m.id,
-          label: [m.lastName, m.firstName].filter(Boolean).join(' '),
-        }))}
+        options={staffOptions(masters)}
       />
       <ProFormTextArea name="description" label="Опис" colProps={{ span: 24 }} />
       <ProForm.Item name="color" label="Колір">

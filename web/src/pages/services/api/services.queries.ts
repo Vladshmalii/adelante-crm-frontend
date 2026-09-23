@@ -25,17 +25,3 @@ export const serviceCategoriesQueryOptions = () =>
       unwrap(await api.GET('/api/admin/v1/services/categories', { signal })).data,
     staleTime: 5 * 60_000,
   });
-
-/** Активные мастера — кто может выполнять услугу. */
-export const activeMastersQueryOptions = () =>
-  queryOptions({
-    queryKey: ['staff', 'active-masters'] as const,
-    queryFn: async ({ signal }) =>
-      unwrap(
-        await api.GET('/api/admin/v1/staff', {
-          params: { query: { role: 'master', status: 'active', perPage: 200 } },
-          signal,
-        }),
-      ).data,
-    staleTime: 5 * 60_000,
-  });

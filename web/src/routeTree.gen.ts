@@ -13,7 +13,9 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppClientsRouteImport } from './routes/_app/clients'
+import { Route as AppFinancesRouteImport } from './routes/_app/finances'
 import { Route as AppForbiddenRouteImport } from './routes/_app/forbidden'
+import { Route as AppOverviewRouteImport } from './routes/_app/overview'
 import { Route as AppServicesRouteImport } from './routes/_app/services'
 import { Route as AppStaffRouteImport } from './routes/_app/staff'
 
@@ -36,9 +38,19 @@ const AppClientsRoute = AppClientsRouteImport.update({
   path: '/clients',
   getParentRoute: () => AppRoute,
 } as any)
+const AppFinancesRoute = AppFinancesRouteImport.update({
+  id: '/finances',
+  path: '/finances',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppForbiddenRoute = AppForbiddenRouteImport.update({
   id: '/forbidden',
   path: '/forbidden',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppOverviewRoute = AppOverviewRouteImport.update({
+  id: '/overview',
+  path: '/overview',
   getParentRoute: () => AppRoute,
 } as any)
 const AppServicesRoute = AppServicesRouteImport.update({
@@ -56,14 +68,18 @@ export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/login': typeof LoginRoute
   '/clients': typeof AppClientsRoute
+  '/finances': typeof AppFinancesRoute
   '/forbidden': typeof AppForbiddenRoute
+  '/overview': typeof AppOverviewRoute
   '/services': typeof AppServicesRoute
   '/staff': typeof AppStaffRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/clients': typeof AppClientsRoute
+  '/finances': typeof AppFinancesRoute
   '/forbidden': typeof AppForbiddenRoute
+  '/overview': typeof AppOverviewRoute
   '/services': typeof AppServicesRoute
   '/staff': typeof AppStaffRoute
   '/': typeof AppIndexRoute
@@ -73,22 +89,42 @@ export interface FileRoutesById {
   '/_app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
   '/_app/clients': typeof AppClientsRoute
+  '/_app/finances': typeof AppFinancesRoute
   '/_app/forbidden': typeof AppForbiddenRoute
+  '/_app/overview': typeof AppOverviewRoute
   '/_app/services': typeof AppServicesRoute
   '/_app/staff': typeof AppStaffRoute
   '/_app/': typeof AppIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/clients' | '/forbidden' | '/services' | '/staff'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/clients'
+    | '/finances'
+    | '/forbidden'
+    | '/overview'
+    | '/services'
+    | '/staff'
   fileRoutesByTo: FileRoutesByTo
-  to: '/login' | '/clients' | '/forbidden' | '/services' | '/staff' | '/'
+  to:
+    | '/login'
+    | '/clients'
+    | '/finances'
+    | '/forbidden'
+    | '/overview'
+    | '/services'
+    | '/staff'
+    | '/'
   id:
     | '__root__'
     | '/_app'
     | '/login'
     | '/_app/clients'
+    | '/_app/finances'
     | '/_app/forbidden'
+    | '/_app/overview'
     | '/_app/services'
     | '/_app/staff'
     | '/_app/'
@@ -129,11 +165,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppClientsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/finances': {
+      id: '/_app/finances'
+      path: '/finances'
+      fullPath: '/finances'
+      preLoaderRoute: typeof AppFinancesRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/forbidden': {
       id: '/_app/forbidden'
       path: '/forbidden'
       fullPath: '/forbidden'
       preLoaderRoute: typeof AppForbiddenRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/overview': {
+      id: '/_app/overview'
+      path: '/overview'
+      fullPath: '/overview'
+      preLoaderRoute: typeof AppOverviewRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/services': {
@@ -155,7 +205,9 @@ declare module '@tanstack/react-router' {
 
 interface AppRouteChildren {
   AppClientsRoute: typeof AppClientsRoute
+  AppFinancesRoute: typeof AppFinancesRoute
   AppForbiddenRoute: typeof AppForbiddenRoute
+  AppOverviewRoute: typeof AppOverviewRoute
   AppServicesRoute: typeof AppServicesRoute
   AppStaffRoute: typeof AppStaffRoute
   AppIndexRoute: typeof AppIndexRoute
@@ -163,7 +215,9 @@ interface AppRouteChildren {
 
 const AppRouteChildren: AppRouteChildren = {
   AppClientsRoute: AppClientsRoute,
+  AppFinancesRoute: AppFinancesRoute,
   AppForbiddenRoute: AppForbiddenRoute,
+  AppOverviewRoute: AppOverviewRoute,
   AppServicesRoute: AppServicesRoute,
   AppStaffRoute: AppStaffRoute,
   AppIndexRoute: AppIndexRoute,
