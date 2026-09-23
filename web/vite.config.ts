@@ -6,7 +6,7 @@ import { loadEnv } from 'vite';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig(({ mode }) => {
-  const { API_PROXY_TARGET } = loadEnv(mode, process.cwd(), '');
+  const { API_PROXY_TARGET, WS_PROXY_TARGET } = loadEnv(mode, process.cwd(), '');
   return {
     plugins: [
       // Должен идти до плагина React: генерирует src/routeTree.gen.ts из src/routes.
@@ -20,9 +20,12 @@ export default defineConfig(({ mode }) => {
       port: 5173,
       // Локально ходим в бекенд через прокси dev-сервера: запросы same-origin, CORS не нужен.
       // В .env.local: API_PROXY_TARGET=http://localhost:8000 и VITE_API_URL=http://localhost:5173
-      proxy: API_PROXY_TARGET
-        ? { '/api': { target: API_PROXY_TARGET, changeOrigin: true } }
-        : undefined,
+      proxy: {
+        ...(API_PROXY_TARGET && { '/api': { target: API_PROXY_TARGET, changeOrigin: true } }),
+        ...(WS_PROXY_TARGET && {
+          '/ws': { target: WS_PROXY_TARGET, ws: true, changeOrigin: true },
+        }),
+      },
     },
     // antd + pro-components весят ~1 МБ; для админки за логином это нормально.
     build: { chunkSizeWarningLimit: 1200 },

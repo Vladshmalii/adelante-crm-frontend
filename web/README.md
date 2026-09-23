@@ -36,6 +36,9 @@ Vite. В `.env.local`:
 ```bash
 VITE_API_URL=http://localhost:5173
 API_PROXY_TARGET=http://localhost:8000
+# уведомления в реальном времени (сервис ws/ бекенда); без них колокольчик просто пустой
+VITE_WS_URL=ws://localhost:5173/ws
+WS_PROXY_TARGET=http://localhost:8001
 ```
 
 ## Скрипты
@@ -130,8 +133,12 @@ zod, данные грузятся в loader роута и через `useQuery`
 
 ```bash
 docker build -t adelante-web .
-docker run -p 8080:80 -e API_URL=https://api-adelante.dvms.tech adelante-web
+docker run -p 8080:80 \
+  -e API_URL=https://api-adelante.dvms.tech \
+  -e WS_URL=wss://ws-adelante.dvms.tech/ws \
+  adelante-web
 ```
 
-Статика отдаётся nginx. `API_URL` читается при старте контейнера (`/config.js`),
-поэтому один образ подходит для любого окружения — пересобирать под каждый бекенд не нужно.
+Статика отдаётся nginx. `API_URL` и `WS_URL` читаются при старте контейнера (`/config.js`),
+поэтому один образ подходит для любого окружения. Без `WS_URL`
+уведомления в реальном времени выключены — пересобирать под каждый бекенд не нужно.

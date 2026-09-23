@@ -1,13 +1,16 @@
-import { LogoutOutlined, MoonOutlined, SunOutlined } from '@ant-design/icons';
+import { LogoutOutlined, MoonOutlined, SunOutlined, UserOutlined } from '@ant-design/icons';
 import { ProLayout } from '@ant-design/pro-components';
 import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
-import { Link, type LinkProps, useLocation } from '@tanstack/react-router';
+import { Link, type LinkProps, useLocation, useNavigate } from '@tanstack/react-router';
 import { Button, Dropdown, Select } from 'antd';
 import type { ReactNode } from 'react';
 
 import { canAccess, meQueryOptions, useViewer } from '@/shared/auth';
 import { usePreferencesStore } from '@/shared/preferences';
 import { useSessionStore } from '@/shared/session';
+import { NotificationsBell } from '@/widgets/notifications';
+
+import { GlobalSearch } from './GlobalSearch';
 
 import { menuItems } from './menu';
 
@@ -19,6 +22,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
     .filter((item) => canAccess(viewer, item.section))
     .map(({ path, name, icon }) => ({ path, name, icon }));
   const pathname = useLocation({ select: (l) => l.pathname });
+  const navigate = useNavigate();
 
   const { themeMode, toggleTheme, siderCollapsed, setSiderCollapsed } = usePreferencesStore();
   const salonId = useSessionStore((s) => s.salonId);
@@ -46,6 +50,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
         item.path ? <Link to={item.path as LinkProps['to']}>{dom}</Link> : dom
       }
       actionsRender={() => [
+        <GlobalSearch key="search" />,
+        <NotificationsBell key="bell" />,
         me.salons.length > 1 && (
           <Select
             key="salon"
@@ -71,7 +77,16 @@ export function AppLayout({ children }: { children: ReactNode }) {
         render: (_, avatar) => (
           <Dropdown
             menu={{
-              items: [{ key: 'logout', icon: <LogoutOutlined />, label: 'Вийти', onClick: logout }],
+              items: [
+                {
+                  key: 'profile',
+                  icon: <UserOutlined />,
+                  label: 'Мій профіль',
+                  onClick: () => void navigate({ to: '/profile' }),
+                },
+                { type: 'divider' },
+                { key: 'logout', icon: <LogoutOutlined />, label: 'Вийти', onClick: logout },
+              ],
             }}
           >
             {avatar}

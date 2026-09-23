@@ -10,12 +10,15 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/_app'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppClientsRouteImport } from './routes/_app/clients'
 import { Route as AppFinancesRouteImport } from './routes/_app/finances'
 import { Route as AppForbiddenRouteImport } from './routes/_app/forbidden'
 import { Route as AppOverviewRouteImport } from './routes/_app/overview'
+import { Route as AppProfileRouteImport } from './routes/_app/profile'
 import { Route as AppServicesRouteImport } from './routes/_app/services'
 import { Route as AppStaffRouteImport } from './routes/_app/staff'
 
@@ -23,9 +26,19 @@ const AppRoute = AppRouteImport.update({
   id: '/_app',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppIndexRoute = AppIndexRouteImport.update({
@@ -53,6 +66,11 @@ const AppOverviewRoute = AppOverviewRouteImport.update({
   path: '/overview',
   getParentRoute: () => AppRoute,
 } as any)
+const AppProfileRoute = AppProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppServicesRoute = AppServicesRouteImport.update({
   id: '/services',
   path: '/services',
@@ -66,20 +84,26 @@ const AppStaffRoute = AppStaffRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/clients': typeof AppClientsRoute
   '/finances': typeof AppFinancesRoute
   '/forbidden': typeof AppForbiddenRoute
   '/overview': typeof AppOverviewRoute
+  '/profile': typeof AppProfileRoute
   '/services': typeof AppServicesRoute
   '/staff': typeof AppStaffRoute
 }
 export interface FileRoutesByTo {
+  '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/clients': typeof AppClientsRoute
   '/finances': typeof AppFinancesRoute
   '/forbidden': typeof AppForbiddenRoute
   '/overview': typeof AppOverviewRoute
+  '/profile': typeof AppProfileRoute
   '/services': typeof AppServicesRoute
   '/staff': typeof AppStaffRoute
   '/': typeof AppIndexRoute
@@ -87,11 +111,14 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
+  '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/_app/clients': typeof AppClientsRoute
   '/_app/finances': typeof AppFinancesRoute
   '/_app/forbidden': typeof AppForbiddenRoute
   '/_app/overview': typeof AppOverviewRoute
+  '/_app/profile': typeof AppProfileRoute
   '/_app/services': typeof AppServicesRoute
   '/_app/staff': typeof AppStaffRoute
   '/_app/': typeof AppIndexRoute
@@ -100,31 +127,40 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/forgot-password'
     | '/login'
+    | '/reset-password'
     | '/clients'
     | '/finances'
     | '/forbidden'
     | '/overview'
+    | '/profile'
     | '/services'
     | '/staff'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/forgot-password'
     | '/login'
+    | '/reset-password'
     | '/clients'
     | '/finances'
     | '/forbidden'
     | '/overview'
+    | '/profile'
     | '/services'
     | '/staff'
     | '/'
   id:
     | '__root__'
     | '/_app'
+    | '/forgot-password'
     | '/login'
+    | '/reset-password'
     | '/_app/clients'
     | '/_app/finances'
     | '/_app/forbidden'
     | '/_app/overview'
+    | '/_app/profile'
     | '/_app/services'
     | '/_app/staff'
     | '/_app/'
@@ -132,7 +168,9 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
+  ForgotPasswordRoute: typeof ForgotPasswordRoute
   LoginRoute: typeof LoginRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -144,11 +182,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app/': {
@@ -186,6 +238,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppOverviewRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/profile': {
+      id: '/_app/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof AppProfileRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/services': {
       id: '/_app/services'
       path: '/services'
@@ -208,6 +267,7 @@ interface AppRouteChildren {
   AppFinancesRoute: typeof AppFinancesRoute
   AppForbiddenRoute: typeof AppForbiddenRoute
   AppOverviewRoute: typeof AppOverviewRoute
+  AppProfileRoute: typeof AppProfileRoute
   AppServicesRoute: typeof AppServicesRoute
   AppStaffRoute: typeof AppStaffRoute
   AppIndexRoute: typeof AppIndexRoute
@@ -218,6 +278,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppFinancesRoute: AppFinancesRoute,
   AppForbiddenRoute: AppForbiddenRoute,
   AppOverviewRoute: AppOverviewRoute,
+  AppProfileRoute: AppProfileRoute,
   AppServicesRoute: AppServicesRoute,
   AppStaffRoute: AppStaffRoute,
   AppIndexRoute: AppIndexRoute,
@@ -227,7 +288,9 @@ const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
+  ForgotPasswordRoute: ForgotPasswordRoute,
   LoginRoute: LoginRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

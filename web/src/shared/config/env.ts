@@ -7,6 +7,8 @@
  */
 interface RuntimeConfig {
   API_URL?: string;
+  /** Адрес WebSocket-сервиса уведомлений (`wss://…/ws`). Пусто — уведомления в реальном времени выключены. */
+  WS_URL?: string;
 }
 
 declare global {
@@ -23,5 +25,6 @@ const nonEmpty = (value: string | undefined) => (value === '' ? undefined : valu
 export const env = {
   apiUrl:
     nonEmpty(runtime.API_URL) ?? nonEmpty(import.meta.env.VITE_API_URL) ?? 'http://localhost:8000',
+  wsUrl: nonEmpty(runtime.WS_URL) ?? nonEmpty(import.meta.env.VITE_WS_URL) ?? '',
   isDev: import.meta.env.DEV,
 } as const;

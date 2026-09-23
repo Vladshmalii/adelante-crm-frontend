@@ -1,6 +1,6 @@
 import { LockOutlined, MailOutlined } from '@ant-design/icons';
 import { LoginForm, ProFormText } from '@ant-design/pro-components';
-import { useNavigate } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { Alert, Flex } from 'antd';
 
 import { errorMessage } from '@/shared/api';
@@ -54,6 +54,9 @@ export function LoginPage({ redirectTo }: LoginPageProps) {
           placeholder="Пароль"
           rules={[{ required: true, message: 'Вкажіть пароль' }]}
         />
+        <div style={{ textAlign: 'right', marginBottom: 24 }}>
+          <Link to="/forgot-password">Забули пароль?</Link>
+        </div>
       </LoginForm>
     </Flex>
   );
