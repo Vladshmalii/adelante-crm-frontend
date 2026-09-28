@@ -1,12 +1,13 @@
 import { createFileRoute } from '@tanstack/react-router';
 
-import { StaffPage, staffListQueryOptions, staffSearchSchema } from '@/pages/staff';
+import { StaffPage, staffListQueryOptions, staffSearchSchema, toListParams } from '@/pages/staff';
 
 import { requireSection } from '../-lib/guard';
 
 export const Route = createFileRoute('/_app/staff')({
   validateSearch: staffSearchSchema,
-  loaderDeps: ({ search }) => search,
+  // Открытие карточки (`id`) не перезагружает список.
+  loaderDeps: ({ search }) => toListParams(search),
   beforeLoad: ({ context }) => {
     requireSection(context.viewer, 'staff');
   },

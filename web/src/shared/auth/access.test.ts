@@ -4,20 +4,30 @@ import type { Schema } from '@/shared/api';
 
 import { canAccess, permissions, toViewer } from './access';
 
-const me = (role: Schema<'Role'>, extra: object = {}) =>
-  ({
-    id: 'u1',
-    firstName: 'Test',
-    lastName: null,
-    name: 'Test',
-    email: null,
-    phone: null,
-    avatarUrl: null,
-    role,
-    createdAt: '2026-01-01T00:00:00Z',
-    salons: [],
-    ...extra,
-  }) satisfies Schema<'MeOut'>;
+const me = (role: Schema<'Role'>, extra: Partial<Schema<'MeOut'>> = {}): Schema<'MeOut'> => ({
+  id: 'u1',
+  firstName: 'Test',
+  middleName: null,
+  lastName: null,
+  name: 'Test',
+  email: null,
+  phone: null,
+  additionalPhone: null,
+  gender: null,
+  birthDate: null,
+  avatarUrl: null,
+  address: null,
+  emergencyContactName: null,
+  emergencyContactPhone: null,
+  telegramLinked: false,
+  role,
+  isSuperuser: false,
+  timezone: 'Europe/Kyiv',
+  createdAt: '2026-01-01T00:00:00Z',
+  salons: [],
+  profile: null,
+  ...extra,
+});
 
 describe('права доступа (docs/ACCESS.md)', () => {
   it('мастер видит только клиентов', () => {
@@ -26,7 +36,12 @@ describe('права доступа (docs/ACCESS.md)', () => {
     expect(canAccess(v, 'staff')).toBe(false);
     expect(canAccess(v, 'services')).toBe(false);
     expect(canAccess(v, 'finances')).toBe(false);
-    expect(permissions(v).clients).toMatchObject({ create: true, edit: false, delete: false });
+    expect(permissions(v).clients).toMatchObject({
+      create: false,
+      createInRecord: true,
+      edit: false,
+      delete: false,
+    });
   });
 
   it('администратор — всё, кроме финансов и выгрузок', () => {

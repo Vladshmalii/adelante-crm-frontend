@@ -22,6 +22,7 @@ export const recordsParams = (s: OverviewSearch) => {
     createdFrom: created.dateFrom,
     createdTo: created.dateTo,
     masterId: s.masterId,
+    withoutMaster: s.withoutMaster,
     status: s.status,
     source: s.source,
     paymentStatus: s.paymentStatus,

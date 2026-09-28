@@ -29,11 +29,9 @@ export interface paths {
         put?: never;
         /**
          * Forgot Password
-         * @description Выдаёт одноразовый токен сброса (TTL 1 час).
+         * @description Выдаёт одноразовый токен сброса (TTL 1 час) и отправляет письмо со ссылкой.
          *
-         *     Отправка письма не подключена: токен пишется в лог — при интеграции SMTP
-         *     заменить logger на отправку. Ответ всегда 204, чтобы не раскрывать,
-         *     существует ли email.
+         *     Ответ всегда 204, чтобы не раскрывать, существует ли email.
          */
         post: operations["forgot_password_api_admin_v1_auth_forgot_password_post"];
         delete?: never;
@@ -73,7 +71,8 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /** Patch Me */
+        patch: operations["patch_me_api_admin_v1_auth_me_patch"];
         trace?: never;
     };
     "/api/admin/v1/auth/refresh": {
@@ -85,7 +84,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Refresh */
+        /**
+         * Refresh
+         * @description Новая пара токенов. Роль, салоны и is_superuser перечитываются из БД —
+         *     увольнение и снятие прав вступают в силу не позже срока жизни access-токена.
+         */
         post: operations["refresh_api_admin_v1_auth_refresh_post"];
         delete?: never;
         options?: never;
@@ -157,7 +160,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Client Visits */
+        /**
+         * Client Visits
+         * @description История визитов клиента в салоне (мастеру — только по своим клиентам).
+         */
         get: operations["client_visits_api_admin_v1_clients__client_id__visits_get"];
         put?: never;
         post?: never;
@@ -382,7 +388,7 @@ export interface paths {
         put?: never;
         /**
          * Create Receipt
-         * @description Ручной чек (продажа без записи) — операции создаются на каждую оплату.
+         * @description Чек: ручная продажа или (с recordId) оплата визита. Операции — на каждую оплату.
          */
         post: operations["create_receipt_api_admin_v1_finances_receipts_post"];
         delete?: never;
@@ -402,7 +408,7 @@ export interface paths {
         put?: never;
         /**
          * Cancel Receipt
-         * @description Отмена чека: сам чек и связанные операции переводятся в cancelled.
+         * @description Отмена чека: чек и связанные операции — cancelled; запись чека снова не оплачена.
          */
         post: operations["cancel_receipt_api_admin_v1_finances_receipts__receipt_id__cancel_post"];
         delete?: never;
@@ -418,7 +424,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Master Slots */
+        /**
+         * Master Slots
+         * @description Свободное время мастера на дату под набор услуг (длительность — сумма).
+         */
         get: operations["master_slots_api_admin_v1_masters__master_id__slots_get"];
         put?: never;
         post?: never;
@@ -473,8 +482,31 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Complete Record */
+        /**
+         * Complete Record
+         * @description Завершение визита — без оплаты: запись получает completed + unpaid.
+         */
         post: operations["complete_record_api_admin_v1_records__record_id__complete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/records/{record_id}/payment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pay Record
+         * @description Оплата завершённого визита: чек с recordId на полную сумму (администратор).
+         */
+        post: operations["pay_record_api_admin_v1_records__record_id__payment_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -596,12 +628,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** Get Staff */
+        get: operations["get_staff_api_admin_v1_staff__staff_id__get"];
         put?: never;
         post?: never;
         /**
          * Fire Staff
-         * @description Увольнение (status=fired). 409, если у мастера есть будущие записи.
+         * @description Увольнение из салона. 409, если у мастера есть будущие записи.
          */
         delete: operations["fire_staff_api_admin_v1_staff__staff_id__delete"];
         options?: never;
@@ -645,6 +678,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/v1/staff/{staff_id}/schedule/exceptions/{exception_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Exception */
+        delete: operations["delete_exception_api_admin_v1_staff__staff_id__schedule_exceptions__exception_id__delete"];
+        options?: never;
+        head?: never;
+        /** Patch Exception */
+        patch: operations["patch_exception_api_admin_v1_staff__staff_id__schedule_exceptions__exception_id__patch"];
+        trace?: never;
+    };
     "/api/admin/v1/staff/{staff_id}/stats": {
         parameters: {
             query?: never;
@@ -654,6 +705,26 @@ export interface paths {
         };
         /** Staff Stats */
         get: operations["staff_stats_api_admin_v1_staff__staff_id__stats_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/staff/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Staff
+         * @description Excel-выгрузка сотрудников салона (суперюзер).
+         */
+        get: operations["export_staff_api_admin_v1_staff_export_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -673,6 +744,40 @@ export interface paths {
         put?: never;
         /** Upload File */
         post: operations["upload_file_api_admin_v1_uploads_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/booking/{salon_slug}/availability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Availability */
+        get: operations["availability_api_booking__salon_slug__availability_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/booking/{salon_slug}/masters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Masters */
+        get: operations["list_masters_api_booking__salon_slug__masters_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -716,6 +821,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/booking/{salon_slug}/salon": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Salon */
+        get: operations["get_salon_api_booking__salon_slug__salon_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/booking/{salon_slug}/services": {
         parameters: {
             query?: never;
@@ -723,8 +845,28 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Services */
+        /**
+         * List Services
+         * @description Активные услуги, которые выполняет хотя бы один мастер.
+         */
         get: operations["list_services_api_booking__salon_slug__services_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/booking/{salon_slug}/slots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Slots */
+        get: operations["list_slots_api_booking__salon_slug__slots_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -744,7 +886,8 @@ export interface paths {
         put?: never;
         /**
          * Link Client Telegram
-         * @description Привязывает telegram_user_id к клиенту по телефону (шаг онбординга в боте).
+         * @deprecated
+         * @description Устарело: используйте POST /api/bot/link-telegram.
          */
         post: operations["link_client_telegram_api_bot_clients_link_telegram_post"];
         delete?: never;
@@ -765,6 +908,70 @@ export interface paths {
          * @description Определяет, кто пишет боту, по telegram_user_id (только Master DB).
          */
         get: operations["identify_api_bot_identify_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/bot/link-telegram": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Link Telegram
+         * @description Привязывает Telegram по телефону из контакта (бот проверяет, что контакт свой).
+         *
+         *     Привязываются все совпадения — администратор, мастер, клиент: мастер,
+         *     который сам записывается как клиент, получает и уведомления мастера, и
+         *     напоминания. Ответ — как у /identify (старшая роль).
+         */
+        post: operations["link_telegram_api_bot_link_telegram_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/bot/masters/records": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Master Records
+         * @description Записи мастера на дату (по Киеву) во всех его салонах, кроме отменённых.
+         */
+        get: operations["master_records_api_bot_masters_records_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/bot/salons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Salons
+         * @description Активные салоны со ссылками на сайт записи — бот ведёт туда клиентов.
+         */
+        get: operations["list_salons_api_bot_salons_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -794,6 +1001,28 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** SalonOut */
+        app__api__admin__auth__SalonOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
+        };
+        /** SlotOut */
+        app__api__admin__records__SlotOut: {
+            /** Label */
+            label: string;
+            /**
+             * Startat
+             * Format: date-time
+             */
+            startAt: string;
+        };
         /** ServiceOut */
         app__api__admin__services__ServiceOut: {
             /** Category */
@@ -817,6 +1046,20 @@ export interface components {
             price: string;
             status: components["schemas"]["ServiceStatus"];
         };
+        /** SalonOut */
+        app__api__booking__router__SalonOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
+            /** Timezone */
+            timezone: string;
+        };
         /** ServiceOut */
         app__api__booking__router__ServiceOut: {
             /** Category */
@@ -836,6 +1079,18 @@ export interface components {
             name: string;
             /** Price */
             price: string;
+        };
+        /** SlotOut */
+        app__api__booking__router__SlotOut: {
+            /** Label */
+            label: string;
+            /** Master Ids */
+            master_ids: string[];
+            /**
+             * Start At
+             * Format: date-time
+             */
+            start_at: string;
         };
         /**
          * AuditAction
@@ -867,6 +1122,11 @@ export interface components {
              */
             id: string;
         };
+        /** AvailabilityOut */
+        AvailabilityOut: {
+            /** Dates */
+            dates: string[];
+        };
         /** Body_import_clients_api_admin_v1_clients_import_post */
         Body_import_clients_api_admin_v1_clients_import_post: {
             /** File */
@@ -885,11 +1145,8 @@ export interface components {
             client_phone: string;
             /** Comment */
             comment?: string | null;
-            /**
-             * Master Id
-             * Format: uuid
-             */
-            master_id: string;
+            /** Master Id */
+            master_id?: string | null;
             /**
              * Service Id
              * Format: uuid
@@ -908,13 +1165,22 @@ export interface components {
              * Format: date-time
              */
             end_at: string;
+            /**
+             * Master Id
+             * Format: uuid
+             */
+            master_id: string;
             /** Master Name */
             master_name: string;
+            /** Price */
+            price: string;
             /**
              * Record Id
              * Format: uuid
              */
             record_id: string;
+            /** Service Name */
+            service_name: string;
             /**
              * Start At
              * Format: date-time
@@ -1127,8 +1393,6 @@ export interface components {
         CompleteIn: {
             /** Notes */
             notes?: string | null;
-            /** Payments */
-            payments?: components["schemas"]["PaymentIn"][];
             /** Photourls */
             photoUrls?: string[];
         };
@@ -1350,7 +1614,7 @@ export interface components {
         /** Envelope[list[SlotOut]] */
         Envelope_list_SlotOut__: {
             /** Data */
-            data: components["schemas"]["SlotOut"][];
+            data: components["schemas"]["app__api__admin__records__SlotOut"][];
             meta?: components["schemas"]["PageMeta"] | null;
         };
         /** Envelope[list[StaffOut]] */
@@ -1393,6 +1657,11 @@ export interface components {
         /** Envelope[RecordOut] */
         Envelope_RecordOut_: {
             data: components["schemas"]["RecordOut"];
+            meta?: components["schemas"]["PageMeta"] | null;
+        };
+        /** Envelope[RecordPaymentOut] */
+        Envelope_RecordPaymentOut_: {
+            data: components["schemas"]["RecordPaymentOut"];
             meta?: components["schemas"]["PageMeta"] | null;
         };
         /** Envelope[ScheduleOut] */
@@ -1475,6 +1744,20 @@ export interface components {
             start?: string | null;
             type: components["schemas"]["ScheduleExceptionType"];
         };
+        /** ExceptionPatchIn */
+        ExceptionPatchIn: {
+            /** Comment */
+            comment?: string | null;
+            /** Datefrom */
+            dateFrom?: string | null;
+            /** Dateto */
+            dateTo?: string | null;
+            /** End */
+            end?: string | null;
+            /** Start */
+            start?: string | null;
+            type?: components["schemas"]["ScheduleExceptionType"] | null;
+        };
         /** ForgotPasswordIn */
         ForgotPasswordIn: {
             /**
@@ -1532,8 +1815,8 @@ export interface components {
             /** Updated */
             updated: number;
         };
-        /** LinkClientRequest */
-        LinkClientRequest: {
+        /** LinkTelegramRequest */
+        LinkTelegramRequest: {
             /** Phone */
             phone: string;
             /** Telegram User Id */
@@ -1549,6 +1832,61 @@ export interface components {
             /** Password */
             password: string;
         };
+        /** MasterDayOut */
+        MasterDayOut: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Master Name */
+            master_name: string;
+            /** Salons */
+            salons: components["schemas"]["SalonRecordsOut"][];
+        };
+        /** MasterOut */
+        MasterOut: {
+            /** Avatar Url */
+            avatar_url: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Specializations */
+            specializations: string[];
+        };
+        /** MasterRecordOut */
+        MasterRecordOut: {
+            /** Client Name */
+            client_name: string;
+            /** Client Phone */
+            client_phone: string;
+            /** Comment */
+            comment: string | null;
+            /**
+             * End At
+             * Format: date-time
+             */
+            end_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Services */
+            services: string[];
+            /**
+             * Start At
+             * Format: date-time
+             */
+            start_at: string;
+            status: components["schemas"]["RecordStatus"];
+            /** Visitor Name */
+            visitor_name: string | null;
+        };
         /** MasterRef */
         MasterRef: {
             /** Color */
@@ -1563,8 +1901,14 @@ export interface components {
         };
         /** MeOut */
         MeOut: {
+            /** Additionalphone */
+            additionalPhone: string | null;
+            /** Address */
+            address: string | null;
             /** Avatarurl */
             avatarUrl: string | null;
+            /** Birthdate */
+            birthDate: string | null;
             /**
              * Createdat
              * Format: date-time
@@ -1572,22 +1916,54 @@ export interface components {
             createdAt: string;
             /** Email */
             email: string | null;
+            /** Emergencycontactname */
+            emergencyContactName: string | null;
+            /** Emergencycontactphone */
+            emergencyContactPhone: string | null;
             /** Firstname */
             firstName: string;
+            gender: components["schemas"]["Gender"] | null;
             /**
              * Id
              * Format: uuid
              */
             id: string;
+            /** Issuperuser */
+            isSuperuser: boolean;
             /** Lastname */
             lastName: string | null;
+            /** Middlename */
+            middleName: string | null;
             /** Name */
             name: string;
             /** Phone */
             phone: string | null;
+            profile?: components["schemas"]["SalonProfileOut"] | null;
             role: components["schemas"]["Role"];
             /** Salons */
-            salons: components["schemas"]["SalonOut"][];
+            salons: components["schemas"]["app__api__admin__auth__SalonOut"][];
+            /** Telegramlinked */
+            telegramLinked: boolean;
+            /** Timezone */
+            timezone: string;
+        };
+        /**
+         * MePatchIn
+         * @description Свои контакты. Имя, должность, оклад и прочее меняет администратор.
+         */
+        MePatchIn: {
+            /** Additionalphone */
+            additionalPhone?: string | null;
+            /** Address */
+            address?: string | null;
+            /** Avatarurl */
+            avatarUrl?: string | null;
+            /** Emergencycontactname */
+            emergencyContactName?: string | null;
+            /** Emergencycontactphone */
+            emergencyContactPhone?: string | null;
+            /** Phone */
+            phone?: string | null;
         };
         /** NewClientIn */
         NewClientIn: {
@@ -1836,6 +2212,8 @@ export interface components {
             date?: string | null;
             /** Payments */
             payments: components["schemas"]["ReceiptPaymentIn"][];
+            /** Recordid */
+            recordId?: string | null;
             /** @default web */
             source: components["schemas"]["ReceiptSource"];
         };
@@ -1882,6 +2260,18 @@ export interface components {
             method: components["schemas"]["PersonRef"];
             methodType?: components["schemas"]["PaymentMethodType"] | null;
         };
+        /** ReceiptRef */
+        ReceiptRef: {
+            /** Amount */
+            amount: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Number */
+            number: string;
+        };
         /**
          * ReceiptSource
          * @enum {string}
@@ -1900,17 +2290,11 @@ export interface components {
             comment?: string | null;
             /** @default standard */
             importance: components["schemas"]["RecordImportance"];
-            /**
-             * Masterid
-             * Format: uuid
-             */
-            masterId: string;
+            /** Masterid */
+            masterId?: string | null;
             newClient?: components["schemas"]["NewClientIn"] | null;
-            /**
-             * Serviceid
-             * Format: uuid
-             */
-            serviceId: string;
+            /** Serviceids */
+            serviceIds: string[];
             /** @default admin */
             source: components["schemas"]["RecordSource"];
             /**
@@ -1956,13 +2340,15 @@ export interface components {
             importance: components["schemas"]["RecordImportance"];
             /** Internalnotes */
             internalNotes: string | null;
-            master: components["schemas"]["MasterRef"];
+            master: components["schemas"]["MasterRef"] | null;
             paymentStatus: components["schemas"]["PaymentStatus"];
             /** Photos */
             photos: components["schemas"]["PhotoOut"][];
             /** Price */
             price: string;
             service: components["schemas"]["ServiceRef"];
+            /** Services */
+            services: components["schemas"]["RecordServiceOut"][];
             source: components["schemas"]["RecordSource"];
             /**
              * Startat
@@ -2008,11 +2394,13 @@ export interface components {
              */
             id: string;
             importance: components["schemas"]["RecordImportance"];
-            master: components["schemas"]["MasterRef"];
+            master: components["schemas"]["MasterRef"] | null;
             paymentStatus: components["schemas"]["PaymentStatus"];
             /** Price */
             price: string;
             service: components["schemas"]["ServiceRef"];
+            /** Services */
+            services: components["schemas"]["RecordServiceOut"][];
             source: components["schemas"]["RecordSource"];
             /**
              * Startat
@@ -2036,14 +2424,45 @@ export interface components {
             internalNotes?: string | null;
             /** Masterid */
             masterId?: string | null;
-            /** Serviceid */
-            serviceId?: string | null;
+            /** Serviceids */
+            serviceIds?: string[] | null;
             /** Startat */
             startAt?: string | null;
             /** Visitorname */
             visitorName?: string | null;
             /** Visitorphone */
             visitorPhone?: string | null;
+        };
+        /** RecordPaymentIn */
+        RecordPaymentIn: {
+            /** Payments */
+            payments: components["schemas"]["PaymentIn"][];
+        };
+        /** RecordPaymentOut */
+        RecordPaymentOut: {
+            receipt: components["schemas"]["ReceiptRef"];
+            record: components["schemas"]["RecordOut"];
+        };
+        /**
+         * RecordServiceOut
+         * @description Услуга в записи: снапшот названия/цены/длительности + текущие категория и цвет.
+         */
+        RecordServiceOut: {
+            /** Category */
+            category?: string | null;
+            /** Color */
+            color?: string | null;
+            /** Durationminutes */
+            durationMinutes: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Price */
+            price: string;
         };
         /**
          * RecordSource
@@ -2116,8 +2535,10 @@ export interface components {
          * @enum {string}
          */
         Role: "administrator" | "master";
-        /** SalonOut */
-        SalonOut: {
+        /** SalonLinkOut */
+        SalonLinkOut: {
+            /** Booking Url */
+            booking_url: string;
             /**
              * Id
              * Format: uuid
@@ -2125,8 +2546,40 @@ export interface components {
             id: string;
             /** Name */
             name: string;
-            /** Slug */
-            slug: string;
+        };
+        /**
+         * SalonProfileOut
+         * @description Условия работы в текущем салоне (заголовок X-Salon-Id). Свой оклад видит каждый.
+         */
+        SalonProfileOut: {
+            /** Commissionpercent */
+            commissionPercent: string | null;
+            /** Hiredate */
+            hireDate: string | null;
+            /** Position */
+            position: string | null;
+            /** Salary */
+            salary: string | null;
+            /**
+             * Salonid
+             * Format: uuid
+             */
+            salonId: string;
+            /** Specializations */
+            specializations: string[];
+            status: components["schemas"]["StaffStatus"];
+        };
+        /** SalonRecordsOut */
+        SalonRecordsOut: {
+            /** Records */
+            records: components["schemas"]["MasterRecordOut"][];
+            /**
+             * Salon Id
+             * Format: uuid
+             */
+            salon_id: string;
+            /** Salon Name */
+            salon_name: string;
         };
         /**
          * ScheduleExceptionType
@@ -2204,20 +2657,12 @@ export interface components {
          * @enum {string}
          */
         ServiceStatus: "active" | "inactive" | "archived";
-        /** SlotOut */
-        SlotOut: {
-            /** Label */
-            label: string;
-            /**
-             * Startat
-             * Format: date-time
-             */
-            startAt: string;
-        };
         /** StaffCreateIn */
         StaffCreateIn: {
             /** Additionalphone */
             additionalPhone?: string | null;
+            /** Address */
+            address?: string | null;
             /** Birthdate */
             birthDate?: string | null;
             /** Color */
@@ -2226,11 +2671,20 @@ export interface components {
             commissionPercent?: number | string | null;
             /** Email */
             email?: string | null;
+            /** Emergencycontactname */
+            emergencyContactName?: string | null;
+            /** Emergencycontactphone */
+            emergencyContactPhone?: string | null;
             /** Firstname */
             firstName: string;
             gender?: components["schemas"]["Gender"] | null;
             /** Hiredate */
             hireDate?: string | null;
+            /**
+             * Issuperuser
+             * @default false
+             */
+            isSuperuser: boolean;
             /** Lastname */
             lastName?: string | null;
             /** Middlename */
@@ -2252,6 +2706,8 @@ export interface components {
         StaffOut: {
             /** Additionalphone */
             additionalPhone: string | null;
+            /** Address */
+            address?: string | null;
             /** Avatarurl */
             avatarUrl: string | null;
             /** Birthdate */
@@ -2262,6 +2718,10 @@ export interface components {
             commissionPercent?: string | null;
             /** Email */
             email: string | null;
+            /** Emergencycontactname */
+            emergencyContactName?: string | null;
+            /** Emergencycontactphone */
+            emergencyContactPhone?: string | null;
             /** Firedat */
             firedAt?: string | null;
             /** Firstname */
@@ -2274,6 +2734,11 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /**
+             * Issuperuser
+             * @default false
+             */
+            isSuperuser: boolean;
             /** Lastname */
             lastName: string | null;
             /** Middlename */
@@ -2289,11 +2754,18 @@ export interface components {
             specializations?: string[];
             /** @default active */
             status: components["schemas"]["StaffStatus"];
+            /**
+             * Telegramlinked
+             * @default false
+             */
+            telegramLinked: boolean;
         };
         /** StaffPatchIn */
         StaffPatchIn: {
             /** Additionalphone */
             additionalPhone?: string | null;
+            /** Address */
+            address?: string | null;
             /** Avatarurl */
             avatarUrl?: string | null;
             /** Birthdate */
@@ -2304,15 +2776,23 @@ export interface components {
             commissionPercent?: number | string | null;
             /** Email */
             email?: string | null;
+            /** Emergencycontactname */
+            emergencyContactName?: string | null;
+            /** Emergencycontactphone */
+            emergencyContactPhone?: string | null;
             /** Firstname */
             firstName?: string | null;
             gender?: components["schemas"]["Gender"] | null;
             /** Hiredate */
             hireDate?: string | null;
+            /** Issuperuser */
+            isSuperuser?: boolean | null;
             /** Lastname */
             lastName?: string | null;
             /** Middlename */
             middleName?: string | null;
+            /** Password */
+            password?: string | null;
             /** Phone */
             phone?: string | null;
             /** Position */
@@ -2384,6 +2864,8 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Issuperuser */
+            isSuperuser: boolean;
             /** Name */
             name: string;
             role: components["schemas"]["Role"];
@@ -2412,13 +2894,10 @@ export interface components {
             id: string;
             /** Internalnotes */
             internalNotes: string | null;
-            /**
-             * Masterid
-             * Format: uuid
-             */
-            masterId: string;
+            /** Masterid */
+            masterId: string | null;
             /** Mastername */
-            masterName: string;
+            masterName: string | null;
             /** Photos */
             photos: string[];
             /**
@@ -2428,6 +2907,8 @@ export interface components {
             serviceId: string;
             /** Servicename */
             serviceName: string;
+            /** Services */
+            services: components["schemas"]["VisitServiceOut"][];
             /**
              * Startat
              * Format: date-time
@@ -2436,6 +2917,16 @@ export interface components {
             status: components["schemas"]["RecordStatus"];
             /** Totalamount */
             totalAmount: string;
+        };
+        /** VisitServiceOut */
+        VisitServiceOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
         };
     };
     responses: never;
@@ -2563,6 +3054,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_MeOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_me_api_admin_v1_auth_me_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MePatchIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_MeOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -3429,7 +3962,8 @@ export interface operations {
         parameters: {
             query: {
                 date: string;
-                serviceId: string;
+                serviceId?: string | null;
+                serviceIds?: string[] | null;
             };
             header?: never;
             path: {
@@ -3473,6 +4007,7 @@ export interface operations {
                 perPage?: number;
                 source?: components["schemas"]["RecordSource"] | null;
                 status?: components["schemas"]["RecordStatus"] | null;
+                withoutMaster?: boolean;
             };
             header?: never;
             path?: never;
@@ -3621,6 +4156,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_RecordOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    pay_record_api_admin_v1_records__record_id__payment_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                record_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecordPaymentIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_RecordPaymentOut_"];
                 };
             };
             /** @description Validation Error */
@@ -3936,6 +4506,37 @@ export interface operations {
             };
         };
     };
+    get_staff_api_admin_v1_staff__staff_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                staff_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_StaffOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     fire_staff_api_admin_v1_staff__staff_id__delete: {
         parameters: {
             query?: never;
@@ -4105,6 +4706,72 @@ export interface operations {
             };
         };
     };
+    delete_exception_api_admin_v1_staff__staff_id__schedule_exceptions__exception_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                exception_id: string;
+                staff_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_exception_api_admin_v1_staff__staff_id__schedule_exceptions__exception_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                exception_id: string;
+                staff_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExceptionPatchIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_ExceptionOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     staff_stats_api_admin_v1_staff__staff_id__stats_get: {
         parameters: {
             query?: {
@@ -4139,6 +4806,35 @@ export interface operations {
             };
         };
     };
+    export_staff_api_admin_v1_staff_export_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     upload_file_api_admin_v1_uploads_post: {
         parameters: {
             query?: never;
@@ -4159,6 +4855,75 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_UploadOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    availability_api_booking__salon_slug__availability_get: {
+        parameters: {
+            query: {
+                master_id?: string | null;
+                /** @description YYYY-MM */
+                month: string;
+                service_id: string;
+            };
+            header?: never;
+            path: {
+                salon_slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AvailabilityOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_masters_api_booking__salon_slug__masters_get: {
+        parameters: {
+            query: {
+                service_id: string;
+            };
+            header?: never;
+            path: {
+                salon_slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MasterOut"][];
                 };
             };
             /** @description Validation Error */
@@ -4244,6 +5009,37 @@ export interface operations {
             };
         };
     };
+    get_salon_api_booking__salon_slug__salon_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                salon_slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["app__api__booking__router__SalonOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_services_api_booking__salon_slug__services_get: {
         parameters: {
             query?: never;
@@ -4275,6 +5071,41 @@ export interface operations {
             };
         };
     };
+    list_slots_api_booking__salon_slug__slots_get: {
+        parameters: {
+            query: {
+                date: string;
+                master_id?: string | null;
+                service_id: string;
+            };
+            header?: never;
+            path: {
+                salon_slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["app__api__booking__router__SlotOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     link_client_telegram_api_bot_clients_link_telegram_post: {
         parameters: {
             query?: never;
@@ -4286,7 +5117,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["LinkClientRequest"];
+                "application/json": components["schemas"]["LinkTelegramRequest"];
             };
         };
         responses: {
@@ -4330,6 +5161,106 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["IdentifyOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    link_telegram_api_bot_link_telegram_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-API-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LinkTelegramRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdentifyOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    master_records_api_bot_masters_records_get: {
+        parameters: {
+            query: {
+                day: string;
+                telegram_user_id: number;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MasterDayOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_salons_api_bot_salons_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-API-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SalonLinkOut"][];
                 };
             };
             /** @description Validation Error */

@@ -8,15 +8,30 @@ pub/sub доставляет сообщение в каждую.
 
 import asyncio
 import contextlib
+import json
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import Any
 
 import jwt
 from fastapi import FastAPI, Query, WebSocket
 from redis.asyncio import Redis
 
 from app.config import get_settings
+
+
+def visible_to(event: dict[str, Any], role: str | None, user_id: str | None) -> bool:
+    """Показывать ли событие салона подключённому пользователю."""
+    if role != "master":
+        return True
+    if event.get("event_type") not in ("record.created", "record.updated"):
+        return False
+    payload = event.get("payload") or {}
+    return user_id is not None and user_id in (
+        payload.get("master_id"),
+        payload.get("previous_master_id"),
+    )
 
 
 @asynccontextmanager
@@ -56,12 +71,19 @@ async def ws_events(
 
     await websocket.accept()
     redis: Redis = websocket.app.state.redis
+    role, user_id = claims.get("role"), claims.get("sub")
 
     async def relay() -> None:
         async with redis.pubsub() as pubsub:
             await pubsub.subscribe(f"salon:{salon_id}:events")
             async for message in pubsub.listen():
-                if message["type"] == "message":
+                if message["type"] != "message":
+                    continue
+                try:
+                    event = json.loads(message["data"])
+                except json.JSONDecodeError:
+                    continue
+                if visible_to(event, role, user_id):
                     await websocket.send_text(message["data"])
 
     async def watch_disconnect() -> None:

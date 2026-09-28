@@ -1,32 +1,48 @@
-interface FastApiValidationItem {
-  loc?: (string | number)[];
-  msg?: string;
-}
-
-/** Ошибка ответа API. `detail` — поле из ответа FastAPI (строка или список ошибок валидации). */
+/**
+ * Ошибка ответа API. Бекенд отвечает `{message, code?, details?}`;
+ * `details` — ошибки валидации по полям (`{"firstName": ["Field required"]}`).
+ */
 export class ApiError extends Error {
   readonly status: number;
+  readonly code: string | undefined;
+  readonly details: Record<string, string[]> | undefined;
   readonly body: unknown;
 
   constructor(status: number, body: unknown) {
-    super(extractMessage(body) ?? `Ошибка запроса (${status})`);
+    const parsed = parseBody(body);
+    super(parsed.message ?? `Помилка запиту (${status})`);
     this.name = 'ApiError';
     this.status = status;
+    this.code = parsed.code;
+    this.details = parsed.details;
     this.body = body;
   }
 }
 
-function extractMessage(body: unknown): string | undefined {
-  if (!body || typeof body !== 'object' || !('detail' in body)) return undefined;
-  const { detail } = body;
-  if (typeof detail === 'string') return detail;
-  if (Array.isArray(detail)) {
-    return (detail as FastApiValidationItem[])
-      .map((item) => item.msg)
-      .filter(Boolean)
+interface ParsedBody {
+  message?: string;
+  code?: string;
+  details?: Record<string, string[]>;
+}
+
+function parseBody(body: unknown): ParsedBody {
+  if (!body || typeof body !== 'object') return {};
+  const b = body as { message?: unknown; code?: unknown; details?: unknown; detail?: unknown };
+  const details =
+    b.details && typeof b.details === 'object'
+      ? (b.details as Record<string, string[]>)
+      : undefined;
+  let message = typeof b.message === 'string' ? b.message : undefined;
+  // Ошибки валидации: показываем, какие поля не прошли, а не только «Ошибка валидации».
+  if (details && Object.keys(details).length > 0) {
+    const fields = Object.entries(details)
+      .map(([field, errors]) => `${field}: ${errors.join(', ')}`)
       .join('; ');
+    message = message ? `${message} — ${fields}` : fields;
   }
-  return undefined;
+  // Старый формат FastAPI `{detail}` — на случай ответов в обход обработчиков бекенда.
+  if (!message && typeof b.detail === 'string') message = b.detail;
+  return { message, code: typeof b.code === 'string' ? b.code : undefined, details };
 }
 
 interface FetchResult<D> {

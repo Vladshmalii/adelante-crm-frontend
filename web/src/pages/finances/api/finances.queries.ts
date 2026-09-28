@@ -58,6 +58,27 @@ export const receiptsQueryOptions = (params: ReturnType<typeof receiptsParams>) 
     placeholderData: keepPreviousData,
   });
 
+/** Завершённые, но не оплаченные визиты — для чека оплаты визита. */
+export const unpaidRecordsQueryOptions = (clientQuery: string) =>
+  queryOptions({
+    queryKey: ['records', 'unpaid', clientQuery] as const,
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await api.GET('/api/admin/v1/records', {
+          params: {
+            query: {
+              status: 'completed',
+              paymentStatus: 'unpaid',
+              clientQuery: clientQuery || undefined,
+              perPage: 50,
+            },
+          },
+          signal,
+        }),
+      ).data,
+    placeholderData: keepPreviousData,
+  });
+
 export const paymentMethodsQueryOptions = () =>
   queryOptions({
     queryKey: financesKeys.methods(),

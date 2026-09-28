@@ -117,8 +117,22 @@ function Details({ record }: { record: RecordItem }) {
               },
             ]
           : []),
-        { label: 'Майстер', children: record.master.name },
-        { label: 'Послуга', children: record.service.name },
+        {
+          label: 'Майстер',
+          children: record.master?.name ?? <Tag color="orange">Без майстра</Tag>,
+        },
+        {
+          label: record.services.length > 1 ? 'Послуги' : 'Послуга',
+          children: (
+            <Space orientation="vertical" size={0}>
+              {record.services.map((s) => (
+                <span key={s.id}>
+                  {s.name} · {s.durationMinutes} хв · {formatMoney(s.price)}
+                </span>
+              ))}
+            </Space>
+          ),
+        },
         { label: 'Плановий час', children: timeRange(record.startAt, record.endAt) },
         {
           label: 'Фактичний час',
@@ -153,7 +167,8 @@ function Finance({ record }: { record: RecordItem }) {
       bordered
       size="small"
       items={[
-        { label: 'Ціна послуги', children: formatMoney(record.price) },
+        ...record.services.map((s) => ({ label: s.name, children: formatMoney(s.price) })),
+        { label: 'Разом за послуги', children: formatMoney(record.price) },
         { label: 'До сплати', children: formatMoney(record.totalAmount) },
         {
           label: 'Оплата',

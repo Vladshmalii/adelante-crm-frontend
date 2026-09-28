@@ -1,3 +1,3 @@
 export { staffListQueryOptions } from './api/staff.queries';
-export { staffSearchSchema } from './model/search';
+export { staffSearchSchema, toListParams } from './model/search';
 export { StaffPage } from './ui/StaffPage';

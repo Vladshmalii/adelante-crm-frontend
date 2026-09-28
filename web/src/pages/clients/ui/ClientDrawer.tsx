@@ -186,11 +186,16 @@ function ClientVisits({ id }: { id: string }) {
           : false
       }
       columns={[
-        { dataIndex: 'serviceName', listSlot: 'title' },
+        {
+          key: 'title',
+          listSlot: 'title',
+          render: (_, visit) => visit.services.map((s) => s.name).join(', '),
+        },
         {
           key: 'description',
           listSlot: 'description',
-          render: (_, visit) => `${formatDateTime(visit.startAt)} · ${visit.masterName}`,
+          render: (_, visit) =>
+            `${formatDateTime(visit.startAt)} · ${visit.masterName ?? 'Без майстра'}`,
         },
         {
           key: 'actions',

@@ -1,4 +1,4 @@
-import { MoreOutlined, PlusOutlined } from '@ant-design/icons';
+import { DownloadOutlined, MoreOutlined, PlusOutlined } from '@ant-design/icons';
 import {
   PageContainer,
   type ProColumns,
@@ -15,10 +15,11 @@ import { useViewer } from '@/shared/auth';
 import { formatDate, formatMoney, formatPhone, roleLabels, toOptions } from '@/shared/lib';
 import { QueryErrorAlert } from '@/shared/ui';
 
-import { useFireStaff } from '../api/staff.mutations';
+import { useExportStaff, useFireStaff, useRestoreStaff } from '../api/staff.mutations';
 import { staffCountQueryOptions, staffListQueryOptions } from '../api/staff.queries';
 import { staffFullName, statusLabels } from '../model/labels';
-import type { StaffSearch } from '../model/search';
+import { canManage, isSelf } from '../model/rules';
+import { type StaffSearch, toListParams } from '../model/search';
 import { StaffDrawer } from './StaffDrawer';
 import { StaffFormModal } from './StaffFormModal';
 import { StaffScheduleModal } from './StaffScheduleModal';
@@ -34,13 +35,16 @@ export function StaffPage() {
   const search = route.useSearch();
   const navigate = route.useNavigate();
   const { message, modal } = App.useApp();
-  const { can } = useViewer();
-  const { data, error, isFetching, refetch } = useQuery(staffListQueryOptions(search));
+  const { viewer, can } = useViewer();
+  const { data, error, isFetching, refetch } = useQuery(
+    staffListQueryOptions(toListParams(search)),
+  );
   const counts = useQueries({ queries: STATUSES.map((s) => staffCountQueryOptions(s)) });
   const fire = useFireStaff();
+  const restore = useRestoreStaff();
+  const exportStaff = useExportStaff();
 
   const [form, setForm] = useState<{ staff?: Staff } | null>(null);
-  const [viewed, setViewed] = useState<Staff | null>(null);
   const [scheduleFor, setScheduleFor] = useState<Staff | null>(null);
   const [statsFor, setStatsFor] = useState<Staff | null>(null);
 
@@ -63,61 +67,82 @@ export function StaffPage() {
     });
   };
 
-  // Бекенд позволяет редактировать, увольнять и вести график только мастеров.
-  const rowActions = (staff: Staff): MenuProps['items'] =>
-    staff.role !== 'master' || !can.staff.manageMasters
-      ? []
-      : [
-          {
-            key: 'edit',
-            label: 'Редагувати',
-            onClick: () => {
-              setForm({ staff });
-            },
+  const confirmRestore = (staff: Staff) => {
+    modal.confirm({
+      title: `Відновити ${staffFullName(staff)}?`,
+      content: 'Співробітник знову зможе увійти в систему і з’явиться серед активних.',
+      okText: 'Відновити',
+      cancelText: 'Скасувати',
+      onOk: () =>
+        restore.mutateAsync(staff.id).then(
+          () => void message.success('Співробітника відновлено'),
+          (e: unknown) => void message.error(errorMessage(e)),
+        ),
+    });
+  };
+
+  // Мастерами управляет администратор, администраторами — суперюзер (docs/ACCESS.md).
+  const rowActions = (staff: Staff): MenuProps['items'] => {
+    if (!canManage(can, staff)) return [];
+    if (staff.status === 'fired') {
+      return [
+        {
+          key: 'restore',
+          label: 'Відновити',
+          onClick: () => {
+            confirmRestore(staff);
           },
-          {
-            key: 'schedule',
-            label: 'Графік роботи',
-            onClick: () => {
-              setScheduleFor(staff);
+        },
+      ];
+    }
+    return [
+      {
+        key: 'edit',
+        label: 'Редагувати',
+        onClick: () => {
+          setForm({ staff });
+        },
+      },
+      {
+        key: 'schedule',
+        label: 'Графік роботи',
+        onClick: () => {
+          setScheduleFor(staff);
+        },
+      },
+      ...(can.staff.viewFinance && staff.role === 'master'
+        ? [
+            {
+              key: 'stats',
+              label: 'Статистика',
+              onClick: () => {
+                setStatsFor(staff);
+              },
             },
-          },
-          ...(can.staff.viewFinance
-            ? [
-                {
-                  key: 'stats',
-                  label: 'Статистика',
-                  onClick: () => {
-                    setStatsFor(staff);
-                  },
-                },
-              ]
-            : []),
-          ...(staff.status !== 'fired'
-            ? [
-                { type: 'divider' as const },
-                {
-                  key: 'fire',
-                  label: 'Звільнити',
-                  danger: true,
-                  onClick: () => {
-                    confirmFire(staff);
-                  },
-                },
-              ]
-            : []),
-        ];
+          ]
+        : []),
+      ...(!isSelf(viewer, staff)
+        ? [
+            { type: 'divider' as const },
+            {
+              key: 'fire',
+              label: 'Звільнити',
+              danger: true,
+              onClick: () => {
+                confirmFire(staff);
+              },
+            },
+          ]
+        : []),
+    ];
+  };
 
   const columns: ProColumns<Staff>[] = [
     {
       title: 'Співробітник',
       key: 'name',
       render: (_, s) => (
-        <Typography.Link
-          onClick={() => {
-            setViewed(s);
-          }}
-        >
+        <Typography.Link onClick={() => void setSearch({ id: s.id })}>
           {staffFullName(s)}
         </Typography.Link>
       ),
@@ -126,7 +151,10 @@ export function StaffPage() {
       title: 'Роль',
       dataIndex: 'role',
       render: (_, s) => (
-        <Tag color={s.role === 'administrator' ? 'purple' : 'default'}>{roleLabels[s.role]}</Tag>
+        <Space size={4}>
+          <Tag color={s.role === 'administrator' ? 'purple' : 'default'}>{roleLabels[s.role]}</Tag>
+          {s.isSuperuser && <Tag color="gold">Суперюзер</Tag>}
+        </Space>
       ),
     },
     { title: 'Посада', dataIndex: 'position', ellipsis: true },
@@ -200,9 +228,7 @@ export function StaffPage() {
         scroll={{ x: 'max-content' }}
         options={{ reload: () => void refetch(), density: true, setting: true }}
         onRow={(s) => ({
-          onDoubleClick: () => {
-            setViewed(s);
-          },
+          onDoubleClick: () => void setSearch({ id: s.id }),
         })}
         pagination={{
           current: search.page,
@@ -235,6 +261,20 @@ export function StaffPage() {
               onChange={(role?: StaffSearch['role']) => void setSearch({ role, page: 1 })}
               options={toOptions(roleLabels)}
             />,
+            can.staff.export && (
+              <Button
+                key="export"
+                icon={<DownloadOutlined />}
+                loading={exportStaff.isPending}
+                onClick={() =>
+                  void exportStaff
+                    .mutateAsync()
+                    .catch((e: unknown) => void message.error(errorMessage(e)))
+                }
+              >
+                Експорт
+              </Button>
+            ),
             can.staff.manageMasters && (
               <Button
                 key="create"
@@ -252,12 +292,10 @@ export function StaffPage() {
       />
 
       <StaffDrawer
-        staff={viewed}
-        onClose={() => {
-          setViewed(null);
-        }}
+        staffId={search.id}
+        onClose={() => void setSearch({ id: undefined })}
         onEdit={(staff) => {
-          setViewed(null);
+          void setSearch({ id: undefined });
           setForm({ staff });
         }}
       />

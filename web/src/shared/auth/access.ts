@@ -19,14 +19,12 @@ type Me = Schema<'MeOut'>;
 
 export function toViewer(me: Me): Viewer {
   const isAdmin = me.role === 'administrator';
-  // Флага пока нет в API (см. docs/ACCESS.md, «Что нужно на бекенде») — читаем его, если появится.
-  const flag = (me as Me & { isSuperuser?: boolean }).isSuperuser === true;
   return {
     id: me.id,
     role: me.role,
     isAdmin,
     isMaster: me.role === 'master',
-    isSuperuser: isAdmin && flag,
+    isSuperuser: isAdmin && me.isSuperuser,
   };
 }
 
@@ -42,7 +40,9 @@ export const canAccess = (viewer: Viewer, section: Section) => SECTIONS[section]
 
 export const permissions = (v: Viewer) => ({
   clients: {
-    create: true,
+    /** Из списка клиентов — администратор; мастер создаёт клиента только при записи к себе. */
+    create: v.isAdmin,
+    createInRecord: true,
     edit: v.isAdmin,
     delete: v.isAdmin,
     import: v.isAdmin,

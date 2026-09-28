@@ -20,6 +20,8 @@ export const overviewSearchSchema = z.object({
   createdFrom: day.optional(),
   createdTo: day.optional(),
   masterId: z.string().optional(),
+  /** Только записи «Без майстра» (очередь). */
+  withoutMaster: z.boolean().optional(),
   status: z
     .enum(['scheduled', 'confirmed', 'arrived', 'completed', 'cancelled', 'no_show'])
     .optional(),

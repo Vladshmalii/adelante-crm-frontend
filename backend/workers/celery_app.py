@@ -13,6 +13,7 @@ celery = Celery(
         "workers.tasks.reminders",
         "workers.tasks.notify",
         "workers.tasks.integrity",
+        "workers.tasks.mail",
     ],
 )
 
@@ -20,7 +21,10 @@ celery.conf.timezone = "UTC"
 celery.conf.task_default_queue = "default"
 # Уведомления — в отдельной очереди, чтобы долгие Telegram-ретраи
 # не блокировали сканирование шардов
-celery.conf.task_routes = {"workers.tasks.notify.*": {"queue": "notifications"}}
+celery.conf.task_routes = {
+    "workers.tasks.notify.*": {"queue": "notifications"},
+    "workers.tasks.mail.*": {"queue": "notifications"},
+}
 
 celery.conf.beat_schedule = {
     "publish-outbox": {

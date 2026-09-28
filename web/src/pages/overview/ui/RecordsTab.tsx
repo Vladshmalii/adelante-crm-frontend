@@ -13,6 +13,9 @@ import type { OverviewSearch } from '../model/search';
 
 type RecordItem = Schema<'RecordOut'>;
 
+/** Значение фильтра мастера для записей без мастера (`withoutMaster=true`). */
+const WITHOUT_MASTER = '__without_master__';
+
 interface TabProps {
   search: OverviewSearch;
   setSearch: (patch: Partial<OverviewSearch>) => void;
@@ -43,8 +46,22 @@ export function RecordsTab({ search, setSearch }: TabProps) {
         </Space>
       ),
     },
-    { title: 'Майстер', key: 'master', render: (_, r) => r.master.name },
-    { title: 'Послуга', key: 'service', render: (_, r) => r.service.name },
+    {
+      title: 'Майстер',
+      key: 'master',
+      render: (_, r) => r.master?.name ?? <Tag color="orange">Без майстра</Tag>,
+    },
+    {
+      title: 'Послуги',
+      key: 'services',
+      render: (_, r) => (
+        <Space orientation="vertical" size={0}>
+          {r.services.map((s) => (
+            <span key={s.id}>{s.name}</span>
+          ))}
+        </Space>
+      ),
+    },
     {
       title: 'Статус',
       key: 'status',
@@ -125,10 +142,14 @@ export function RecordsTab({ search, setSearch }: TabProps) {
               showSearch={{ optionFilterProp: 'label' }}
               placeholder="Усі майстри"
               style={{ width: 180 }}
-              value={search.masterId}
-              options={staffOptions(masters)}
-              onChange={(masterId?: string) => {
-                setSearch({ masterId, page: 1 });
+              value={search.withoutMaster ? WITHOUT_MASTER : search.masterId}
+              options={[{ value: WITHOUT_MASTER, label: 'Без майстра' }, ...staffOptions(masters)]}
+              onChange={(value?: string) => {
+                setSearch(
+                  value === WITHOUT_MASTER
+                    ? { masterId: undefined, withoutMaster: true, page: 1 }
+                    : { masterId: value, withoutMaster: undefined, page: 1 },
+                );
               }}
             />
             <Select

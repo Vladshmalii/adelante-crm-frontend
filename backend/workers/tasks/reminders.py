@@ -47,7 +47,7 @@ def scan_shard(salon_id: str) -> None:
             session.scalars(
                 select(Record)
                 .where(
-                    Record.status == RecordStatus.SCHEDULED,
+                    Record.status.in_([RecordStatus.SCHEDULED, RecordStatus.CONFIRMED]),
                     Record.reminder_sent_at.is_(None),
                     Record.start_at >= window_start - WINDOW_MARGIN,
                     Record.start_at < window_end,
@@ -64,7 +64,9 @@ def scan_shard(salon_id: str) -> None:
                     "record_id": str(record.id),
                     "client_id": str(record.client_id),
                     "client_name": record.client_name,
+                    "master_id": str(record.master_id) if record.master_id else None,
                     "master_name": record.master_name,
+                    "service_name": ", ".join(s.name for s in record.services),
                     "start_at": record.start_at.isoformat(),
                 },
             )

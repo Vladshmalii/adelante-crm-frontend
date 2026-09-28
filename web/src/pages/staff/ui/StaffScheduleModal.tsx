@@ -1,4 +1,4 @@
-import { PlusOutlined } from '@ant-design/icons';
+import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
 import {
   ModalForm,
   ProForm,
@@ -7,15 +7,33 @@ import {
   ProFormTextArea,
 } from '@ant-design/pro-components';
 import { useQuery } from '@tanstack/react-query';
-import { App, Button, Form, Modal, Result, Spin, Table, Tabs, Tag, TimePicker } from 'antd';
-import type { Dayjs } from 'dayjs';
+import {
+  App,
+  Button,
+  Form,
+  Modal,
+  Popconfirm,
+  Result,
+  Space,
+  Spin,
+  Table,
+  Tabs,
+  Tag,
+  TimePicker,
+} from 'antd';
+import dayjs, { type Dayjs } from 'dayjs';
 import { useState } from 'react';
 
 import { errorMessage, type Schema } from '@/shared/api';
 import { formatDate } from '@/shared/lib';
 import { type WeekSchedule, weekFromApi, WeekScheduleEditor } from '@/widgets/week-schedule';
 
-import { useAddScheduleException, useSaveSchedule } from '../api/staff.mutations';
+import {
+  useAddScheduleException,
+  useDeleteScheduleException,
+  useSaveSchedule,
+  useUpdateScheduleException,
+} from '../api/staff.mutations';
 import { staffScheduleQueryOptions } from '../api/staff.queries';
 import { exceptionTypeLabels, staffFullName } from '../model/labels';
 
@@ -99,14 +117,17 @@ function WeekForm(props: { staffId: string; initial: WeekSchedule; onSaved: () =
 const time = (value: string | null | undefined) => value?.slice(0, 5) ?? '';
 
 function Exceptions({ staffId, exceptions }: { staffId: string; exceptions: Exception[] }) {
-  const [open, setOpen] = useState(false);
+  const { message } = App.useApp();
+  const remove = useDeleteScheduleException(staffId);
+  /** `null` — форма закрыта; `{}` — новый виняток; `{ exception }` — редактирование. */
+  const [form, setForm] = useState<{ exception?: Exception } | null>(null);
 
   return (
     <>
       <Button
         icon={<PlusOutlined />}
         onClick={() => {
-          setOpen(true);
+          setForm({});
         }}
         style={{ marginBottom: 16 }}
       >
@@ -142,9 +163,52 @@ function Exceptions({ staffId, exceptions }: { staffId: string; exceptions: Exce
             render: (_, e) => (e.start ? `${time(e.start)}–${time(e.end)}` : 'Весь день'),
           },
           { title: 'Коментар', dataIndex: 'comment' },
+          {
+            title: '',
+            key: 'actions',
+            width: 88,
+            render: (_, e) => (
+              <Space size={0}>
+                <Button
+                  type="text"
+                  aria-label="Редагувати виняток"
+                  icon={<EditOutlined />}
+                  onClick={() => {
+                    setForm({ exception: e });
+                  }}
+                />
+                <Popconfirm
+                  title="Видалити виняток?"
+                  okText="Видалити"
+                  cancelText="Скасувати"
+                  okButtonProps={{ danger: true }}
+                  onConfirm={() =>
+                    remove.mutateAsync(e.id).then(
+                      () => void message.success('Виняток видалено'),
+                      (err: unknown) => void message.error(errorMessage(err)),
+                    )
+                  }
+                >
+                  <Button
+                    type="text"
+                    danger
+                    aria-label="Видалити виняток"
+                    icon={<DeleteOutlined />}
+                  />
+                </Popconfirm>
+              </Space>
+            ),
+          },
         ]}
       />
-      <ExceptionForm staffId={staffId} open={open} onOpenChange={setOpen} />
+      <ExceptionForm
+        staffId={staffId}
+        open={form !== null}
+        exception={form?.exception}
+        onOpenChange={(open) => {
+          if (!open) setForm(null);
+        }}
+      />
     </>
   );
 }
@@ -156,36 +220,58 @@ interface ExceptionValues {
   comment?: string;
 }
 
+/** API отдаёт время `HH:mm:ss`, даты `YYYY-MM-DD`. */
+const toTime = (t: string | null | undefined) => (t ? dayjs(`2000-01-01T${t.slice(0, 5)}`) : null);
+
 function ExceptionForm(props: {
   staffId: string;
   open: boolean;
   onOpenChange: (o: boolean) => void;
+  /** Нет — новый виняток, есть — редактирование. */
+  exception?: Exception;
 }) {
   const { message } = App.useApp();
   const add = useAddScheduleException(props.staffId);
+  const update = useUpdateScheduleException(props.staffId);
+  const { exception } = props;
+  const start = toTime(exception?.start);
+  const end = toTime(exception?.end);
 
   return (
     <ModalForm<ExceptionValues>
-      title="Виняток з графіка"
+      title={exception ? 'Редагувати виняток' : 'Виняток з графіка'}
       width={480}
       open={props.open}
       onOpenChange={props.onOpenChange}
       // Даты и время нужны как Dayjs — форматируем сами (иначе ProForm превратит время в дату).
       dateFormatter={false}
       modalProps={{ destroyOnHidden: true }}
-      initialValues={{ type: 'vacation' }}
-      submitter={{ searchConfig: { submitText: 'Додати', resetText: 'Скасувати' } }}
+      initialValues={
+        exception
+          ? {
+              type: exception.type,
+              dates: [dayjs(exception.dateFrom), dayjs(exception.dateTo)],
+              time: start && end ? [start, end] : null,
+              comment: exception.comment ?? undefined,
+            }
+          : { type: 'vacation' }
+      }
+      submitter={{
+        searchConfig: { submitText: exception ? 'Зберегти' : 'Додати', resetText: 'Скасувати' },
+      }}
       onFinish={async ({ dates, type, time: range, comment }) => {
+        const body = {
+          dateFrom: dates[0].format('YYYY-MM-DD'),
+          dateTo: dates[1].format('YYYY-MM-DD'),
+          type,
+          start: range?.[0].format('HH:mm') ?? null,
+          end: range?.[1].format('HH:mm') ?? null,
+          comment: comment?.trim() ? comment : null,
+        };
         try {
-          await add.mutateAsync({
-            dateFrom: dates[0].format('YYYY-MM-DD'),
-            dateTo: dates[1].format('YYYY-MM-DD'),
-            type,
-            start: range?.[0].format('HH:mm') ?? null,
-            end: range?.[1].format('HH:mm') ?? null,
-            comment: comment?.trim() ? comment : null,
-          });
-          message.success('Виняток додано');
+          if (exception) await update.mutateAsync({ id: exception.id, body });
+          else await add.mutateAsync(body);
+          message.success(exception ? 'Виняток оновлено' : 'Виняток додано');
           return true;
         } catch (error) {
           message.error(errorMessage(error));

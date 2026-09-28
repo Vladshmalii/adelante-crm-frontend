@@ -2,7 +2,8 @@
 
 Каждые 10 секунд обходит шарды по реестру, забирает неопубликованные события
 (FOR UPDATE SKIP LOCKED — параллельные прогоны не мешают друг другу) и
-диспатчит fan-out: уведомление менеджеру в Telegram + push на сайт.
+диспатчит fan-out: уведомления администраторам и мастерам в Telegram +
+push в админку (WebSocket).
 """
 
 import logging
@@ -44,11 +45,16 @@ def _publish_salon(salon_id: UUID) -> None:
             )
         )
         for event in events:
-            if event.event_type == RECORD_CREATED:
-                notify.notify_manager_telegram.delay(event.payload)
-                notify.notify_web.delay(event.payload)
-            elif event.event_type in (RECORD_UPDATED, REVIEW_CREATED):
-                notify.notify_web.delay(event.payload)
+            envelope = event.payload
+            if event.event_type in (RECORD_CREATED, RECORD_UPDATED):
+                payload = envelope["payload"]
+                if notify.wants_manager_notification(event.event_type, payload):
+                    notify.notify_manager_telegram.delay(envelope)
+                if notify.wants_master_notification(event.event_type, payload):
+                    notify.notify_master_telegram.delay(envelope)
+                notify.notify_web.delay(envelope)
+            elif event.event_type == REVIEW_CREATED:
+                notify.notify_web.delay(envelope)
             else:
                 logger.warning("Неизвестный тип события в outbox: %s", event.event_type)
             event.published_at = datetime.now(UTC)

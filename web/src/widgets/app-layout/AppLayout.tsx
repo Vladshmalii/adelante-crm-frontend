@@ -33,6 +33,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
     setSalonId(id);
     // Все данные, кроме профиля, принадлежат салону — сбрасываем и грузим заново.
     void queryClient.resetQueries({ predicate: (q) => q.queryKey[0] !== 'auth' });
+    // Профиль тоже зависит от салона (должность, оклад в этом салоне).
+    void queryClient.invalidateQueries({ queryKey: meQueryOptions.queryKey });
   };
 
   return (

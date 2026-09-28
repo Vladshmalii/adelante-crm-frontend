@@ -5,6 +5,11 @@ Admin API — JWT (access/refresh) с клеймом salon_ids; доступ к 
 Bot API — статический service-ключ X-API-Key (два одновременно валидных
 ключа для ротации); бот — транспорт, не источник авторизации.
 Booking API — публичный, аутентификации нет.
+
+Роли (решение от 23.09.2026, ACCESS.md): master — только свои записи и
+клиенты; administrator — всё, кроме финансов и выгрузок; administrator с
+is_superuser — ещё финансы, выгрузки, зарплаты и управление администраторами.
+Права проверяются здесь, фронт только прячет недоступное.
 """
 
 import enum
@@ -41,6 +46,15 @@ class AuthenticatedUser(BaseModel):
     id: uuid.UUID
     role: Role
     salon_ids: list[uuid.UUID]
+    is_superuser: bool = False
+
+    @property
+    def is_admin(self) -> bool:
+        return self.role == Role.ADMINISTRATOR
+
+    @property
+    def is_master(self) -> bool:
+        return self.role == Role.MASTER
 
 
 def create_token(
@@ -50,6 +64,7 @@ def create_token(
     role: Role,
     salon_ids: list[uuid.UUID],
     token_type: TokenType,
+    is_superuser: bool = False,
 ) -> str:
     ttl = settings.jwt_access_ttl if token_type == TokenType.ACCESS else settings.jwt_refresh_ttl
     now = int(time.time())
@@ -57,6 +72,7 @@ def create_token(
         "sub": str(user_id),
         "role": role.value,
         "salon_ids": [str(s) for s in salon_ids],
+        "su": is_superuser and role == Role.ADMINISTRATOR,
         "type": token_type.value,
         "iat": now,
         "exp": now + ttl,
@@ -85,6 +101,7 @@ async def get_current_user(
         id=uuid.UUID(payload["sub"]),
         role=Role(payload["role"]),
         salon_ids=[uuid.UUID(s) for s in payload["salon_ids"]],
+        is_superuser=bool(payload.get("su", False)),
     )
 
 
@@ -98,6 +115,26 @@ async def require_salon_access(
 
 
 CurrentUser = Annotated[AuthenticatedUser, Depends(require_salon_access)]
+
+
+def forbidden(message: str = "Недостатньо прав") -> HTTPException:
+    return HTTPException(status.HTTP_403_FORBIDDEN, message)
+
+
+async def require_admin(user: CurrentUser) -> AuthenticatedUser:
+    if not user.is_admin:
+        raise forbidden()
+    return user
+
+
+async def require_superuser(user: CurrentUser) -> AuthenticatedUser:
+    if not (user.is_admin and user.is_superuser):
+        raise forbidden()
+    return user
+
+
+AdminUser = Annotated[AuthenticatedUser, Depends(require_admin)]
+SuperUser = Annotated[AuthenticatedUser, Depends(require_superuser)]
 
 
 async def verify_bot_api_key(

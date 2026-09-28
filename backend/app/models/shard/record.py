@@ -41,6 +41,14 @@ class RecordImportance(enum.StrEnum):
 class Record(ShardBase):
     """Запись клиента к мастеру.
 
+    Услуг в записи может быть несколько (record_services, по порядку): их
+    выполняет подряд один мастер, end_at/price/total_amount — суммы по
+    услугам. service_id — первая услуга; оставлен для совместимости и будет
+    удалён отдельной contract-миграцией.
+
+    master_id = NULL — запись «Без майстра» (очередь), мастера назначают позже.
+    Завершить и оплатить такую запись нельзя.
+
     master_id / client_id ссылаются на Master DB (FK между базами невозможен —
     валидация в сервис-слое). Снапшот-поля копируются при создании, чтобы
     история читалась без cross-DB JOIN.
@@ -58,8 +66,8 @@ class Record(ShardBase):
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     client_id: Mapped[uuid.UUID] = mapped_column(Uuid, index=True)
-    master_id: Mapped[uuid.UUID] = mapped_column(Uuid)
-    service_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("services.id"))
+    master_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    service_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("services.id"))
 
     start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     end_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
@@ -87,7 +95,7 @@ class Record(ShardBase):
     # Денормализованный снапшот из Master DB на момент создания
     client_name: Mapped[str] = mapped_column(String(255))
     client_phone: Mapped[str] = mapped_column(String(32))
-    master_name: Mapped[str] = mapped_column(String(255))
+    master_name: Mapped[str | None] = mapped_column(String(255))
 
     # «Запись для другого человека» (форма календаря)
     visitor_name: Mapped[str | None] = mapped_column(String(255))
@@ -111,6 +119,30 @@ class Record(ShardBase):
     photos: Mapped[list["RecordPhoto"]] = relationship(
         back_populates="record", cascade="all, delete-orphan", lazy="selectin"
     )
+    services: Mapped[list["RecordService"]] = relationship(
+        back_populates="record",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+        order_by="RecordService.position",
+    )
+
+
+class RecordService(ShardBase):
+    """Услуга в записи — снапшот названия, цены и длительности на момент записи."""
+
+    __tablename__ = "record_services"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    record_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("records.id", ondelete="CASCADE"), index=True
+    )
+    service_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("services.id"), index=True)
+    position: Mapped[int] = mapped_column(default=0)
+    name: Mapped[str] = mapped_column(String(255))
+    price: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    duration_minutes: Mapped[int]
+
+    record: Mapped[Record] = relationship(back_populates="services")
 
 
 class RecordPhoto(ShardBase):

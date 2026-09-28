@@ -9,16 +9,34 @@ describe('unwrap', () => {
     expect(unwrap({ data: { ok: true }, response: response(200) })).toEqual({ ok: true });
   });
 
-  it('бросает ApiError с текстом detail из FastAPI', () => {
-    const call = () => unwrap({ error: { detail: 'Нет доступа' }, response: response(403) });
+  it('бросает ApiError с текстом message бекенда', () => {
+    const call = () =>
+      unwrap({ error: { message: 'Нет доступа к этому салону' }, response: response(403) });
     expect(call).toThrow(ApiError);
-    expect(call).toThrow('Нет доступа');
+    expect(call).toThrow('Нет доступа к этому салону');
   });
 
-  it('склеивает ошибки валидации 422', () => {
-    const error = { detail: [{ msg: 'field required' }, { msg: 'invalid email' }] };
-    expect(() => unwrap({ error, response: response(422) })).toThrow(
-      'field required; invalid email',
+  it('добавляет к ошибке валидации поля из details', () => {
+    const error = {
+      message: 'Ошибка валидации',
+      code: 'validation_error',
+      details: { firstName: ['Field required'], phone: ['too short'] },
+    };
+    try {
+      unwrap({ error, response: response(422) });
+    } catch (e) {
+      expect(e).toBeInstanceOf(ApiError);
+      expect((e as ApiError).code).toBe('validation_error');
+      expect((e as ApiError).message).toBe(
+        'Ошибка валидации — firstName: Field required; phone: too short',
+      );
+    }
+    expect.assertions(3);
+  });
+
+  it('понимает старый формат FastAPI {detail}', () => {
+    expect(() => unwrap({ error: { detail: 'Not Found' }, response: response(404) })).toThrow(
+      'Not Found',
     );
   });
 });

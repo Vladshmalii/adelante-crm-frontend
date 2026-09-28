@@ -5,10 +5,17 @@ import { saveBlob } from '@/shared/lib';
 
 import { financesKeys } from './finances.queries';
 
-/** Любое изменение в финансах двигает балансы касс и дашборд — сбрасываем весь раздел. */
+/**
+ * Любое изменение в финансах двигает балансы касс и дашборд — сбрасываем весь раздел.
+ * Чек с `recordId` меняет и статус оплаты записи, поэтому сбрасываем и записи.
+ */
 function useInvalidateFinances() {
   const queryClient = useQueryClient();
-  return () => queryClient.invalidateQueries({ queryKey: financesKeys.all });
+  return () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: financesKeys.all }),
+      queryClient.invalidateQueries({ queryKey: ['records'] }),
+    ]);
 }
 
 const idPath = <K extends string>(key: K, id: string) => ({

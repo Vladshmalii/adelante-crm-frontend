@@ -50,12 +50,59 @@ describe('toNotification', () => {
     expect(toNotification(created, { ...master, id: 'other' })).toBeNull();
   });
 
+  it('мастер видит, что его запись передали другому', () => {
+    const n = toNotification(
+      event('record.updated', {
+        record_id: 'r1',
+        master_id: 'm2',
+        previous_master_id: 'm1',
+        master_name: 'Анна',
+        client_name: 'Марія',
+        change: 'reassigned',
+      }),
+      master,
+    );
+    expect(n).toMatchObject({ title: 'Запис передано іншому майстру', text: 'Марія → Анна' });
+  });
+
+  it('запись без мастера и несколько услуг', () => {
+    const n = toNotification(
+      event('record.created', {
+        record_id: 'r2',
+        client_name: 'Ольга',
+        master_id: null,
+        master_name: null,
+        service_names: ['Стрижка', 'Укладка'],
+        start_at: '2026-09-24T09:00:00Z',
+      }),
+      admin,
+    );
+    expect(n?.text).toBe('Ольга → без майстра · Стрижка, Укладка · 24.09.2026 12:00');
+  });
+
   it('смена статуса — с переводом статуса', () => {
     const n = toNotification(
-      event('record.updated', { record_id: 'r1', status: 'no_show' }),
+      event('record.updated', { record_id: 'r1', status: 'no_show', change: 'status' }),
       admin,
     );
     expect(n).toMatchObject({ title: 'Статус запису змінено', text: 'не прийшов' });
+  });
+
+  it('перенос — с новым временем', () => {
+    const n = toNotification(
+      event('record.updated', {
+        record_id: 'r1',
+        client_name: 'Марія',
+        master_name: 'Юлія',
+        change: 'rescheduled',
+        start_at: '2026-09-25T08:30:00Z',
+      }),
+      admin,
+    );
+    expect(n).toMatchObject({
+      title: 'Запис перенесено',
+      text: 'Марія → Юлія: новий час 25.09.2026 11:30',
+    });
   });
 
   it('отзыв — со звёздами', () => {

@@ -6,6 +6,7 @@ import {
   ProFormDigit,
   ProFormRadio,
   ProFormSelect,
+  ProFormSwitch,
   ProFormText,
 } from '@ant-design/pro-components';
 import { App } from 'antd';
@@ -19,16 +20,17 @@ import { useCreateStaff, useUpdateStaff } from '../api/staff.mutations';
 import { statusSingular } from '../model/labels';
 
 type Staff = Schema<'StaffOut'>;
-// Поле роли видно только суперюзеру; когда его нет в форме, значения роли нет и в onFinish.
-type FormValues = Omit<Schema<'StaffCreateIn'>, 'role'> & {
+// Роль видна только суперюзеру; когда поля нет в форме, нет и значения в onFinish.
+type FormValues = Omit<Schema<'StaffCreateIn'>, 'role' | 'isSuperuser'> & {
   role?: Schema<'Role'>;
+  isSuperuser?: boolean;
   status?: Schema<'StaffStatus'>;
 };
 
 interface StaffFormModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Нет — создание, есть — редактирование (бекенд редактирует только мастеров). */
+  /** Нет — создание, есть — редактирование. */
   staff?: Staff;
 }
 
@@ -39,26 +41,32 @@ const phoneRule = (required: boolean) => ({
       : Promise.reject(new Error(required ? 'Вкажіть телефон' : 'Невірний формат телефону')),
 });
 
-const emptyToNull = (value: unknown) => (value === '' || value === undefined ? null : value);
+const blank = (value?: string | null) => (value?.trim() ? value : null);
 
 export function StaffFormModal({ open, onOpenChange, staff }: StaffFormModalProps) {
   const { message } = App.useApp();
-  const { can } = useViewer();
+  const { viewer, can } = useViewer();
   const create = useCreateStaff();
   const update = useUpdateStaff();
   const isEdit = !!staff;
+  const editingSelf = staff?.id === viewer.id;
 
   const submit = async (values: FormValues) => {
+    const role = staff?.role ?? (can.staff.manageAdmins ? (values.role ?? 'master') : 'master');
+    const isAdmin = role === 'administrator';
     const common = {
       firstName: values.firstName,
-      middleName: emptyToNull(values.middleName) as string | null,
-      lastName: emptyToNull(values.lastName) as string | null,
+      middleName: blank(values.middleName),
+      lastName: blank(values.lastName),
       phone: values.phone,
-      additionalPhone: emptyToNull(values.additionalPhone) as string | null,
-      email: emptyToNull(values.email) as string | null,
+      additionalPhone: blank(values.additionalPhone),
+      email: blank(values.email),
       gender: values.gender ?? null,
       birthDate: values.birthDate ?? null,
-      position: emptyToNull(values.position) as string | null,
+      address: blank(values.address),
+      emergencyContactName: blank(values.emergencyContactName),
+      emergencyContactPhone: blank(values.emergencyContactPhone),
+      position: blank(values.position),
       specializations: values.specializations ?? [],
       hireDate: values.hireDate ?? null,
       color: values.color ?? null,
@@ -68,16 +76,29 @@ export function StaffFormModal({ open, onOpenChange, staff }: StaffFormModalProp
         commissionPercent: values.commissionPercent ?? null,
       }),
     };
+    // Флаг суперюзера — только суперюзер и только администраторам; себе не меняем.
+    const superuserFlag =
+      isAdmin && can.staff.manageAdmins && !editingSelf
+        ? { isSuperuser: !!values.isSuperuser }
+        : {};
+
     if (staff) {
       await update.mutateAsync({
         id: staff.id,
-        body: { ...common, status: values.status ?? null },
+        body: {
+          ...common,
+          ...superuserFlag,
+          ...(values.password ? { password: values.password } : {}),
+          ...(staff.status !== 'fired' && values.status ? { status: values.status } : {}),
+        },
       });
     } else {
       await create.mutateAsync({
         ...common,
-        role: values.role ?? 'master',
-        password: values.role === 'administrator' ? values.password : null,
+        role,
+        isSuperuser: false,
+        ...superuserFlag,
+        password: blank(values.password),
       });
     }
   };
@@ -87,13 +108,13 @@ export function StaffFormModal({ open, onOpenChange, staff }: StaffFormModalProp
       title={isEdit ? 'Редагувати співробітника' : 'Новий співробітник'}
       open={open}
       onOpenChange={onOpenChange}
-      width={720}
+      width={760}
       grid
       rowProps={{ gutter: 16 }}
       colProps={{ span: 12 }}
       dateFormatter="string"
       modalProps={{ destroyOnHidden: true }}
-      initialValues={staff ?? { role: 'master' }}
+      initialValues={staff ? { ...staff, password: undefined } : { role: 'master' }}
       submitter={{ searchConfig: { submitText: 'Зберегти', resetText: 'Скасувати' } }}
       onFinish={async (values) => {
         try {
@@ -131,26 +152,40 @@ export function StaffFormModal({ open, onOpenChange, staff }: StaffFormModalProp
       </ProForm.Item>
       <ProFormDependency name={['role']}>
         {({ role }: { role?: Schema<'Role'> }) => {
-          const isAdmin = !isEdit && role === 'administrator';
+          const isAdmin = (staff?.role ?? role) === 'administrator';
+          const newAdmin = !isEdit && isAdmin;
           return (
             <>
               <ProFormText
                 name="email"
                 label="Email"
-                tooltip={isAdmin ? 'Адміністратор входить у систему за email' : undefined}
+                tooltip="Потрібен для входу в систему"
                 rules={[
                   { type: 'email', message: 'Невірний формат email' },
-                  { required: isAdmin, message: 'Email потрібен для входу' },
+                  { required: newAdmin, message: 'Email потрібен для входу' },
                 ]}
               />
-              {isAdmin && (
-                <ProFormText.Password
-                  name="password"
-                  label="Пароль"
-                  rules={[
-                    { required: true, message: 'Вкажіть пароль' },
-                    { min: 8, message: 'Мінімум 8 символів' },
-                  ]}
+              <ProFormText.Password
+                name="password"
+                label={isEdit ? 'Новий пароль' : 'Пароль'}
+                placeholder={isEdit ? 'Залиште порожнім, щоб не змінювати' : 'Мінімум 8 символів'}
+                tooltip={isEdit ? undefined : 'Без пароля майстер не зможе увійти в систему'}
+                fieldProps={{ autoComplete: 'new-password' }}
+                rules={[
+                  { required: newAdmin, message: 'Вкажіть пароль' },
+                  { min: 8, message: 'Мінімум 8 символів' },
+                ]}
+              />
+              {isAdmin && can.staff.manageAdmins && (
+                <ProFormSwitch
+                  name="isSuperuser"
+                  label="Суперюзер"
+                  tooltip={
+                    editingSelf
+                      ? 'Собі зняти прапорець не можна'
+                      : 'Доступ до фінансів, вивантажень, зарплат і керування адміністраторами'
+                  }
+                  disabled={editingSelf}
                 />
               )}
             </>
@@ -166,7 +201,16 @@ export function StaffFormModal({ open, onOpenChange, staff }: StaffFormModalProp
         mode="tags"
         placeholder="Введіть і натисніть Enter"
       />
-      {isEdit && (
+      <ProFormText name="address" label="Адреса" colProps={{ span: 24 }} />
+      <ProFormText name="emergencyContactName" label="Контактна особа (екстрений випадок)" />
+      <ProForm.Item
+        name="emergencyContactPhone"
+        label="Телефон контактної особи"
+        rules={[phoneRule(false)]}
+      >
+        <PhoneInput />
+      </ProForm.Item>
+      {isEdit && staff.status !== 'fired' && (
         <ProFormSelect
           name="status"
           label="Статус"

@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { api, type Schema, unwrap } from '@/shared/api';
+import { saveBlob } from '@/shared/lib';
 
 import { staffKeys } from './staff.queries';
 
@@ -32,7 +33,31 @@ export function useUpdateStaff() {
   });
 }
 
-/** Увольнение (status=fired). Бекенд вернёт 409, если у мастера есть будущие записи. */
+/** Восстановление уволенного: `PATCH` со `status: active`. */
+export function useRestoreStaff() {
+  const invalidate = useInvalidateStaff();
+  return useMutation({
+    mutationFn: async (id: string) =>
+      unwrap(
+        await api.PATCH('/api/admin/v1/staff/{staff_id}', {
+          params: { path: { staff_id: id } },
+          body: { status: 'active' },
+        }),
+      ).data,
+    onSuccess: invalidate,
+  });
+}
+
+export function useExportStaff() {
+  return useMutation({
+    mutationFn: async () => {
+      const blob = unwrap(await api.GET('/api/admin/v1/staff/export', { parseAs: 'blob' }));
+      saveBlob(blob, 'staff.xlsx');
+    },
+  });
+}
+
+/** Увольнение (status=fired). Бекенд вернёт 409 для себя и для мастера с будущими записями. */
 export function useFireStaff() {
   const invalidate = useInvalidateStaff();
   return useMutation({
@@ -73,5 +98,33 @@ export function useAddScheduleException(id: string) {
         }),
       ).data,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: staffKeys.schedule(id) }),
+  });
+}
+
+export function useUpdateScheduleException(staffId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, body }: { id: string; body: Schema<'ExceptionPatchIn'> }) =>
+      unwrap(
+        await api.PATCH('/api/admin/v1/staff/{staff_id}/schedule/exceptions/{exception_id}', {
+          params: { path: { staff_id: staffId, exception_id: id } },
+          body,
+        }),
+      ).data,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: staffKeys.schedule(staffId) }),
+  });
+}
+
+export function useDeleteScheduleException(staffId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      unwrap(
+        await api.DELETE('/api/admin/v1/staff/{staff_id}/schedule/exceptions/{exception_id}', {
+          params: { path: { staff_id: staffId, exception_id: id } },
+        }),
+      );
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: staffKeys.schedule(staffId) }),
   });
 }

@@ -204,15 +204,14 @@
 
 Все места с пометкой ⚠, чтобы проверить до реализации:
 
-1. **Календарь-планировщик** — выбор библиотеки (раздел 3). Нужен прототип.
+1. **Календарь-планировщик** — выбор библиотеки (раздел 3). Нужен прототип. **Не начато.**
 2. ~~**Графики**~~ — решено (2026-09-23): `@ant-design/plots`. Весит ~1,2 МБ (≈350 КБ gzip), но живёт
    только в чанке страницы «Фінанси» и грузится суперюзеру при её открытии; основной бандл не растёт.
    Условие — `"sideEffects"` в `package.json`, иначе сборщик тянет графики в общий чанк.
-3. **ProComponents 3 — beta.** Все pro-компоненты выше (`ProTable`, `ModalForm`, `DrawerForm`,
-   `ProDescriptions`, `StatisticCard`, `LightFilter`, `ProFormList`, `CheckCard`, `EditableProTable`)
-   есть в экспортах установленной версии, но на практике проверены только `ProLayout`, `PageContainer`,
-   `ProTable`, `LoginForm` (страницы `web/`). Если какой-то окажется сырым — у каждого есть замена на
-   обычный antd (`Form` + `Modal`/`Drawer`, `Table`, `Descriptions`, `Statistic`).
+3. **ProComponents 3 — beta.** На страницах `web/` проверены в деле: `ProLayout`, `PageContainer`
+   (с `tabList`), `ProTable`, `ModalForm`, `LoginForm`, `ProList`, `ProCard`, `StatisticCard`,
+   `ProFormList` и поля `ProForm*`. Работают, но с оговорками — см. раздел 5. Не использовались пока
+   `DrawerForm`, `ProDescriptions`, `LightFilter`, `QueryFilter`, `CheckCard`, `EditableProTable`.
 4. ~~**Символ валюты**~~ — обошли: `ProFormMoney` не используем, суммы в формах — `ProFormDigit` с
    суффиксом `₴`, в таблицах — `formatMoney` (`uk-UA`).
 5. **Сворачиваемые группы услуг в выборе записи.** `Select` показывает группы, но не сворачивает их;
@@ -222,3 +221,40 @@
 
 Отмечу также, что `List` в antd 6.6 объявлен устаревшим (заменён на виртуальный `Listy`), поэтому
 для списков берём `ProList`: в ProComponents 3 он не зависит от `antd.List`.
+
+## 5. Как сделано на практике (на 2026-09-27)
+
+Где реализация разошлась с планом из разделов 1–3 и что выяснилось по ходу.
+
+### Отличия от плана
+
+| План                                                 | Как сделано                                                                                                    | Почему                                                                                                    |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Фильтры над таблицей — `LightFilter` / `QueryFilter` | Обычные `Select` и свой `DateRangeFilter` (`shared/ui`) в `headerTitle` у `ProTable`, поиск — `toolbar.search` | Состояние фильтров живёт в URL (zod-схема роута); `LightFilter` держит своё состояние и дублировал бы его |
+| Карточка — `Drawer` + `ProDescriptions`              | `Drawer` + обычный `Descriptions`                                                                              | Хватает; `ProDescriptions` нужен для редактирования на месте, а его нет                                   |
+| Импорт Excel — `ModalForm` + `ProFormUploadDragger`  | `Modal` + `Upload.Dragger`, отчёт — `Alert` со списком ошибок                                                  | Форма из одного файла, `ModalForm` не даёт ничего сверху                                                  |
+| Маска телефона — `react-imask`                       | Своё: `shared/lib/phone.ts` + `shared/ui/PhoneInput` (≈40 строк)                                               | Нужен только украинский формат; хранение `+380XXXXXXXXX`, показ `+380 (XX) XXX-XX-XX`                     |
+| Командная палитра — своя                             | Сделана: `widgets/app-layout/GlobalSearch.tsx` (`Ctrl/⌘+K`)                                                    | Как планировали                                                                                           |
+| Недельный график — свой                              | Сделан: `widgets/week-schedule` (сотрудники; позже — салон)                                                    | Как планировали                                                                                           |
+| Горячие клавиши                                      | `Ctrl/⌘+K` — сделано; `Alt+N` (новая запись) — вместе с Розкладом                                              |                                                                                                           |
+| Права по ролям — хелпер                              | `shared/auth/access.ts`: `canAccess(viewer, section)` и `permissions(viewer)`, хук `useViewer()`               |                                                                                                           |
+| Графики — `@ant-design/plots` или `recharts`         | `@ant-design/plots`                                                                                            | См. раздел 4, п. 2                                                                                        |
+| Список — `ProList` c `metas`                         | `ProList` c `columns` + `listSlot`                                                                             | `metas` в ProComponents 3 объявлен устаревшим                                                             |
+
+### Подводные камни antd 6 / ProComponents 3
+
+- **Даты в `ModalForm`.** По умолчанию ProForm превращает значения `DatePicker` в строки (`dateFormatter="string"`),
+  а время у `TimePicker` внутри `ProForm.Item` — тоже в дату. Для форм с датой-временем ставим
+  `dateFormatter={false}` и форматируем сами через пояс салона (`fromPickerDateTime`).
+  Без этого форма молча не отправлялась.
+- **`initialValues` ProForm** принимаются только при инициализации: значения «по умолчанию сейчас»
+  фиксируем `useMemo` на момент открытия, иначе предупреждение в консоли.
+- **Бандл.** Чтобы библиотеки страницы (графики) не попадали в общий чанк, в `package.json` указан
+  `"sideEffects"`: роут импортирует и запросы, и компонент страницы через один `index.ts`.
+- **Устаревшие API antd 6**, которые ловит линтер (`@typescript-eslint/no-deprecated`): `List` → `ProList`
+  (или `Listy`), `Space direction` → `orientation`, `Modal destroyOnClose` → `destroyOnHidden`,
+  `Statistic valueStyle` → `styles.content`, `Alert message` → `title`, у `ProCard` нет `bordered` —
+  `variant="outlined"`, `AutoComplete filterOption` → `showSearch.filterOption`.
+- **`StatisticCard trend`** окрашивает «вниз» в зелёный (китайская конвенция) — для отрицательной прибыли
+  задаём цвет явно.
+- **Предупреждения ProComponents** иногда выводятся на китайском вместе с английским — это не ошибка.

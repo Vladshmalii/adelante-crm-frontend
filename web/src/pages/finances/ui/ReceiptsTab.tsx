@@ -1,6 +1,7 @@
 import { PlusOutlined, StopOutlined } from '@ant-design/icons';
 import { type ProColumns, ProTable } from '@ant-design/pro-components';
 import { useQuery } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
 import { App, Button, Select, Space, Tag, Typography } from 'antd';
 import { useState } from 'react';
 
@@ -32,7 +33,9 @@ export function ReceiptsTab({ search, setSearch }: TabProps) {
   const confirmCancel = (r: Receipt) => {
     modal.confirm({
       title: `Скасувати чек № ${r.number}?`,
-      content: 'Чек і повʼязані з ним операції буде позначено скасованими. Дію не можна повернути.',
+      content: r.recordId
+        ? 'Чек і повʼязані операції буде скасовано, а візит знову стане неоплаченим. Дію не можна повернути.'
+        : 'Чек і повʼязані з ним операції буде позначено скасованими. Дію не можна повернути.',
       okText: 'Скасувати чек',
       okButtonProps: { danger: true },
       cancelText: 'Назад',
@@ -48,6 +51,18 @@ export function ReceiptsTab({ search, setSearch }: TabProps) {
     { title: '№', dataIndex: 'number' },
     { title: 'Дата', key: 'date', render: (_, r) => formatDateTime(r.date) },
     { title: 'Клієнт', key: 'client', render: (_, r) => r.client?.name ?? '—' },
+    {
+      title: 'Візит',
+      key: 'record',
+      render: (_, r) =>
+        r.recordId ? (
+          <Link to="/overview" search={{ tab: 'records', recordId: r.recordId }}>
+            Запис
+          </Link>
+        ) : (
+          '—'
+        ),
+    },
     { title: 'Сума', key: 'amount', align: 'right', render: (_, r) => formatMoney(r.amount) },
     {
       title: 'Оплати',

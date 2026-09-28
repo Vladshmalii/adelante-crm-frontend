@@ -29,7 +29,11 @@ def integrity_check() -> None:
 
 def _check_salon(salon_id: UUID) -> None:
     with db.shard_session(salon_id) as session:
-        master_ids = set(session.scalars(select(Record.master_id).distinct()))
+        master_ids = set(
+            session.scalars(
+                select(Record.master_id).where(Record.master_id.is_not(None)).distinct()
+            )
+        )
         master_ids |= set(session.scalars(select(service_masters.c.master_id).distinct()))
         client_ids = set(session.scalars(select(Record.client_id).distinct()))
 
