@@ -1,7 +1,10 @@
-# Продовий стек (сервер за reverse proxy, домени вже налаштовані зовні).
-# Образи api/ws/worker/beat та ui збираються і пушаться в GHCR через
+# Продовий стек за Traefik (/opt/traefik, зовнішня мережа `proxy`, TLS — резолвер `le`).
+# Образи api/ws/worker/beat та web збираються і пушаться в GHCR через
 # .github/workflows/backend-deploy.yml і frontend-deploy.yml — цей файл
-# лише тягне готові образи й піднімає їх з продовими портами.
+# лише тягне готові образи й піднімає їх.
+#
+# Назовні порти не публікуються: api, ws і web доступні тільки через Traefik
+# (мережа `proxy`), бази й Redis — тільки в мережі проєкту `default`.
 #
 # Запуск на сервері:
 #   docker compose -f docker-compose.prod.yml pull
@@ -9,26 +12,53 @@
 #
 # .env поруч із цим файлом — той самий, що й для docker-compose.yml
 # (див. .env.example), плюс ADELANTE_CORS_ORIGINS з продовим доменом фронта.
+# ADELANTE_FRONTEND_URL задано нижче: environment перекриває значення з .env.
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
 
 services:
   api:
     image: ghcr.io/vladshmalii/adelante-crm-backend:latest
     env_file: .env
-    ports:
-      - "8432:8000"
+    environment:
+      # Посилання в листі скидання пароля: {адреса}/reset-password?token=...
+      ADELANTE_FRONTEND_URL: https://adelante.dvms.tech
+    volumes:
+      # Аватари й фото візитів (upload_dir = /backend/uploads) — переживають редеплой
+      - uploads-data:/backend/uploads
+    networks:
+      - proxy
+      - default
     depends_on:
       - postgres-master
       - redis
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: "proxy"
+      traefik.http.routers.adelante-api.rule: Host(`api-adelante.dvms.tech`)
+      traefik.http.routers.adelante-api.entrypoints: websecure
+      traefik.http.routers.adelante-api.tls.certresolver: le
+      traefik.http.services.adelante-api.loadbalancer.server.port: "8000"
     restart: unless-stopped
+    mem_limit: 768m
+    logging: *logging
 
   worker:
     image: ghcr.io/vladshmalii/adelante-crm-backend:latest
     command: celery -A workers.celery_app:celery worker -Q default,notifications -l info
     env_file: .env
+    environment:
+      ADELANTE_FRONTEND_URL: https://adelante.dvms.tech
     depends_on:
       - postgres-master
       - redis
-    restart: unless-stopped
+    restart: always
+    mem_limit: 512m
+    logging: *logging
 
   # Строго один инстанс beat — иначе дубли периодических задач
   beat:
@@ -37,34 +67,79 @@ services:
     env_file: .env
     depends_on:
       - redis
-    restart: unless-stopped
+    restart: always
+    mem_limit: 256m
+    logging: *logging
 
   ws:
     image: ghcr.io/vladshmalii/adelante-crm-backend:latest
     command: uvicorn ws.main:app --host 0.0.0.0 --port 8001
     env_file: .env
-    ports:
-      - "8431:8001"
+    networks:
+      - proxy
+      - default
     depends_on:
       - redis
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: "proxy"
+      traefik.http.routers.adelante-ws.rule: Host(`ws-adelante.dvms.tech`)
+      traefik.http.routers.adelante-ws.entrypoints: websecure
+      traefik.http.routers.adelante-ws.tls.certresolver: le
+      traefik.http.services.adelante-ws.loadbalancer.server.port: "8001"
     restart: unless-stopped
+    mem_limit: 256m
+    logging: *logging
 
-  # CI для бота не заводили (не просили) — на проді збирається з сорців,
-  # деплоїться/рестартиться вручну (docker compose -f docker-compose.prod.yml up -d --build bot).
+  # Разові команди salonctl (міграції, перший салон і суперюзер) — deploy/bootstrap.sh.
+  # Профіль tools: `up -d` його не піднімає, тільки `docker compose run --rm manage ...`.
+  # Окремий сервіс, а не `run api`: без мережі proxy і Traefik-labels, тож Traefik
+  # не шле трафік у тимчасовий контейнер.
+  manage:
+    image: ghcr.io/vladshmalii/adelante-crm-backend:latest
+    profiles: [tools]
+    command: salonctl --help
+    env_file: .env
+    depends_on:
+      postgres-master:
+        condition: service_healthy
+      postgres-shards:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    mem_limit: 512m
+    logging: *logging
+
+  # Бот збирається з сорців на сервері; деплоїться разом із бекендом (backend-deploy.yml).
   bot:
     build: ./bot
     env_file: .env
     depends_on:
       - api
-    restart: unless-stopped
+    restart: always
+    mem_limit: 256m
+    logging: *logging
 
-  ui:
-    image: ghcr.io/vladshmalii/adelante-crm-ui:latest
-    ports:
-      - "3777:3000"
-    depends_on:
-      - api
+  # Адмінка (web/, nginx). URL бекенда задаються тут і потрапляють у /config.js на старті.
+  # Публічної сторінки /booking у web немає: ADELANTE_BOOKING_BASE_URL не працює
+  # до окремого проєкту онлайн-запису (старий ui/ більше не деплоїться).
+  web:
+    image: ghcr.io/vladshmalii/adelante-crm-web:latest
+    environment:
+      API_URL: https://api-adelante.dvms.tech
+      WS_URL: wss://ws-adelante.dvms.tech/ws
+    # Бекенд браузер кличе через свої домени — мережа проєкту web не потрібна.
+    networks:
+      - proxy
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.adelante-web.rule: Host(`adelante.dvms.tech`)
+      traefik.http.routers.adelante-web.entrypoints: websecure
+      traefik.http.routers.adelante-web.tls.certresolver: le
+      traefik.http.services.adelante-web.loadbalancer.server.port: "80"
     restart: unless-stopped
+    mem_limit: 64m
+    logging: *logging
 
   postgres-master:
     image: postgres:17
@@ -74,9 +149,16 @@ services:
       POSTGRES_PASSWORD: ${MASTER_DB_PASSWORD:-adelante}
     volumes:
       - master-data:/var/lib/postgresql/data
-    ports:
-      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U adelante -d adelante_master"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    labels:
+      backup.database: "postgres"
     restart: unless-stopped
+    mem_limit: 512m
+    logging: *logging
 
   # Один PG-инстанс на все шарды (шард = отдельная database);
   # при росте нагрузки добавляется второй инстанс, реестр укажет host
@@ -88,9 +170,16 @@ services:
       POSTGRES_PASSWORD: ${SHARD_ADMIN_PASSWORD:-postgres}
     volumes:
       - shards-data:/var/lib/postgresql/data
-    ports:
-      - "127.0.0.1:5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    labels:
+      backup.database: "postgres"
     restart: unless-stopped
+    mem_limit: 1g
+    logging: *logging
 
   redis:
     image: redis:7
@@ -98,11 +187,16 @@ services:
     command: redis-server --appendonly yes
     volumes:
       - redis-data:/data
-    ports:
-      - "127.0.0.1:6379:6379"
     restart: unless-stopped
+    mem_limit: 256m
+    logging: *logging
+
+networks:
+  proxy:
+    external: true
 
 volumes:
   master-data:
   shards-data:
   redis-data:
+  uploads-data:
