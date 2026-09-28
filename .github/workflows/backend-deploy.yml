@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - "backend/**"
+      - "bot/**"
+      - "deploy/**"
       - "docker-compose.prod.yml"
       - ".github/workflows/backend-deploy.yml"
   workflow_dispatch:
@@ -95,7 +97,7 @@ jobs:
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
-          password: ${{ secrets.SERVER_PASSWORD }}
+          key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT || '22' }}
           envs: GHCR_TOKEN,GHCR_ACTOR
 
@@ -109,6 +111,13 @@ jobs:
             git pull --ff-only
 
             docker compose -f docker-compose.prod.yml pull api worker beat ws
+
+            # Міграції, а на порожньому сервері — перший салон і суперюзер (BOOTSTRAP_* з .env).
+            # До перезапуску: нова версія api стартує вже на оновленій схемі.
+            sh deploy/bootstrap.sh
+
             docker compose -f docker-compose.prod.yml up -d api worker beat ws
- 
+            # Бот збирається з сорців на сервері (образу в GHCR немає).
+            docker compose -f docker-compose.prod.yml up -d --build bot
+
             docker image prune -f

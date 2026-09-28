@@ -98,7 +98,7 @@ jobs:
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
-          password: ${{ secrets.SERVER_PASSWORD }}
+          key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT || '22' }}
           envs: GHCR_TOKEN,GHCR_ACTOR
 
@@ -112,7 +112,7 @@ jobs:
             git pull --ff-only
 
             docker compose -f docker-compose.prod.yml pull web
-            # --remove-orphans убирает контейнер старого сервиса ui (порт 3777 переходит к web).
-            docker compose -f docker-compose.prod.yml up -d --remove-orphans web
+            # Трафик приходит через Traefik (labels в docker-compose.prod.yml), порты не публикуются.
+            docker compose -f docker-compose.prod.yml up -d web
 
             docker image prune -f
