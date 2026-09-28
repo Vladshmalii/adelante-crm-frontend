@@ -5,6 +5,7 @@
 Шаги идемпотентны — повторный запуск докатывает с места падения.
 """
 
+import contextlib
 import os
 import re
 import sys
@@ -23,7 +24,30 @@ from app.config import get_settings
 from app.models.master import Administrator, Salon, SalonStatus
 from app.tenancy.registry import CONN_KEY, INVALIDATE_CHANNEL, SLUG_KEY, SalonConnInfo
 
-BASE_DIR = Path(__file__).resolve().parent
+
+def _find_base_dir() -> Path:
+    """Каталог с alembic.*.ini и migrations/.
+
+    При `pip install .` cli.py попадает в site-packages, а миграции — нет,
+    поэтому рядом с модулем их может не быть. Порядок поиска: переменная
+    ADELANTE_BACKEND_DIR, каталог модуля, текущий каталог (в docker-образе —
+    /backend).
+    """
+    candidates = [
+        os.environ.get("ADELANTE_BACKEND_DIR"),
+        str(Path(__file__).resolve().parent),
+        str(Path.cwd()),
+    ]
+    for candidate in candidates:
+        if candidate and (Path(candidate) / "migrations").is_dir():
+            return Path(candidate)
+    raise SystemExit(
+        "Не найден каталог migrations/: запустите из каталога backend "
+        "или задайте ADELANTE_BACKEND_DIR"
+    )
+
+
+BASE_DIR = _find_base_dir()
 
 app = typer.Typer(help="Управление салонами и миграциями Adelante CRM")
 salon_app = typer.Typer(help="Реестр салонов")
@@ -304,12 +328,32 @@ def salon_resume(slug: str) -> None:
 # --- administrator ------------------------------------------------------------
 
 
+def _resolve_salons(session, refs: list[str]) -> list[Salon]:
+    salons = []
+    for ref in refs:
+        query = select(Salon).where(Salon.slug == ref)
+        with contextlib.suppress(ValueError):
+            query = select(Salon).where((Salon.slug == ref) | (Salon.id == UUID(ref)))
+        salon = session.scalar(query)
+        if salon is None:
+            typer.secho(f"Салон {ref} не найден (укажите slug или id)", fg="red")
+            raise typer.Exit(code=1)
+        salons.append(salon)
+    return salons
+
+
 @administrator_app.command("create")
 def administrator_create(
     email: str = typer.Option(...),
     password: str = typer.Option(..., help="Мин. 8 символов"),
     first_name: str = typer.Option(...),
     last_name: str | None = typer.Option(None),
+    salon: list[str] = typer.Option(  # noqa: B008
+        [], "--salon", help="Slug или id салона; можно указать несколько раз"
+    ),
+    superuser: bool = typer.Option(
+        False, "--superuser", help="Доступ к финансам, выгрузкам и управлению администраторами"
+    ),
 ) -> None:
     """Создать администратора (первый вход после поднятия проекта — БД пуста, self-service нет)."""
     if len(password) < 8:
@@ -322,15 +366,63 @@ def administrator_create(
             typer.secho(f"Администратор {email} уже существует (id={existing.id})", fg="yellow")
             raise typer.Exit(code=1)
 
+        salons = _resolve_salons(session, salon)
         admin = Administrator(
             email=email,
             password_hash=security.password_hasher.hash(password),
             first_name=first_name,
             last_name=last_name,
+            is_superuser=superuser,
         )
+        admin.salons = salons
         session.add(admin)
         session.commit()
         typer.secho(f"Администратор {email} создан (id={admin.id})", fg="green")
+        if not salons:
+            typer.secho(
+                "Администратор не привязан ни к одному салону — после входа салонов не будет. "
+                "Привяжите: salonctl administrator add-salon",
+                fg="yellow",
+            )
+
+
+def _get_admin(session, email: str) -> Administrator:
+    admin = session.scalar(select(Administrator).where(Administrator.email == email))
+    if admin is None:
+        typer.secho(f"Администратор {email} не найден", fg="red")
+        raise typer.Exit(code=1)
+    return admin
+
+
+@administrator_app.command("add-salon")
+def administrator_add_salon(
+    email: str,
+    salon: list[str] = typer.Option(  # noqa: B008
+        ..., "--salon", help="Slug или id салона; можно указать несколько раз"
+    ),
+) -> None:
+    """Привязать администратора к салонам."""
+    with _master_session() as session:
+        admin = _get_admin(session, email)
+        for item in _resolve_salons(session, salon):
+            if item not in admin.salons:
+                admin.salons.append(item)
+        session.commit()
+        typer.secho(f"{email}: салоны — {', '.join(s.slug for s in admin.salons)}", fg="green")
+
+
+@administrator_app.command("superuser")
+def administrator_superuser(
+    email: str,
+    revoke: bool = typer.Option(False, "--revoke", help="Снять флаг"),
+) -> None:
+    """Выдать (или снять) администратору флаг суперюзера."""
+    with _master_session() as session:
+        admin = _get_admin(session, email)
+        admin.is_superuser = not revoke
+        session.commit()
+    state = "снят" if revoke else "выдан"
+    typer.secho(f"{email}: флаг суперюзера {state} (вступит в силу после перевхода)", fg="green")
 
 
 if __name__ == "__main__":

@@ -1,4 +1,8 @@
-"""Финансы: дашборд, операции, документы, чеки, способы оплаты, кассы."""
+"""Финансы: дашборд, операции, документы, чеки, способы оплаты, кассы.
+
+Раздел целиком — только суперюзер (ACCESS.md). Оплату визита любой
+администратор проводит через POST /records/{id}/payment.
+"""
 
 import io
 import uuid
@@ -13,7 +17,7 @@ from sqlalchemy import case, func, select
 
 from app.api.admin.deps import CurrentAuthor
 from app.api.schemas import ApiModel, Envelope, PersonRef, page_meta
-from app.api.security import require_salon_access
+from app.api.security import require_superuser
 from app.models.shard import (
     AuditAction,
     CashRegister,
@@ -32,15 +36,26 @@ from app.models.shard import (
     ReceiptSource,
     ReceiptStatus,
     Record,
+    RecordService,
     RecordStatus,
-    Service,
 )
+from app.services import visits as visits_service
 from app.services.audit import diff_fields, write_audit
-from app.tenancy.deps import TenantSession
+from app.tenancy.deps import SalonId, TenantSession
+from app.timeutils import SALON_TZ_NAME, LocalDatetime, to_local
 
-router = APIRouter(
-    prefix="/finances", tags=["finances"], dependencies=[Depends(require_salon_access)]
-)
+OPERATION_TYPE_NAMES = {
+    OperationType.INCOME: "Прихід",
+    OperationType.EXPENSE: "Видаток",
+    OperationType.TRANSFER: "Переказ",
+}
+
+
+def _operation_title(op: FinanceOperation) -> str:
+    return f"Операція: {OPERATION_TYPE_NAMES.get(op.type, op.type.value)} {op.amount} ₴"
+
+
+router = APIRouter(prefix="/finances", tags=["finances"], dependencies=[Depends(require_superuser)])
 
 
 # --- Дашборд ----------------------------------------------------------------
@@ -81,8 +96,8 @@ class DashboardOut(ApiModel):
 @router.get("/dashboard", response_model=Envelope[DashboardOut])
 async def dashboard(
     tenant_session: TenantSession,
-    date_from: Annotated[datetime, Query(alias="dateFrom")],
-    date_to: Annotated[datetime, Query(alias="dateTo")],
+    date_from: Annotated[LocalDatetime, Query(alias="dateFrom")],
+    date_to: Annotated[LocalDatetime, Query(alias="dateTo")],
 ) -> Envelope[DashboardOut]:
     completed_ops = (
         select(FinanceOperation)
@@ -118,7 +133,9 @@ async def dashboard(
         )
     ).one()
 
-    day_expr = func.date_trunc("day", completed_ops.c.date).label("day")
+    day_expr = func.date_trunc("day", func.timezone(SALON_TZ_NAME, completed_ops.c.date)).label(
+        "day"
+    )
     by_day = await tenant_session.execute(
         select(day_expr, func.sum(completed_ops.c.amount))
         .where(completed_ops.c.type == OperationType.INCOME)
@@ -154,15 +171,15 @@ async def dashboard(
     split_total = sum((amount for _, amount in split_rows), Decimal(0))
 
     top = await tenant_session.execute(
-        select(Service.name, func.sum(Record.total_amount), func.count())
-        .join(Service, Service.id == Record.service_id)
+        select(RecordService.name, func.sum(RecordService.price), func.count())
+        .join(Record, Record.id == RecordService.record_id)
         .where(
             Record.status == RecordStatus.COMPLETED,
             Record.start_at >= date_from,
             Record.start_at < date_to,
         )
-        .group_by(Service.name)
-        .order_by(func.sum(Record.total_amount).desc())
+        .group_by(RecordService.name)
+        .order_by(func.sum(RecordService.price).desc())
         .limit(10)
     )
 
@@ -261,8 +278,8 @@ async def list_operations(
     category: str | None = None,
     cash_register_id: Annotated[uuid.UUID | None, Query(alias="cashRegisterId")] = None,
     payment_method_id: Annotated[uuid.UUID | None, Query(alias="paymentMethodId")] = None,
-    date_from: Annotated[datetime | None, Query(alias="dateFrom")] = None,
-    date_to: Annotated[datetime | None, Query(alias="dateTo")] = None,
+    date_from: Annotated[LocalDatetime | None, Query(alias="dateFrom")] = None,
+    date_to: Annotated[LocalDatetime | None, Query(alias="dateTo")] = None,
     page: int = 1,
     per_page: Annotated[int, Query(alias="perPage", le=200)] = 50,
 ) -> Envelope[list[OperationOut]]:
@@ -300,7 +317,7 @@ class OperationCreateIn(ApiModel):
     amount: Decimal = Field(gt=0)
     category: str | None = None
     description: str | None = None
-    date: datetime
+    date: LocalDatetime
     payment_method_id: uuid.UUID | None = None
     cash_register_id: uuid.UUID | None = None
     client_id: uuid.UUID | None = None
@@ -325,7 +342,7 @@ async def create_operation(
         tenant_session,
         entity="finance",
         entity_id=op.id,
-        entity_name=f"Операция {op.type.value} {op.amount}",
+        entity_name=_operation_title(op),
         action=AuditAction.CREATED,
         author_id=author.id,
         author_name=author.name,
@@ -338,7 +355,7 @@ class OperationPatchIn(ApiModel):
     amount: Decimal | None = Field(default=None, gt=0)
     category: str | None = None
     description: str | None = None
-    date: datetime | None = None
+    date: LocalDatetime | None = None
     status: OperationStatus | None = None
 
 
@@ -361,7 +378,7 @@ async def patch_operation(
             tenant_session,
             entity="finance",
             entity_id=op.id,
-            entity_name=f"Операция {op.type.value} {op.amount}",
+            entity_name=_operation_title(op),
             action=AuditAction.UPDATED,
             author_id=author.id,
             author_name=author.name,
@@ -409,8 +426,8 @@ async def list_documents(
     tenant_session: TenantSession,
     doc_type: Annotated[DocumentType | None, Query(alias="type")] = None,
     doc_status: Annotated[DocumentStatus | None, Query(alias="status")] = None,
-    date_from: Annotated[datetime | None, Query(alias="dateFrom")] = None,
-    date_to: Annotated[datetime | None, Query(alias="dateTo")] = None,
+    date_from: Annotated[LocalDatetime | None, Query(alias="dateFrom")] = None,
+    date_to: Annotated[LocalDatetime | None, Query(alias="dateTo")] = None,
     page: int = 1,
     per_page: Annotated[int, Query(alias="perPage", le=200)] = 50,
 ) -> Envelope[list[DocumentOut]]:
@@ -436,7 +453,7 @@ async def list_documents(
 class DocumentCreateIn(ApiModel):
     type: DocumentType
     number: str = Field(min_length=1, max_length=64)
-    date: datetime
+    date: LocalDatetime
     amount: Decimal = Field(ge=0)
     content_type: DocumentContentType = DocumentContentType.SERVICES
     counterparty: str | None = None
@@ -466,7 +483,7 @@ async def create_document(
         tenant_session,
         entity="finance",
         entity_id=doc.id,
-        entity_name=f"Документ {doc.number}",
+        entity_name=f"Документ № {doc.number}",
         action=AuditAction.CREATED,
         author_id=author.id,
         author_name=author.name,
@@ -475,7 +492,7 @@ async def create_document(
 
 
 class DocumentPatchIn(ApiModel):
-    date: datetime | None = None
+    date: LocalDatetime | None = None
     amount: Decimal | None = Field(default=None, ge=0)
     content_type: DocumentContentType | None = None
     counterparty: str | None = None
@@ -504,7 +521,7 @@ async def patch_document(
             tenant_session,
             entity="finance",
             entity_id=doc.id,
-            entity_name=f"Документ {doc.number}",
+            entity_name=f"Документ № {doc.number}",
             action=AuditAction.UPDATED,
             author_id=author.id,
             author_name=author.name,
@@ -579,8 +596,8 @@ async def _receipt_out(tenant_session, receipt: Receipt) -> ReceiptOut:
 async def list_receipts(
     tenant_session: TenantSession,
     receipt_status: Annotated[ReceiptStatus | None, Query(alias="status")] = None,
-    date_from: Annotated[datetime | None, Query(alias="dateFrom")] = None,
-    date_to: Annotated[datetime | None, Query(alias="dateTo")] = None,
+    date_from: Annotated[LocalDatetime | None, Query(alias="dateFrom")] = None,
+    date_to: Annotated[LocalDatetime | None, Query(alias="dateTo")] = None,
     page: int = 1,
     per_page: Annotated[int, Query(alias="perPage", le=200)] = 50,
 ) -> Envelope[list[ReceiptOut]]:
@@ -610,90 +627,65 @@ class ReceiptPaymentIn(ApiModel):
 class ReceiptCreateIn(ApiModel):
     client_id: uuid.UUID | None = None
     client_name: str | None = None
+    # Чек оплаты визита: запись должна быть завершена и не оплачена, сумма
+    # оплат — равна сумме записи; клиент берётся из записи
+    record_id: uuid.UUID | None = None
     payments: list[ReceiptPaymentIn] = Field(min_length=1)
     source: ReceiptSource = ReceiptSource.WEB
-    date: datetime | None = None
+    date: LocalDatetime | None = None
 
 
 @router.post("/receipts", response_model=Envelope[ReceiptOut], status_code=status.HTTP_201_CREATED)
 async def create_receipt(
     body: ReceiptCreateIn,
     author: CurrentAuthor,
+    salon_id: SalonId,
     tenant_session: TenantSession,
 ) -> Envelope[ReceiptOut]:
-    """Ручной чек (продажа без записи) — операции создаются на каждую оплату."""
-    from app.models.shard import ReceiptPayment
-    from app.services.visits import _receipt_number
-
-    method_ids = [p.payment_method_id for p in body.payments]
-    methods = {
-        m.id: m
-        for m in await tenant_session.scalars(
-            select(PaymentMethod).where(PaymentMethod.id.in_(method_ids))
-        )
-    }
-    if set(method_ids) - set(methods):
-        raise HTTPException(422, "Неизвестный способ оплаты")
-    cash_register_id = next(
-        (m.cash_register_id for m in methods.values() if m.cash_register_id), None
-    )
-    if cash_register_id is None:
-        raise HTTPException(422, "У способа оплаты не настроена касса")
-
-    when = body.date or datetime.now().astimezone()
-    total_amount = sum((p.amount for p in body.payments), Decimal(0))
-    receipt = Receipt(
-        number=_receipt_number(),
-        date=when,
-        cash_register_id=cash_register_id,
-        client_id=body.client_id,
-        client_name=body.client_name,
-        amount=total_amount,
-        status=ReceiptStatus.PAID,
-        source=body.source,
-        author_id=author.id,
-        author_name=author.name,
-    )
-    tenant_session.add(receipt)
-    await tenant_session.flush()
-    for part in body.payments:
-        method = methods[part.payment_method_id]
-        tenant_session.add(
-            ReceiptPayment(
-                receipt_id=receipt.id,
-                payment_method_id=method.id,
-                amount=part.amount,
-            )
-        )
-        tenant_session.add(
-            FinanceOperation(
-                type=OperationType.INCOME,
-                amount=part.amount,
-                category="sales",
-                description=f"Чек {receipt.number}",
-                date=when,
-                payment_method_id=method.id,
-                cash_register_id=method.cash_register_id or cash_register_id,
-                client_id=body.client_id,
-                receipt_id=receipt.id,
+    """Чек: ручная продажа или (с recordId) оплата визита. Операции — на каждую оплату."""
+    payments = [
+        visits_service.PaymentPart(payment_method_id=p.payment_method_id, amount=p.amount)
+        for p in body.payments
+    ]
+    try:
+        if body.record_id is not None:
+            record = await tenant_session.get(Record, body.record_id)
+            if record is None:
+                raise HTTPException(404, "Запись не найдена")
+            receipt = await visits_service.pay_record(
+                tenant_session,
+                salon_id=salon_id,
+                record=record,
+                payments=payments,
                 author_id=author.id,
                 author_name=author.name,
+                date=body.date,
+                source=body.source,
             )
-        )
+        else:
+            receipt = await visits_service.create_receipt(
+                tenant_session,
+                payments=payments,
+                source=body.source,
+                date=body.date or datetime.now().astimezone(),
+                author_id=author.id,
+                author_name=author.name,
+                client_id=body.client_id,
+                client_name=body.client_name,
+            )
+    except visits_service.PaymentError as exc:
+        raise HTTPException(409 if body.record_id else 422, str(exc))
+
     write_audit(
         tenant_session,
         entity="finance",
         entity_id=receipt.id,
-        entity_name=f"Чек {receipt.number}",
+        entity_name=f"Чек № {receipt.number}",
         action=AuditAction.CREATED,
         author_id=author.id,
         author_name=author.name,
+        details={"amount": [None, str(receipt.amount)]},
     )
-    await tenant_session.flush()
-    # receipt.payments — lazy="selectin"; на щойно сконструйованому об'єкті
-    # колекція ще не завантажена, і синхронне звернення до неї в _receipt_out
-    # під AsyncSession падає з MissingGreenlet. Явно перезавантажуємо перед тим.
-    await tenant_session.refresh(receipt, attribute_names=["payments"])
     return Envelope(data=await _receipt_out(tenant_session, receipt))
 
 
@@ -701,9 +693,10 @@ async def create_receipt(
 async def cancel_receipt(
     receipt_id: uuid.UUID,
     author: CurrentAuthor,
+    salon_id: SalonId,
     tenant_session: TenantSession,
 ) -> Envelope[ReceiptOut]:
-    """Отмена чека: сам чек и связанные операции переводятся в cancelled."""
+    """Отмена чека: чек и связанные операции — cancelled; запись чека снова не оплачена."""
     receipt = await tenant_session.get(Receipt, receipt_id)
     if receipt is None:
         raise HTTPException(404, "Чек не найден")
@@ -716,12 +709,19 @@ async def cancel_receipt(
     )
     for op in operations:
         op.status = OperationStatus.CANCELLED
+    await visits_service.unpay_record_for_receipt(
+        tenant_session,
+        salon_id=salon_id,
+        receipt=receipt,
+        author_id=author.id,
+        author_name=author.name,
+    )
 
     write_audit(
         tenant_session,
         entity="finance",
         entity_id=receipt.id,
-        entity_name=f"Чек {receipt.number}",
+        entity_name=f"Чек № {receipt.number}",
         action=AuditAction.UPDATED,
         author_id=author.id,
         author_name=author.name,
@@ -793,7 +793,7 @@ async def create_payment_method(
         tenant_session,
         entity="finance",
         entity_id=method.id,
-        entity_name=f"Способ оплаты {method.name}",
+        entity_name=f"Спосіб оплати «{method.name}»",
         action=AuditAction.CREATED,
         author_id=author.id,
         author_name=author.name,
@@ -834,7 +834,7 @@ async def patch_payment_method(
             tenant_session,
             entity="finance",
             entity_id=method.id,
-            entity_name=f"Способ оплаты {method.name}",
+            entity_name=f"Спосіб оплати «{method.name}»",
             action=AuditAction.UPDATED,
             author_id=author.id,
             author_name=author.name,
@@ -911,7 +911,7 @@ async def create_cash_register(
         tenant_session,
         entity="finance",
         entity_id=register.id,
-        entity_name=f"Касса {register.name}",
+        entity_name=f"Каса «{register.name}»",
         action=AuditAction.CREATED,
         author_id=author.id,
         author_name=author.name,
@@ -933,8 +933,8 @@ async def create_cash_register(
 @router.get("/export")
 async def export_operations(
     tenant_session: TenantSession,
-    date_from: Annotated[datetime, Query(alias="dateFrom")],
-    date_to: Annotated[datetime, Query(alias="dateTo")],
+    date_from: Annotated[LocalDatetime, Query(alias="dateFrom")],
+    date_to: Annotated[LocalDatetime, Query(alias="dateTo")],
 ) -> StreamingResponse:
     """Excel-отчёт по операциям за период."""
     from openpyxl import Workbook
@@ -950,16 +950,16 @@ async def export_operations(
 
     wb = Workbook()
     ws = wb.active
-    ws.title = "Операции"
+    ws.title = "Операції"
     ws.append(
         [
             "Дата",
             "Тип",
-            "Сумма",
-            "Категория",
-            "Описание",
-            "Способ оплаты",
-            "Касса",
+            "Сума",
+            "Категорія",
+            "Опис",
+            "Спосіб оплати",
+            "Каса",
             "Статус",
             "Автор",
         ]
@@ -967,8 +967,8 @@ async def export_operations(
     for op in operations:
         ws.append(
             [
-                op.date.strftime("%Y-%m-%d %H:%M"),
-                op.type.value,
+                to_local(op.date).strftime("%Y-%m-%d %H:%M"),
+                OPERATION_TYPE_NAMES.get(op.type, op.type.value),
                 float(op.amount),
                 op.category,
                 op.description,

@@ -17,12 +17,20 @@ from app.models.shard.finance import (
     ReceiptSource,
     ReceiptStatus,
 )
+from app.models.shard.inventory import (
+    InventoryCategory,
+    MovementType,
+    Product,
+    ProductUnit,
+    StockMovement,
+)
 from app.models.shard.outbox import OutboxEvent
 from app.models.shard.record import (
     PaymentStatus,
     Record,
     RecordImportance,
     RecordPhoto,
+    RecordService,
     RecordSource,
     RecordStatus,
 )
@@ -48,12 +56,16 @@ __all__ = [
     "DocumentType",
     "FinanceDocument",
     "FinanceOperation",
+    "InventoryCategory",
+    "MovementType",
     "OperationStatus",
     "OperationType",
     "OutboxEvent",
     "PaymentMethod",
     "PaymentMethodType",
     "PaymentStatus",
+    "Product",
+    "ProductUnit",
     "Receipt",
     "ReceiptPayment",
     "ReceiptSource",
@@ -61,6 +73,7 @@ __all__ = [
     "Record",
     "RecordImportance",
     "RecordPhoto",
+    "RecordService",
     "RecordSource",
     "RecordStatus",
     "Review",
@@ -72,5 +85,6 @@ __all__ = [
     "StaffProfile",
     "StaffSchedule",
     "StaffStatus",
+    "StockMovement",
     "service_masters",
 ]

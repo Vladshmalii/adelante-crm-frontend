@@ -1,7 +1,11 @@
-"""Записи: календарь и вкладка «Записи» на overview — один домен /records."""
+"""Записи: календарь и вкладка «Записи» на overview — один домен /records.
+
+Права (ACCESS.md): мастер видит и меняет только свои записи, создаёт только
+к себе и не может сменить мастера; оплату проводит только администратор.
+"""
 
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from datetime import date as date_type
 from decimal import Decimal
 from pathlib import Path as FsPath
@@ -10,12 +14,12 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
 from pydantic import Field
 from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.admin.deps import CurrentAuthor
+from app.api.admin.deps import CurrentAuthor, ensure_own_record
 from app.api.schemas import ApiModel, Envelope, PersonRef, page_meta
-from app.api.security import require_salon_access
+from app.api.security import AdminUser, CurrentUser, forbidden, require_salon_access
 from app.config import get_settings
-from app.models.master import Salon
 from app.models.shard import (
     AuditAction,
     AuditLog,
@@ -27,12 +31,12 @@ from app.models.shard import (
     Service,
     StaffProfile,
 )
-from app.notifications.outbox import RECORD_UPDATED, add_outbox_event
 from app.services import records as records_service
 from app.services import slots as slots_service
 from app.services import visits as visits_service
 from app.services.audit import diff_fields, write_audit
 from app.tenancy.deps import MasterSession, SalonId, TenantSession
+from app.timeutils import LocalDatetime, now_local
 
 router = APIRouter(tags=["records"], dependencies=[Depends(require_salon_access)])
 
@@ -45,6 +49,17 @@ class ServiceRef(ApiModel):
     name: str
     category: str
     color: str | None
+
+
+class RecordServiceOut(ApiModel):
+    """Услуга в записи: снапшот названия/цены/длительности + текущие категория и цвет."""
+
+    id: uuid.UUID
+    name: str
+    price: Decimal
+    duration_minutes: int
+    category: str | None = None
+    color: str | None = None
 
 
 class MasterRef(ApiModel):
@@ -69,8 +84,11 @@ class RecordOut(ApiModel):
     end_at: datetime
     actual_start_at: datetime | None
     actual_end_at: datetime | None
-    master: MasterRef
+    # null — запись «Без майстра»
+    master: MasterRef | None
     client: ClientRef
+    services: list[RecordServiceOut]
+    # Первая услуга записи. Устарело: оставлено для совместимости, используйте services
     service: ServiceRef
     price: Decimal
     total_amount: Decimal
@@ -101,9 +119,55 @@ class RecordDetailOut(RecordOut):
     history: list[HistoryItemOut]
 
 
-def _record_out(
-    record: Record, service: Service, master_colors: dict[uuid.UUID, str | None]
-) -> RecordOut:
+class _Refs:
+    """Цвета мастеров и текущие категория/цвет услуг — для пачки записей."""
+
+    def __init__(
+        self,
+        colors: dict[uuid.UUID, str | None],
+        services: dict[uuid.UUID, Service],
+    ) -> None:
+        self.colors = colors
+        self.services = services
+
+
+async def _load_refs(tenant_session: AsyncSession, records: list[Record]) -> _Refs:
+    master_ids = {r.master_id for r in records if r.master_id}
+    service_ids = {s.service_id for r in records for s in r.services}
+    colors: dict[uuid.UUID, str | None] = {}
+    if master_ids:
+        rows = await tenant_session.execute(
+            select(StaffProfile.master_id, StaffProfile.color).where(
+                StaffProfile.master_id.in_(master_ids)
+            )
+        )
+        colors = {master_id: color for master_id, color in rows.all()}
+    services: dict[uuid.UUID, Service] = {}
+    if service_ids:
+        services = {
+            s.id: s
+            for s in await tenant_session.scalars(
+                select(Service).where(Service.id.in_(service_ids))
+            )
+        }
+    return _Refs(colors, services)
+
+
+def _record_out(record: Record, refs: _Refs) -> RecordOut:
+    services = []
+    for item in record.services:
+        current = refs.services.get(item.service_id)
+        services.append(
+            RecordServiceOut(
+                id=item.service_id,
+                name=item.name,
+                price=item.price,
+                duration_minutes=item.duration_minutes,
+                category=current.category if current else None,
+                color=current.color if current else None,
+            )
+        )
+    first = services[0]
     return RecordOut(
         id=record.id,
         status=record.status,
@@ -114,13 +178,20 @@ def _record_out(
         end_at=record.end_at,
         actual_start_at=record.actual_start_at,
         actual_end_at=record.actual_end_at,
-        master=MasterRef(
-            id=record.master_id,
-            name=record.master_name,
-            color=master_colors.get(record.master_id),
+        master=(
+            MasterRef(
+                id=record.master_id,
+                name=record.master_name or "—",
+                color=refs.colors.get(record.master_id),
+            )
+            if record.master_id
+            else None
         ),
         client=ClientRef(id=record.client_id, name=record.client_name, phone=record.client_phone),
-        service=ServiceRef.model_validate(service),
+        services=services,
+        service=ServiceRef(
+            id=first.id, name=first.name, category=first.category or "other", color=first.color
+        ),
         price=record.price,
         total_amount=record.total_amount,
         visitor_name=record.visitor_name,
@@ -134,15 +205,10 @@ def _record_out(
     )
 
 
-async def _master_colors(tenant_session, master_ids: set[uuid.UUID]) -> dict[uuid.UUID, str | None]:
-    if not master_ids:
-        return {}
-    rows = await tenant_session.execute(
-        select(StaffProfile.master_id, StaffProfile.color).where(
-            StaffProfile.master_id.in_(master_ids)
-        )
-    )
-    return dict(rows.all())
+async def _one_out(tenant_session: AsyncSession, record: Record) -> RecordOut:
+    await tenant_session.flush()
+    await tenant_session.refresh(record, attribute_names=["services", "created_at"])
+    return _record_out(record, await _load_refs(tenant_session, [record]))
 
 
 # --- Список и создание ------------------------------------------------------
@@ -150,20 +216,27 @@ async def _master_colors(tenant_session, master_ids: set[uuid.UUID]) -> dict[uui
 
 @router.get("/records", response_model=Envelope[list[RecordOut]])
 async def list_records(
+    user: CurrentUser,
     tenant_session: TenantSession,
-    date_from: Annotated[datetime | None, Query(alias="dateFrom")] = None,
-    date_to: Annotated[datetime | None, Query(alias="dateTo")] = None,
-    created_from: Annotated[datetime | None, Query(alias="createdFrom")] = None,
-    created_to: Annotated[datetime | None, Query(alias="createdTo")] = None,
+    date_from: Annotated[LocalDatetime | None, Query(alias="dateFrom")] = None,
+    date_to: Annotated[LocalDatetime | None, Query(alias="dateTo")] = None,
+    created_from: Annotated[LocalDatetime | None, Query(alias="createdFrom")] = None,
+    created_to: Annotated[LocalDatetime | None, Query(alias="createdTo")] = None,
     master_id: Annotated[uuid.UUID | None, Query(alias="masterId")] = None,
+    without_master: Annotated[bool, Query(alias="withoutMaster")] = False,
     record_status: Annotated[RecordStatus | None, Query(alias="status")] = None,
     source: RecordSource | None = None,
     payment_status: Annotated[PaymentStatus | None, Query(alias="paymentStatus")] = None,
     client_query: Annotated[str | None, Query(alias="clientQuery")] = None,
     page: int = 1,
-    per_page: Annotated[int, Query(alias="perPage", le=200)] = 50,
+    per_page: Annotated[int, Query(alias="perPage", le=500)] = 50,
 ) -> Envelope[list[RecordOut]]:
-    query = select(Record, Service).join(Service, Record.service_id == Service.id)
+    query = select(Record)
+    if user.is_master:
+        # Мастер видит только свои записи; очередь «Без майстра» ему недоступна
+        if without_master or (master_id is not None and master_id != user.id):
+            return Envelope(data=[], meta=page_meta(page, per_page, 0))
+        master_id = user.id
     if date_from is not None:
         query = query.where(Record.start_at >= date_from)
     if date_to is not None:
@@ -172,7 +245,9 @@ async def list_records(
         query = query.where(Record.created_at >= created_from)
     if created_to is not None:
         query = query.where(Record.created_at < created_to)
-    if master_id is not None:
+    if without_master:
+        query = query.where(Record.master_id.is_(None))
+    elif master_id is not None:
         query = query.where(Record.master_id == master_id)
     if record_status is not None:
         query = query.where(Record.status == record_status)
@@ -185,15 +260,14 @@ async def list_records(
         query = query.where(Record.client_name.ilike(pattern) | Record.client_phone.ilike(pattern))
 
     total = await tenant_session.scalar(select(func.count()).select_from(query.subquery()))
-    rows = (
-        await tenant_session.execute(
+    records = list(
+        await tenant_session.scalars(
             query.order_by(Record.start_at).offset((page - 1) * per_page).limit(per_page)
         )
-    ).all()
-
-    colors = await _master_colors(tenant_session, {r.Record.master_id for r in rows})
+    )
+    refs = await _load_refs(tenant_session, records)
     return Envelope(
-        data=[_record_out(r.Record, r.Service, colors) for r in rows],
+        data=[_record_out(r, refs) for r in records],
         meta=page_meta(page, per_page, total or 0),
     )
 
@@ -206,9 +280,11 @@ class NewClientIn(ApiModel):
 class RecordCreateIn(ApiModel):
     client_id: uuid.UUID | None = None
     new_client: NewClientIn | None = None
-    master_id: uuid.UUID
-    service_id: uuid.UUID
-    start_at: datetime
+    # Не указан — запись «Без майстра» (только администратор)
+    master_id: uuid.UUID | None = None
+    # Услуги по порядку выполнения; длительность и цена — сумма
+    service_ids: list[uuid.UUID] = Field(min_length=1)
+    start_at: LocalDatetime
     source: RecordSource = RecordSource.ADMIN
     importance: RecordImportance = RecordImportance.STANDARD
     comment: str | None = None
@@ -219,6 +295,7 @@ class RecordCreateIn(ApiModel):
 @router.post("/records", response_model=Envelope[RecordOut], status_code=status.HTTP_201_CREATED)
 async def create_record(
     body: RecordCreateIn,
+    user: CurrentUser,
     author: CurrentAuthor,
     salon_id: SalonId,
     master_session: MasterSession,
@@ -228,6 +305,12 @@ async def create_record(
         raise HTTPException(422, "Недопустимый источник для админки")
     if body.client_id is None and body.new_client is None:
         raise HTTPException(422, "Укажите clientId или newClient")
+
+    master_id = body.master_id
+    if user.is_master:
+        if master_id is not None and master_id != user.id:
+            raise forbidden("Мастер создаёт записи только к себе")
+        master_id = user.id
 
     try:
         if body.client_id is None:
@@ -239,15 +322,15 @@ async def create_record(
         else:
             client_id = body.client_id
 
-        # source=admin/phone/walk_in: проверка занятости слота не выполняется —
-        # админ может сознательно уплотнить расписание мастера
+        # Из админки проверка занятости слота не выполняется —
+        # администратор может сознательно уплотнить расписание мастера
         record = await records_service.create_record(
             master_session=master_session,
             tenant_session=tenant_session,
             salon_id=salon_id,
             data=records_service.NewRecord(
-                master_id=body.master_id,
-                service_id=body.service_id,
+                master_id=master_id,
+                service_ids=body.service_ids,
                 client_id=client_id,
                 start_at=body.start_at,
                 comment=body.comment,
@@ -266,42 +349,31 @@ async def create_record(
     except records_service.ServiceUnavailable:
         raise HTTPException(422, "Услуга не найдена или неактивна")
 
-    service = await _get_record_service(tenant_session, record.service_id)
-    colors = await _master_colors(tenant_session, {record.master_id})
-    return Envelope(data=_record_out(record, service, colors))
+    return Envelope(data=await _one_out(tenant_session, record))
 
 
 # --- Детали, изменение, статусы --------------------------------------------
 
 
-async def _get_record(tenant_session, record_id: uuid.UUID) -> Record:
+async def _get_record(tenant_session, record_id: uuid.UUID, user: CurrentUser) -> Record:
     record = await tenant_session.get(Record, record_id)
     if record is None:
         raise HTTPException(404, "Запись не найдена")
+    ensure_own_record(user, record)
     return record
-
-
-async def _get_record_service(tenant_session, service_id: uuid.UUID) -> Service:
-    """Услуга записи — FK гарантирует существование, отсутствие означает баг."""
-    service = await tenant_session.get(Service, service_id)
-    if service is None:
-        raise HTTPException(500, "Услуга записи повреждена или удалена")
-    return service
 
 
 @router.get("/records/{record_id}", response_model=Envelope[RecordDetailOut])
 async def get_record(
-    record_id: uuid.UUID, tenant_session: TenantSession
+    record_id: uuid.UUID, user: CurrentUser, tenant_session: TenantSession
 ) -> Envelope[RecordDetailOut]:
-    record = await _get_record(tenant_session, record_id)
-    service = await _get_record_service(tenant_session, record.service_id)
-    colors = await _master_colors(tenant_session, {record.master_id})
+    record = await _get_record(tenant_session, record_id, user)
     history = await tenant_session.scalars(
         select(AuditLog)
         .where(AuditLog.entity == "record", AuditLog.entity_id == str(record_id))
         .order_by(AuditLog.created_at.desc())
     )
-    base = _record_out(record, service, colors)
+    base = _record_out(record, await _load_refs(tenant_session, [record]))
     return Envelope(
         data=RecordDetailOut(
             **base.model_dump(by_alias=False),
@@ -326,9 +398,10 @@ async def get_record(
 
 
 class RecordPatchIn(ApiModel):
-    start_at: datetime | None = None
+    start_at: LocalDatetime | None = None
+    # null — снять мастера (запись уходит в очередь «Без майстра»)
     master_id: uuid.UUID | None = None
-    service_id: uuid.UUID | None = None
+    service_ids: list[uuid.UUID] | None = Field(default=None, min_length=1)
     importance: RecordImportance | None = None
     comment: str | None = None
     internal_notes: str | None = None
@@ -336,65 +409,94 @@ class RecordPatchIn(ApiModel):
     visitor_phone: str | None = None
 
 
+PLAIN_PATCH_FIELDS = ("importance", "comment", "internal_notes", "visitor_name", "visitor_phone")
+
+
 @router.patch("/records/{record_id}", response_model=Envelope[RecordOut])
 async def patch_record(
     record_id: uuid.UUID,
     body: RecordPatchIn,
+    user: CurrentUser,
     author: CurrentAuthor,
     salon_id: SalonId,
     master_session: MasterSession,
     tenant_session: TenantSession,
 ) -> Envelope[RecordOut]:
-    record = await _get_record(tenant_session, record_id)
+    record = await _get_record(tenant_session, record_id, user)
     if record.status in (RecordStatus.COMPLETED, RecordStatus.CANCELLED):
         raise HTTPException(409, "Завершённую или отменённую запись нельзя менять")
 
-    updates = body.model_dump(exclude_unset=True, by_alias=False)
-    service = await _get_record_service(tenant_session, record.service_id)
+    changes: dict[str, list] = {}
+    previous_master_id = record.master_id
+    previous_start_at = record.start_at
 
-    if "service_id" in updates and updates["service_id"] != record.service_id:
-        new_service = await tenant_session.get(Service, updates["service_id"])
-        if new_service is None:
-            raise HTTPException(422, "Услуга не найдена")
-        service = new_service
-        record.price = service.price
-        record.total_amount = service.price
+    if "master_id" in body.model_fields_set and body.master_id != record.master_id:
+        if user.is_master:
+            raise forbidden("Мастер не может передать запись другому мастеру")
+        new_name: str | None = None
+        if body.master_id is not None:
+            try:
+                master = await records_service.validate_master(
+                    master_session, body.master_id, salon_id
+                )
+            except records_service.MasterUnavailable:
+                raise HTTPException(422, "Мастер недоступен")
+            new_name = master.full_name
+        changes["master"] = [record.master_name, new_name]
+        record.master_id = body.master_id
+        record.master_name = new_name
 
-    if "master_id" in updates and updates["master_id"] != record.master_id:
-        try:
-            master = await records_service.validate_master(
-                master_session, updates["master_id"], salon_id
-            )
-        except records_service.MasterUnavailable:
-            raise HTTPException(422, "Мастер недоступен")
-        record.master_name = master.full_name
+    if body.start_at is not None and body.start_at != record.start_at:
+        changes["startAt"] = [record.start_at.isoformat(), body.start_at.isoformat()]
+        records_service.reschedule(record, body.start_at)
 
-    changes = diff_fields(record, updates)
-    for field, value in updates.items():
+    if body.service_ids is not None:
+        current = [s.service_id for s in record.services]
+        if list(dict.fromkeys(body.service_ids)) != current:
+            try:
+                services = await records_service.load_services(tenant_session, body.service_ids)
+            except records_service.ServiceUnavailable:
+                raise HTTPException(422, "Услуга не найдена или неактивна")
+            changes["services"] = [
+                [s.name for s in record.services],
+                [s.name for s in services],
+            ]
+            records_service.apply_services(record, services)
+
+    plain = body.model_dump(include=set(PLAIN_PATCH_FIELDS), exclude_unset=True, by_alias=False)
+    changes.update(diff_fields(record, plain))
+    for field, value in plain.items():
         setattr(record, field, value)
-    if body.start_at is not None or "service_id" in updates:
-        record.end_at = record.start_at + timedelta(minutes=service.duration_minutes)
 
     if changes:
         write_audit(
             tenant_session,
             entity="record",
             entity_id=record.id,
-            entity_name=f"{record.client_name} → {record.master_name}",
+            entity_name=records_service.record_title(record),
             action=AuditAction.UPDATED,
             author_id=author.id,
             author_name=author.name,
             details=changes,
         )
-        add_outbox_event(
+        if "master" in changes:
+            change = "reassigned"
+        elif "startAt" in changes or "services" in changes:
+            change = "rescheduled"
+        else:
+            change = "updated"
+        records_service.emit_record_updated(
             tenant_session,
-            event_type=RECORD_UPDATED,
             salon_id=salon_id,
-            payload={"record_id": str(record.id), "changes": list(changes)},
+            record=record,
+            change=change,
+            actor_id=author.id,
+            previous_master_id=previous_master_id if "master" in changes else None,
+            previous_start_at=previous_start_at if "startAt" in changes else None,
+            extra={"changes": list(changes)},
         )
 
-    colors = await _master_colors(tenant_session, {record.master_id})
-    return Envelope(data=_record_out(record, service, colors))
+    return Envelope(data=await _one_out(tenant_session, record))
 
 
 class StatusIn(ApiModel):
@@ -405,15 +507,18 @@ class StatusIn(ApiModel):
 async def set_status(
     record_id: uuid.UUID,
     body: StatusIn,
+    user: CurrentUser,
     author: CurrentAuthor,
     salon_id: SalonId,
     tenant_session: TenantSession,
 ) -> Envelope[RecordOut]:
     if body.status == RecordStatus.COMPLETED:
         raise HTTPException(422, "Завершение — через POST /records/{id}/complete")
-    record = await _get_record(tenant_session, record_id)
+    record = await _get_record(tenant_session, record_id, user)
     if record.status == RecordStatus.COMPLETED:
         raise HTTPException(409, "Запись уже завершена")
+    if record.status == body.status:
+        return Envelope(data=await _one_out(tenant_session, record))
 
     old = record.status
     record.status = body.status
@@ -424,30 +529,24 @@ async def set_status(
         tenant_session,
         entity="record",
         entity_id=record.id,
-        entity_name=f"{record.client_name} → {record.master_name}",
+        entity_name=records_service.record_title(record),
         action=AuditAction.UPDATED,
         author_id=author.id,
         author_name=author.name,
         details={"status": [old.value, body.status.value]},
     )
-    add_outbox_event(
+    records_service.emit_record_updated(
         tenant_session,
-        event_type=RECORD_UPDATED,
         salon_id=salon_id,
-        payload={"record_id": str(record.id), "status": body.status.value},
+        record=record,
+        change="cancelled" if body.status == RecordStatus.CANCELLED else "status",
+        actor_id=author.id,
+        extra={"previous_status": old.value},
     )
-    service = await _get_record_service(tenant_session, record.service_id)
-    colors = await _master_colors(tenant_session, {record.master_id})
-    return Envelope(data=_record_out(record, service, colors))
-
-
-class PaymentIn(ApiModel):
-    payment_method_id: uuid.UUID
-    amount: Decimal = Field(gt=0)
+    return Envelope(data=await _one_out(tenant_session, record))
 
 
 class CompleteIn(ApiModel):
-    payments: list[PaymentIn] = Field(default_factory=list)
     notes: str | None = None
     photo_urls: list[str] = Field(default_factory=list)
 
@@ -456,20 +555,18 @@ class CompleteIn(ApiModel):
 async def complete_record(
     record_id: uuid.UUID,
     body: CompleteIn,
+    user: CurrentUser,
     author: CurrentAuthor,
     salon_id: SalonId,
     tenant_session: TenantSession,
 ) -> Envelope[RecordOut]:
-    record = await _get_record(tenant_session, record_id)
+    """Завершение визита — без оплаты: запись получает completed + unpaid."""
+    record = await _get_record(tenant_session, record_id, user)
     try:
         await visits_service.complete_record(
             tenant_session,
             salon_id=salon_id,
             record=record,
-            payments=[
-                visits_service.PaymentPart(payment_method_id=p.payment_method_id, amount=p.amount)
-                for p in body.payments
-            ],
             notes=body.notes,
             photo_urls=body.photo_urls,
             author_id=author.id,
@@ -477,10 +574,61 @@ async def complete_record(
         )
     except visits_service.CompletionError as exc:
         raise HTTPException(409, str(exc))
+    return Envelope(data=await _one_out(tenant_session, record))
 
-    service = await _get_record_service(tenant_session, record.service_id)
-    colors = await _master_colors(tenant_session, {record.master_id})
-    return Envelope(data=_record_out(record, service, colors))
+
+class PaymentIn(ApiModel):
+    payment_method_id: uuid.UUID
+    amount: Decimal = Field(gt=0)
+
+
+class RecordPaymentIn(ApiModel):
+    # Сумма оплат должна равняться сумме записи: частичной оплаты нет
+    payments: list[PaymentIn] = Field(min_length=1)
+
+
+class ReceiptRef(ApiModel):
+    id: uuid.UUID
+    number: str
+    amount: Decimal
+
+
+class RecordPaymentOut(ApiModel):
+    record: RecordOut
+    receipt: ReceiptRef
+
+
+@router.post("/records/{record_id}/payment", response_model=Envelope[RecordPaymentOut])
+async def pay_record(
+    record_id: uuid.UUID,
+    body: RecordPaymentIn,
+    user: AdminUser,
+    author: CurrentAuthor,
+    salon_id: SalonId,
+    tenant_session: TenantSession,
+) -> Envelope[RecordPaymentOut]:
+    """Оплата завершённого визита: чек с recordId на полную сумму (администратор)."""
+    record = await _get_record(tenant_session, record_id, user)
+    try:
+        receipt = await visits_service.pay_record(
+            tenant_session,
+            salon_id=salon_id,
+            record=record,
+            payments=[
+                visits_service.PaymentPart(payment_method_id=p.payment_method_id, amount=p.amount)
+                for p in body.payments
+            ],
+            author_id=author.id,
+            author_name=author.name,
+        )
+    except visits_service.PaymentError as exc:
+        raise HTTPException(409, str(exc))
+    return Envelope(
+        data=RecordPaymentOut(
+            record=await _one_out(tenant_session, record),
+            receipt=ReceiptRef(id=receipt.id, number=receipt.number, amount=receipt.amount),
+        )
+    )
 
 
 # --- Слоты и загрузки -------------------------------------------------------
@@ -495,29 +643,29 @@ class SlotOut(ApiModel):
 async def master_slots(
     master_id: uuid.UUID,
     day: Annotated[date_type, Query(alias="date")],
-    service_id: Annotated[uuid.UUID, Query(alias="serviceId")],
-    salon_id: SalonId,
-    master_session: MasterSession,
+    user: CurrentUser,
     tenant_session: TenantSession,
+    service_ids: Annotated[list[uuid.UUID] | None, Query(alias="serviceIds")] = None,
+    service_id: Annotated[uuid.UUID | None, Query(alias="serviceId")] = None,
 ) -> Envelope[list[SlotOut]]:
-    service = await tenant_session.get(Service, service_id)
-    if service is None:
-        raise HTTPException(422, "Услуга не найдена")
-    salon = await master_session.get(Salon, salon_id)
-    if salon is None:
-        raise HTTPException(404, "Салон не найден")
+    """Свободное время мастера на дату под набор услуг (длительность — сумма)."""
+    if user.is_master and master_id != user.id:
+        raise forbidden()
+    ids = list(service_ids or []) + ([service_id] if service_id else [])
+    if not ids:
+        raise HTTPException(422, "Укажите serviceIds")
+    try:
+        services = await records_service.load_services(tenant_session, ids)
+    except records_service.ServiceUnavailable:
+        raise HTTPException(422, "Услуга не найдена или неактивна")
     slots = await slots_service.free_slots(
         tenant_session,
         master_id=master_id,
         day=day,
-        duration=timedelta(minutes=service.duration_minutes),
-        salon_tz=salon.timezone,
+        duration=records_service.total_duration(services),
+        not_before=now_local() if day == now_local().date() else None,
     )
-    return Envelope(
-        data=[
-            SlotOut(start_at=datetime.fromisoformat(s["start_at"]), label=s["label"]) for s in slots
-        ]
-    )
+    return Envelope(data=[SlotOut(start_at=s.start_at, label=s.label) for s in slots])
 
 
 class UploadOut(ApiModel):

@@ -1,4 +1,9 @@
-"""Клиенты: общая база сети (Master DB) + агрегаты по записям текущего салона."""
+"""Клиенты: общая база сети (Master DB) + агрегаты по записям текущего салона.
+
+Права (ACCESS.md): мастер видит только своих клиентов (у кого есть запись к
+нему в этом салоне, в любом статусе) и создаёт их только в записи к себе;
+редактирование, удаление и импорт — администратор; экспорт — суперюзер.
+"""
 
 import io
 import uuid
@@ -12,14 +17,15 @@ from fastapi.responses import StreamingResponse
 from pydantic import Field
 from sqlalchemy import func, select
 
-from app.api.admin.deps import CurrentAuthor
+from app.api.admin.deps import CurrentAuthor, ensure_own_client, own_client_ids
 from app.api.schemas import ApiModel, Envelope, page_meta
-from app.api.security import require_salon_access
+from app.api.security import AdminUser, CurrentUser, SuperUser, require_salon_access
 from app.models.base import Gender
 from app.models.master import Client, ClientCategory, ClientImportance
-from app.models.shard import AuditAction, Record, RecordStatus
+from app.models.shard import AuditAction, Record, RecordService, RecordStatus
 from app.services.audit import diff_fields, write_audit
 from app.tenancy.deps import MasterSession, TenantSession
+from app.timeutils import to_local
 
 router = APIRouter(
     prefix="/clients", tags=["clients"], dependencies=[Depends(require_salon_access)]
@@ -104,6 +110,7 @@ def _client_out(client: Client, agg: Aggregates) -> ClientOut:
 
 @router.get("", response_model=Envelope[list[ClientOut]])
 async def list_clients(
+    user: CurrentUser,
     master_session: MasterSession,
     tenant_session: TenantSession,
     segment: str | None = None,
@@ -116,6 +123,9 @@ async def list_clients(
     # База клиентов общая для всей сети — фильтра по салону нет намеренно;
     # агрегаты и сегмент считаются по записям текущего салона.
     query = select(Client).where(Client.is_active.is_(True))
+    if user.is_master:
+        own = list(await tenant_session.scalars(own_client_ids(user.id)))
+        query = query.where(Client.id.in_(own))
     if category is not None:
         query = query.where(Client.category == category)
     if query_text:
@@ -168,6 +178,7 @@ class ClientCreateIn(ApiModel):
 @router.post("", response_model=Envelope[ClientOut], status_code=status.HTTP_201_CREATED)
 async def create_client(
     body: ClientCreateIn,
+    _admin: AdminUser,
     author: CurrentAuthor,
     master_session: MasterSession,
     tenant_session: TenantSession,
@@ -201,6 +212,7 @@ async def _get_client(master_session, client_id: uuid.UUID) -> Client:
 
 @router.get("/export")
 async def export_clients(
+    _superuser: SuperUser,
     master_session: MasterSession,
     tenant_session: TenantSession,
     include_visits: Annotated[bool, Query(alias="includeVisits")] = False,
@@ -213,18 +225,18 @@ async def export_clients(
 
     wb = Workbook()
     ws = wb.active
-    ws.title = "Клиенты"
+    ws.title = "Клієнти"
     ws.append(
         [
-            "Имя",
-            "Фамилия",
+            "Ім'я",
+            "Прізвище",
             "Телефон",
             "Email",
-            "Категория",
-            "Скидка %",
-            "Визитов",
-            "Потрачено",
-            "Последний визит",
+            "Категорія",
+            "Знижка %",
+            "Візитів",
+            "Витрачено",
+            "Останній візит",
         ]
     )
     for c in clients:
@@ -239,13 +251,13 @@ async def export_clients(
                 c.discount_percent,
                 visits,
                 float(spent),
-                last.strftime("%Y-%m-%d %H:%M") if last else "",
+                to_local(last).strftime("%Y-%m-%d %H:%M") if last else "",
             ]
         )
 
     if include_visits:
-        ws2 = wb.create_sheet("Визиты")
-        ws2.append(["Клиент", "Телефон", "Мастер", "Начало", "Статус", "Сумма"])
+        ws2 = wb.create_sheet("Візити")
+        ws2.append(["Клієнт", "Телефон", "Майстер", "Послуги", "Початок", "Статус", "Сума"])
         records = await tenant_session.scalars(select(Record).order_by(Record.start_at))
         for r in records:
             ws2.append(
@@ -253,7 +265,8 @@ async def export_clients(
                     r.client_name,
                     r.client_phone,
                     r.master_name,
-                    r.start_at.strftime("%Y-%m-%d %H:%M"),
+                    ", ".join(s.name for s in r.services),
+                    to_local(r.start_at).strftime("%Y-%m-%d %H:%M"),
                     r.status.value,
                     float(r.total_amount),
                 ]
@@ -278,6 +291,7 @@ class ImportReportOut(ApiModel):
 @router.post("/import", response_model=Envelope[ImportReportOut])
 async def import_clients(
     file: UploadFile,
+    _admin: AdminUser,
     author: CurrentAuthor,
     master_session: MasterSession,
     tenant_session: TenantSession,
@@ -324,7 +338,8 @@ async def import_clients(
         tenant_session,
         entity="client",
         entity_id="import",
-        entity_name=f"Импорт Excel: +{created} / ~{updated}",
+        entity_name=f"Імпорт з Excel: створено {created}, оновлено {updated}",
+        details={"created": [None, created], "updated": [None, updated]},
         action=AuditAction.CREATED,
         author_id=author.id,
         author_name=author.name,
@@ -335,9 +350,11 @@ async def import_clients(
 @router.get("/{client_id}", response_model=Envelope[ClientOut])
 async def get_client(
     client_id: uuid.UUID,
+    user: CurrentUser,
     master_session: MasterSession,
     tenant_session: TenantSession,
 ) -> Envelope[ClientOut]:
+    await ensure_own_client(tenant_session, user, client_id)
     client = await _get_client(master_session, client_id)
     agg = await _aggregates(tenant_session, [client.id])
     return Envelope(data=_client_out(client, agg))
@@ -366,6 +383,7 @@ class ClientPatchIn(ApiModel):
 async def patch_client(
     client_id: uuid.UUID,
     body: ClientPatchIn,
+    _admin: AdminUser,
     author: CurrentAuthor,
     master_session: MasterSession,
     tenant_session: TenantSession,
@@ -394,6 +412,7 @@ async def patch_client(
 @router.delete("/{client_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_client(
     client_id: uuid.UUID,
+    _admin: AdminUser,
     author: CurrentAuthor,
     master_session: MasterSession,
     tenant_session: TenantSession,
@@ -413,13 +432,20 @@ async def delete_client(
     )
 
 
+class VisitServiceOut(ApiModel):
+    id: uuid.UUID
+    name: str
+
+
 class VisitOut(ApiModel):
     id: uuid.UUID
     start_at: datetime
+    services: list[VisitServiceOut]
+    # Первая услуга визита. Устарело: используйте services
     service_id: uuid.UUID
     service_name: str
-    master_id: uuid.UUID
-    master_name: str
+    master_id: uuid.UUID | None
+    master_name: str | None
     status: RecordStatus
     total_amount: Decimal
     internal_notes: str | None
@@ -429,38 +455,36 @@ class VisitOut(ApiModel):
 @router.get("/{client_id}/visits", response_model=Envelope[list[VisitOut]])
 async def client_visits(
     client_id: uuid.UUID,
+    user: CurrentUser,
     tenant_session: TenantSession,
     page: int = 1,
     per_page: Annotated[int, Query(alias="perPage", le=200)] = 50,
 ) -> Envelope[list[VisitOut]]:
-    from app.models.shard import Service
-
-    base = (
-        select(Record, Service.name)
-        .join(Service, Service.id == Record.service_id)
-        .where(Record.client_id == client_id)
-    )
+    """История визитов клиента в салоне (мастеру — только по своим клиентам)."""
+    await ensure_own_client(tenant_session, user, client_id)
+    base = select(Record).where(Record.client_id == client_id)
     total = await tenant_session.scalar(select(func.count()).select_from(base.subquery()))
-    rows = (
-        await tenant_session.execute(
-            base.order_by(Record.start_at.desc()).offset((page - 1) * per_page).limit(per_page)
-        )
-    ).all()
+    records = await tenant_session.scalars(
+        base.order_by(Record.start_at.desc()).offset((page - 1) * per_page).limit(per_page)
+    )
     return Envelope(
-        data=[
-            VisitOut(
-                id=r.Record.id,
-                start_at=r.Record.start_at,
-                service_id=r.Record.service_id,
-                service_name=r.name,
-                master_id=r.Record.master_id,
-                master_name=r.Record.master_name,
-                status=r.Record.status,
-                total_amount=r.Record.total_amount,
-                internal_notes=r.Record.internal_notes,
-                photos=[p.url for p in r.Record.photos],
-            )
-            for r in rows
-        ],
+        data=[_visit_out(r) for r in records],
         meta=page_meta(page, per_page, total or 0),
+    )
+
+
+def _visit_out(record: Record) -> VisitOut:
+    services: list[RecordService] = record.services
+    return VisitOut(
+        id=record.id,
+        start_at=record.start_at,
+        services=[VisitServiceOut(id=s.service_id, name=s.name) for s in services],
+        service_id=services[0].service_id,
+        service_name=services[0].name,
+        master_id=record.master_id,
+        master_name=record.master_name,
+        status=record.status,
+        total_amount=record.total_amount,
+        internal_notes=record.internal_notes,
+        photos=[p.url for p in record.photos],
     )

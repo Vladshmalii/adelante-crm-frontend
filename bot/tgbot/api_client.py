@@ -1,11 +1,11 @@
 """HTTP-клиент к Bot API backend'а.
 
 Бот не имеет доступа к БД: любые данные — только через /api/bot/* с
-service-ключом. X-Salon-Id добавляется на запросы к шард-данным.
+service-ключом.
 """
 
+from datetime import date
 from typing import Any
-from uuid import UUID
 
 import httpx
 
@@ -31,14 +31,28 @@ class BackendClient:
         response.raise_for_status()
         return response.json()
 
-    async def link_client(self, phone: str, telegram_user_id: int) -> dict[str, Any]:
+    async def link_telegram(self, phone: str, telegram_user_id: int) -> dict[str, Any]:
+        """Привязка по телефону: администратор, мастер и/или клиент."""
         response = await self._client.post(
-            "/api/bot/clients/link-telegram",
+            "/api/bot/link-telegram",
             json={"phone": phone, "telegram_user_id": telegram_user_id},
         )
         response.raise_for_status()
         return response.json()
 
-    def with_salon(self, salon_id: UUID) -> dict[str, str]:
-        """Заголовки для запросов к шард-данным конкретного салона."""
-        return {"X-Salon-Id": str(salon_id)}
+    async def salons(self) -> list[dict[str, Any]]:
+        """Салоны со ссылками на сайт записи."""
+        response = await self._client.get("/api/bot/salons")
+        response.raise_for_status()
+        return response.json()
+
+    async def master_records(self, telegram_user_id: int, day: date) -> dict[str, Any] | None:
+        """Записи мастера на день во всех его салонах; None — не мастер."""
+        response = await self._client.get(
+            "/api/bot/masters/records",
+            params={"telegram_user_id": telegram_user_id, "day": day.isoformat()},
+        )
+        if response.status_code == 404:
+            return None
+        response.raise_for_status()
+        return response.json()

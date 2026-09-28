@@ -76,11 +76,7 @@ app.add_middleware(UnhandledExceptionMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://adelante.dvms.tech",
-        "https://api-adelante.dvms.tech",
-        "https://ws-adelante.dvms.tech",
-    ],
+    allow_origins=[origin.rstrip("/") for origin in get_settings().cors_origins],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

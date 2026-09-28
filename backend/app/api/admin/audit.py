@@ -8,11 +8,12 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 
 from app.api.schemas import ApiModel, Envelope, PersonRef, page_meta
-from app.api.security import require_salon_access
+from app.api.security import require_admin
 from app.models.shard import AuditAction, AuditLog
 from app.tenancy.deps import TenantSession
+from app.timeutils import LocalDatetime
 
-router = APIRouter(prefix="/audit", tags=["audit"], dependencies=[Depends(require_salon_access)])
+router = APIRouter(prefix="/audit", tags=["audit"], dependencies=[Depends(require_admin)])
 
 
 class AuditOut(ApiModel):
@@ -29,8 +30,8 @@ class AuditOut(ApiModel):
 @router.get("", response_model=Envelope[list[AuditOut]])
 async def list_audit(
     tenant_session: TenantSession,
-    date_from: Annotated[datetime | None, Query(alias="dateFrom")] = None,
-    date_to: Annotated[datetime | None, Query(alias="dateTo")] = None,
+    date_from: Annotated[LocalDatetime | None, Query(alias="dateFrom")] = None,
+    date_to: Annotated[LocalDatetime | None, Query(alias="dateTo")] = None,
     entity: str | None = None,
     action: AuditAction | None = None,
     author_id: Annotated[uuid.UUID | None, Query(alias="authorId")] = None,

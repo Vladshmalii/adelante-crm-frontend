@@ -12,13 +12,12 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 
 from app.api.schemas import ApiModel, Envelope, PersonRef, page_meta
-from app.api.security import require_salon_access
+from app.api.security import require_admin
 from app.models.shard import Review
 from app.tenancy.deps import TenantSession
+from app.timeutils import LocalDatetime
 
-router = APIRouter(
-    prefix="/reviews", tags=["reviews"], dependencies=[Depends(require_salon_access)]
-)
+router = APIRouter(prefix="/reviews", tags=["reviews"], dependencies=[Depends(require_admin)])
 
 # type → диапазон рейтинга (соответствует вкладкам фронта)
 TYPE_RANGES = {"positive": (4, 5), "neutral": (3, 3), "negative": (1, 2)}
@@ -37,8 +36,8 @@ class ReviewOut(ApiModel):
 @router.get("", response_model=Envelope[list[ReviewOut]])
 async def list_reviews(
     tenant_session: TenantSession,
-    date_from: Annotated[datetime | None, Query(alias="dateFrom")] = None,
-    date_to: Annotated[datetime | None, Query(alias="dateTo")] = None,
+    date_from: Annotated[LocalDatetime | None, Query(alias="dateFrom")] = None,
+    date_to: Annotated[LocalDatetime | None, Query(alias="dateTo")] = None,
     rating: Annotated[int | None, Query(ge=1, le=5)] = None,
     review_type: Annotated[str | None, Query(alias="type")] = None,
     page: int = 1,

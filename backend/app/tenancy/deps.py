@@ -83,8 +83,12 @@ async def get_master_session(request: Request) -> AsyncIterator[AsyncSession]:
             raise
 
 
-TenantSession = Annotated[AsyncSession, Depends(get_tenant_session)]
-TenantSessionBySlug = Annotated[AsyncSession, Depends(get_tenant_session_by_slug)]
-MasterSession = Annotated[AsyncSession, Depends(get_master_session)]
+# scope="function": commit/rollback выполняется до отправки ответа. По
+# умолчанию (scope="request") FastAPI закрывает yield-зависимость уже после
+# ответа — клиент получил бы 200 до коммита (и даже при упавшем коммите),
+# а следующий его запрос мог бы прочитать старые данные.
+TenantSession = Annotated[AsyncSession, Depends(get_tenant_session, scope="function")]
+TenantSessionBySlug = Annotated[AsyncSession, Depends(get_tenant_session_by_slug, scope="function")]
+MasterSession = Annotated[AsyncSession, Depends(get_master_session, scope="function")]
 SalonId = Annotated[UUID, Depends(get_salon_id)]
 SalonIdBySlug = Annotated[UUID, Depends(get_salon_id_from_slug)]

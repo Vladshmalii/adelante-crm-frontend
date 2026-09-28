@@ -1,6 +1,8 @@
 FROM python:3.12-slim
 
 WORKDIR /backend
+# salonctl ищет здесь alembic.*.ini и migrations/ (cli.py ставится в site-packages)
+ENV ADELANTE_BACKEND_DIR=/backend
 
 COPY pyproject.toml ./
 COPY app ./app

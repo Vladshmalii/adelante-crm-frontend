@@ -49,14 +49,40 @@ class Settings(BaseSettings):
     # Локальное хранилище загрузок (фото визитов, аватары); раздаётся под /uploads
     upload_dir: str = "uploads"
 
-    # Origin'ы фронтенда для CORS
+    # Origin'ы фронтенда для CORS (JSON-список в ADELANTE_CORS_ORIGINS)
     cors_origins: list[str] = Field(
         default_factory=lambda: [
             "http://localhost:3000",
             "http://127.0.0.1:3000",
-            "https://adelante.dvms.tech/",
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+            "https://adelante.dvms.tech",
+            "https://api-adelante.dvms.tech",
+            "https://ws-adelante.dvms.tech",
         ]
     )
+
+    # Адрес админки: ссылка из письма сброса пароля ведёт на {frontend_url}/reset-password
+    frontend_url: str = "http://localhost:5173"
+    # Публичный сайт записи: ссылка на салон — {booking_base_url}/{slug}
+    booking_base_url: str = "https://adelante.dvms.tech/booking"
+
+    # Почта (письма сброса пароля). Пустой smtp_host — письма не отправляются,
+    # ссылка пишется в лог уровнем WARNING (для локальной разработки)
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = "Adelante CRM <no-reply@adelante.dvms.tech>"
+    # starttls — порт 587, ssl — порт 465, none — без шифрования (локальный relay)
+    smtp_security: str = "starttls"
+
+    # Антиспам публичной записи: сколько записей можно создать за час
+    booking_rate_limit_per_ip: int = 20
+    booking_rate_limit_per_phone: int = 5
+
+    def booking_url(self, slug: str) -> str:
+        return f"{self.booking_base_url.rstrip('/')}/{slug}"
 
 
 @lru_cache

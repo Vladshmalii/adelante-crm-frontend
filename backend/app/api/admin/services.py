@@ -1,4 +1,8 @@
-"""Каталог услуг салона: CRUD, категории, привязка мастеров (many-to-many)."""
+"""Каталог услуг салона: CRUD, категории, привязка мастеров (many-to-many).
+
+Права: смотреть список и категории может любой сотрудник (мастер выбирает
+услуги при записи к себе), менять — только администратор.
+"""
 
 import uuid
 from decimal import Decimal
@@ -10,7 +14,7 @@ from sqlalchemy import delete, func, insert, select
 
 from app.api.admin.deps import CurrentAuthor
 from app.api.schemas import ApiModel, Envelope, PersonRef
-from app.api.security import require_salon_access
+from app.api.security import AdminUser, require_salon_access
 from app.models.master import Master, master_salons
 from app.models.shard import AuditAction, Service, ServiceStatus, service_masters
 from app.services.audit import diff_fields, write_audit
@@ -125,6 +129,7 @@ async def _validate_masters(
 @router.post("", response_model=Envelope[ServiceOut], status_code=status.HTTP_201_CREATED)
 async def create_service(
     body: ServiceCreateIn,
+    _admin: AdminUser,
     author: CurrentAuthor,
     salon_id: SalonId,
     master_session: MasterSession,
@@ -168,6 +173,7 @@ class ServicePatchIn(ApiModel):
 async def patch_service(
     service_id: uuid.UUID,
     body: ServicePatchIn,
+    _admin: AdminUser,
     author: CurrentAuthor,
     salon_id: SalonId,
     master_session: MasterSession,
@@ -212,6 +218,7 @@ async def patch_service(
 @router.delete("/{service_id}", response_model=Envelope[ServiceOut])
 async def archive_service(
     service_id: uuid.UUID,
+    _admin: AdminUser,
     author: CurrentAuthor,
     master_session: MasterSession,
     tenant_session: TenantSession,
