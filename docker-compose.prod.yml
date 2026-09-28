@@ -1,5 +1,5 @@
 # Продовий стек (сервер за reverse proxy, домени вже налаштовані зовні).
-# Образи api/ws/worker/beat та ui збираються і пушаться в GHCR через
+# Образи api/ws/worker/beat та web збираються і пушаться в GHCR через
 # .github/workflows/backend-deploy.yml і frontend-deploy.yml — цей файл
 # лише тягне готові образи й піднімає їх з продовими портами.
 #
@@ -9,11 +9,15 @@
 #
 # .env поруч із цим файлом — той самий, що й для docker-compose.yml
 # (див. .env.example), плюс ADELANTE_CORS_ORIGINS з продовим доменом фронта.
+# ADELANTE_FRONTEND_URL задано нижче: environment перекриває значення з .env.
 
 services:
   api:
     image: ghcr.io/vladshmalii/adelante-crm-backend:latest
     env_file: .env
+    environment:
+      # Посилання в листі скидання пароля: {адреса}/reset-password?token=...
+      ADELANTE_FRONTEND_URL: https://adelante.dvms.tech
     ports:
       - "8432:8000"
     depends_on:
@@ -25,6 +29,8 @@ services:
     image: ghcr.io/vladshmalii/adelante-crm-backend:latest
     command: celery -A workers.celery_app:celery worker -Q default,notifications -l info
     env_file: .env
+    environment:
+      ADELANTE_FRONTEND_URL: https://adelante.dvms.tech
     depends_on:
       - postgres-master
       - redis
@@ -58,10 +64,16 @@ services:
       - api
     restart: unless-stopped
 
-  ui:
-    image: ghcr.io/vladshmalii/adelante-crm-ui:latest
+  # Адмінка (web/, nginx). URL бекенда задаються тут і потрапляють у /config.js на старті.
+  # Публічної сторінки /booking у web немає: ADELANTE_BOOKING_BASE_URL не працює
+  # до окремого проєкту онлайн-запису (старий ui/ більше не деплоїться).
+  web:
+    image: ghcr.io/vladshmalii/adelante-crm-web:latest
+    environment:
+      API_URL: https://api-adelante.dvms.tech
+      WS_URL: wss://ws-adelante.dvms.tech/ws
     ports:
-      - "3777:3000"
+      - "3777:80"
     depends_on:
       - api
     restart: unless-stopped
