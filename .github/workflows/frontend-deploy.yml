@@ -89,6 +89,21 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Git на сервері не потрібен: копіюємо лише файли, потрібні для деплою.
+      # .env на сервері не перезаписується — його в репозиторії немає.
+      - name: Copy deploy files
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT || '22' }}
+          source: "docker-compose.prod.yml"
+          target: ${{ secrets.DEPLOY_PATH }}
+
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.0.3
         env:
@@ -108,8 +123,6 @@ jobs:
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_ACTOR" --password-stdin
 
             cd ${{ secrets.DEPLOY_PATH }}
-
-            git pull --ff-only
 
             docker compose -f docker-compose.prod.yml pull web
             # Трафик приходит через Traefik (labels в docker-compose.prod.yml), порты не публикуются.
