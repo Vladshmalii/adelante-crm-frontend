@@ -43,8 +43,7 @@ class Record(ShardBase):
 
     Услуг в записи может быть несколько (record_services, по порядку): их
     выполняет подряд один мастер, end_at/price/total_amount — суммы по
-    услугам. service_id — первая услуга; оставлен для совместимости и будет
-    удалён отдельной contract-миграцией.
+    услугам.
 
     master_id = NULL — запись «Без майстра» (очередь), мастера назначают позже.
     Завершить и оплатить такую запись нельзя.
@@ -67,7 +66,6 @@ class Record(ShardBase):
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     client_id: Mapped[uuid.UUID] = mapped_column(Uuid, index=True)
     master_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
-    service_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("services.id"))
 
     start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     end_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
@@ -113,6 +111,9 @@ class Record(ShardBase):
     # Одноразовый токен для отзыва — выдаётся клиенту при завершении визита
     review_token: Mapped[uuid.UUID | None] = mapped_column(Uuid, unique=True)
 
+    # Напоминание клиенту в Telegram за 30 минут; можно выключить для записи.
+    # reminder_sent_at сбрасывается при переносе записи на будущее время
+    reminder_enabled: Mapped[bool] = mapped_column(default=True, server_default="true")
     reminder_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

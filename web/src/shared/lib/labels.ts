@@ -30,3 +30,19 @@ export const COLOR_PRESETS = [
 
 export const toOptions = <T extends string>(labels: Record<T, string>) =>
   (Object.entries(labels) as [T, string][]).map(([value, label]) => ({ value, label }));
+
+/**
+ * Категория услуги — свободная строка на бекенде. Для известных ключей старого UI показываем
+ * подпись, остальные выводим как есть.
+ */
+export const KNOWN_SERVICE_CATEGORIES: Record<string, string> = {
+  hair: 'Волосся',
+  nails: 'Нігті',
+  face: 'Обличчя',
+  body: 'Тіло',
+  makeup: 'Макіяж',
+  other: 'Інше',
+};
+
+export const serviceCategoryLabel = (category: string) =>
+  KNOWN_SERVICE_CATEGORIES[category] ?? category;

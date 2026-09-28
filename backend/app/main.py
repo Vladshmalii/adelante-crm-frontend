@@ -68,7 +68,7 @@ class UnhandledExceptionMiddleware(BaseHTTPMiddleware):
             logger.exception("Необработанная ошибка: %s %s", request.method, request.url.path)
             return JSONResponse(
                 status_code=500,
-                content={"message": "Внутренняя ошибка сервера", "code": "internal_error"},
+                content={"message": "Внутрішня помилка сервера", "code": "internal_error"},
             )
 
 
@@ -113,7 +113,7 @@ async def validation_exception_handler(
         details.setdefault(field, []).append(error["msg"])
     return JSONResponse(
         status_code=422,
-        content={"message": "Ошибка валидации", "code": "validation_error", "details": details},
+        content={"message": "Помилка валідації", "code": "validation_error", "details": details},
     )
 
 

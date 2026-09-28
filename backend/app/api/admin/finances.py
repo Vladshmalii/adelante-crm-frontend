@@ -13,7 +13,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from pydantic import Field
-from sqlalchemy import case, func, select
+from sqlalchemy import Select, case, func, select
 
 from app.api.admin.deps import CurrentAuthor
 from app.api.schemas import ApiModel, Envelope, PersonRef, page_meta
@@ -43,6 +43,20 @@ from app.services import visits as visits_service
 from app.services.audit import diff_fields, write_audit
 from app.tenancy.deps import SalonId, TenantSession
 from app.timeutils import SALON_TZ_NAME, LocalDatetime, to_local
+
+# Фильтры «по співробітнику» (мастер записи) и «по локації» (локация кассы).
+# Операции и чеки без записи под фильтр по мастеру не попадают.
+MasterFilter = Annotated[uuid.UUID | None, Query(alias="masterId")]
+LocationFilter = Annotated[str | None, Query()]
+
+
+def _master_records(master_id: uuid.UUID) -> Select[uuid.UUID]:
+    return select(Record.id).where(Record.master_id == master_id)
+
+
+def _location_registers(location: str) -> Select[uuid.UUID]:
+    return select(CashRegister.id).where(CashRegister.location == location)
+
 
 OPERATION_TYPE_NAMES = {
     OperationType.INCOME: "Прихід",
@@ -98,16 +112,28 @@ async def dashboard(
     tenant_session: TenantSession,
     date_from: Annotated[LocalDatetime, Query(alias="dateFrom")],
     date_to: Annotated[LocalDatetime, Query(alias="dateTo")],
+    master_id: MasterFilter = None,
+    location: LocationFilter = None,
 ) -> Envelope[DashboardOut]:
-    completed_ops = (
-        select(FinanceOperation)
-        .where(
-            FinanceOperation.status == OperationStatus.COMPLETED,
-            FinanceOperation.date >= date_from,
-            FinanceOperation.date < date_to,
-        )
-        .subquery()
+    ops_query = select(FinanceOperation).where(
+        FinanceOperation.status == OperationStatus.COMPLETED,
+        FinanceOperation.date >= date_from,
+        FinanceOperation.date < date_to,
     )
+    receipt_filters = [
+        Receipt.status != ReceiptStatus.CANCELLED,
+        Receipt.date >= date_from,
+        Receipt.date < date_to,
+    ]
+    if master_id is not None:
+        ops_query = ops_query.where(FinanceOperation.record_id.in_(_master_records(master_id)))
+        receipt_filters.append(Receipt.record_id.in_(_master_records(master_id)))
+    if location:
+        ops_query = ops_query.where(
+            FinanceOperation.cash_register_id.in_(_location_registers(location))
+        )
+        receipt_filters.append(Receipt.cash_register_id.in_(_location_registers(location)))
+    completed_ops = ops_query.subquery()
     revenue, expenses = (
         await tenant_session.execute(
             select(
@@ -160,17 +186,13 @@ async def dashboard(
             select(PaymentMethod.type, func.sum(ReceiptPayment.amount))
             .join(ReceiptPayment, ReceiptPayment.payment_method_id == PaymentMethod.id)
             .join(Receipt, Receipt.id == ReceiptPayment.receipt_id)
-            .where(
-                Receipt.status != ReceiptStatus.CANCELLED,
-                Receipt.date >= date_from,
-                Receipt.date < date_to,
-            )
+            .where(*receipt_filters)
             .group_by(PaymentMethod.type)
         )
     ).all()
     split_total = sum((amount for _, amount in split_rows), Decimal(0))
 
-    top = await tenant_session.execute(
+    top_query = (
         select(RecordService.name, func.sum(RecordService.price), func.count())
         .join(Record, Record.id == RecordService.record_id)
         .where(
@@ -178,7 +200,21 @@ async def dashboard(
             Record.start_at >= date_from,
             Record.start_at < date_to,
         )
-        .group_by(RecordService.name)
+    )
+    if master_id is not None:
+        top_query = top_query.where(Record.master_id == master_id)
+    if location:
+        # У записи нет кассы — берём записи, оплаченные через кассы этой локации
+        top_query = top_query.where(
+            Record.id.in_(
+                select(Receipt.record_id).where(
+                    Receipt.status != ReceiptStatus.CANCELLED,
+                    Receipt.cash_register_id.in_(_location_registers(location)),
+                )
+            )
+        )
+    top = await tenant_session.execute(
+        top_query.group_by(RecordService.name)
         .order_by(func.sum(RecordService.price).desc())
         .limit(10)
     )
@@ -280,10 +316,16 @@ async def list_operations(
     payment_method_id: Annotated[uuid.UUID | None, Query(alias="paymentMethodId")] = None,
     date_from: Annotated[LocalDatetime | None, Query(alias="dateFrom")] = None,
     date_to: Annotated[LocalDatetime | None, Query(alias="dateTo")] = None,
+    master_id: MasterFilter = None,
+    location: LocationFilter = None,
     page: int = 1,
     per_page: Annotated[int, Query(alias="perPage", le=200)] = 50,
 ) -> Envelope[list[OperationOut]]:
     query = select(FinanceOperation)
+    if master_id is not None:
+        query = query.where(FinanceOperation.record_id.in_(_master_records(master_id)))
+    if location:
+        query = query.where(FinanceOperation.cash_register_id.in_(_location_registers(location)))
     if op_type is not None:
         query = query.where(FinanceOperation.type == op_type)
     if category:
@@ -331,6 +373,8 @@ async def create_operation(
     author: CurrentAuthor,
     tenant_session: TenantSession,
 ) -> Envelope[OperationOut]:
+    if body.cash_register_id is not None:
+        await _active_register(tenant_session, body.cash_register_id)
     op = FinanceOperation(
         **body.model_dump(by_alias=False),
         author_id=author.id,
@@ -368,7 +412,7 @@ async def patch_operation(
 ) -> Envelope[OperationOut]:
     op = await tenant_session.get(FinanceOperation, operation_id)
     if op is None:
-        raise HTTPException(404, "Операция не найдена")
+        raise HTTPException(404, "Операцію не знайдено")
     updates = body.model_dump(exclude_unset=True, by_alias=False)
     changes = diff_fields(op, updates)
     for field, value in updates.items():
@@ -473,7 +517,7 @@ async def create_document(
         select(FinanceDocument).where(FinanceDocument.number == body.number)
     )
     if exists is not None:
-        raise HTTPException(409, "Документ с таким номером уже есть")
+        raise HTTPException(409, "Документ з таким номером уже існує")
     doc = FinanceDocument(
         **body.model_dump(by_alias=False), author_id=author.id, author_name=author.name
     )
@@ -509,9 +553,9 @@ async def patch_document(
 ) -> Envelope[DocumentOut]:
     doc = await tenant_session.get(FinanceDocument, document_id)
     if doc is None:
-        raise HTTPException(404, "Документ не найден")
+        raise HTTPException(404, "Документ не знайдено")
     if doc.status == DocumentStatus.CANCELLED:
-        raise HTTPException(409, "Отменённый документ нельзя менять")
+        raise HTTPException(409, "Скасований документ не можна змінювати")
     updates = body.model_dump(exclude_unset=True, by_alias=False)
     changes = diff_fields(doc, updates)
     for field, value in updates.items():
@@ -598,10 +642,16 @@ async def list_receipts(
     receipt_status: Annotated[ReceiptStatus | None, Query(alias="status")] = None,
     date_from: Annotated[LocalDatetime | None, Query(alias="dateFrom")] = None,
     date_to: Annotated[LocalDatetime | None, Query(alias="dateTo")] = None,
+    master_id: MasterFilter = None,
+    location: LocationFilter = None,
     page: int = 1,
     per_page: Annotated[int, Query(alias="perPage", le=200)] = 50,
 ) -> Envelope[list[ReceiptOut]]:
     query = select(Receipt)
+    if master_id is not None:
+        query = query.where(Receipt.record_id.in_(_master_records(master_id)))
+    if location:
+        query = query.where(Receipt.cash_register_id.in_(_location_registers(location)))
     if receipt_status is not None:
         query = query.where(Receipt.status == receipt_status)
     if date_from is not None:
@@ -651,7 +701,7 @@ async def create_receipt(
         if body.record_id is not None:
             record = await tenant_session.get(Record, body.record_id)
             if record is None:
-                raise HTTPException(404, "Запись не найдена")
+                raise HTTPException(404, "Запис не знайдено")
             receipt = await visits_service.pay_record(
                 tenant_session,
                 salon_id=salon_id,
@@ -699,9 +749,9 @@ async def cancel_receipt(
     """Отмена чека: чек и связанные операции — cancelled; запись чека снова не оплачена."""
     receipt = await tenant_session.get(Receipt, receipt_id)
     if receipt is None:
-        raise HTTPException(404, "Чек не найден")
+        raise HTTPException(404, "Чек не знайдено")
     if receipt.status == ReceiptStatus.CANCELLED:
-        raise HTTPException(409, "Чек уже отменён")
+        raise HTTPException(409, "Чек уже скасовано")
 
     receipt.status = ReceiptStatus.CANCELLED
     operations = await tenant_session.scalars(
@@ -783,9 +833,7 @@ async def create_payment_method(
     tenant_session: TenantSession,
 ) -> Envelope[PaymentMethodOut]:
     if body.cash_register_id is not None:
-        register = await tenant_session.get(CashRegister, body.cash_register_id)
-        if register is None:
-            raise HTTPException(422, "Касса не найдена")
+        await _active_register(tenant_session, body.cash_register_id)
     method = PaymentMethod(**body.model_dump(by_alias=False))
     tenant_session.add(method)
     await tenant_session.flush()
@@ -824,8 +872,10 @@ async def patch_payment_method(
 ) -> Envelope[PaymentMethodOut]:
     method = await tenant_session.get(PaymentMethod, method_id)
     if method is None:
-        raise HTTPException(404, "Способ оплаты не найден")
+        raise HTTPException(404, "Спосіб оплати не знайдено")
     updates = body.model_dump(exclude_unset=True, by_alias=False)
+    if updates.get("cash_register_id") and updates["cash_register_id"] != method.cash_register_id:
+        await _active_register(tenant_session, updates["cash_register_id"])
     changes = diff_fields(method, updates)
     for field, value in updates.items():
         setattr(method, field, value)
@@ -844,6 +894,16 @@ async def patch_payment_method(
 
 
 # --- Кассы ------------------------------------------------------------------
+
+
+async def _active_register(tenant_session, register_id: uuid.UUID) -> CashRegister:
+    """Касса для новой операции или способа оплаты: существует и не выключена."""
+    register = await tenant_session.get(CashRegister, register_id)
+    if register is None:
+        raise HTTPException(422, "Касу не знайдено")
+    if not register.is_active:
+        raise HTTPException(422, f"Каса «{register.name}» вимкнена")
+    return register
 
 
 class CashRegisterOut(ApiModel):
@@ -927,6 +987,92 @@ async def create_cash_register(
     )
 
 
+class CashRegisterPatchIn(ApiModel):
+    """Баланс не редактируется — только операциями. Удаления нет — isActive=false."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=128)
+    location: str | None = Field(default=None, max_length=255)
+    is_active: bool | None = None
+
+
+async def _register_balance(tenant_session, register_id: uuid.UUID) -> Decimal:
+    balance = await tenant_session.scalar(
+        select(
+            func.coalesce(
+                func.sum(
+                    case(
+                        (FinanceOperation.type == OperationType.INCOME, FinanceOperation.amount),
+                        (FinanceOperation.type == OperationType.EXPENSE, -FinanceOperation.amount),
+                        else_=0,
+                    )
+                ),
+                0,
+            )
+        ).where(
+            FinanceOperation.cash_register_id == register_id,
+            FinanceOperation.status == OperationStatus.COMPLETED,
+        )
+    )
+    return Decimal(balance or 0)
+
+
+@router.patch("/cash-registers/{register_id}", response_model=Envelope[CashRegisterOut])
+async def patch_cash_register(
+    register_id: uuid.UUID,
+    body: CashRegisterPatchIn,
+    author: CurrentAuthor,
+    tenant_session: TenantSession,
+) -> Envelope[CashRegisterOut]:
+    register = await tenant_session.get(CashRegister, register_id)
+    if register is None:
+        raise HTTPException(404, "Касу не знайдено")
+    updates = body.model_dump(exclude_unset=True, by_alias=False)
+    for required in ("name", "is_active"):
+        if required in updates and updates[required] is None:
+            raise HTTPException(422, f"Поле {required} не можна очистити")
+    if "location" in updates and updates["location"] is not None:
+        updates["location"] = updates["location"].strip() or None
+    changes = diff_fields(register, updates)
+    for field, value in updates.items():
+        setattr(register, field, value)
+    if changes:
+        write_audit(
+            tenant_session,
+            entity="finance",
+            entity_id=register.id,
+            entity_name=f"Каса «{register.name}»",
+            action=AuditAction.UPDATED,
+            author_id=author.id,
+            author_name=author.name,
+            details=changes,
+        )
+    return Envelope(
+        data=CashRegisterOut(
+            id=register.id,
+            name=register.name,
+            location=register.location,
+            balance=await _register_balance(tenant_session, register.id),
+            is_active=register.is_active,
+        )
+    )
+
+
+@router.get("/locations", response_model=Envelope[list[str]])
+async def list_locations(tenant_session: TenantSession) -> Envelope[list[str]]:
+    """Локации активных касс — для фильтра «Локація»."""
+    rows = await tenant_session.scalars(
+        select(CashRegister.location)
+        .where(
+            CashRegister.is_active.is_(True),
+            CashRegister.location.is_not(None),
+            CashRegister.location != "",
+        )
+        .distinct()
+        .order_by(CashRegister.location)
+    )
+    return Envelope(data=[r for r in rows if r])
+
+
 # --- Экспорт ----------------------------------------------------------------
 
 
@@ -935,17 +1081,20 @@ async def export_operations(
     tenant_session: TenantSession,
     date_from: Annotated[LocalDatetime, Query(alias="dateFrom")],
     date_to: Annotated[LocalDatetime, Query(alias="dateTo")],
+    master_id: MasterFilter = None,
+    location: LocationFilter = None,
 ) -> StreamingResponse:
     """Excel-отчёт по операциям за период."""
     from openpyxl import Workbook
 
-    operations = list(
-        await tenant_session.scalars(
-            select(FinanceOperation)
-            .where(FinanceOperation.date >= date_from, FinanceOperation.date < date_to)
-            .order_by(FinanceOperation.date)
-        )
+    query = select(FinanceOperation).where(
+        FinanceOperation.date >= date_from, FinanceOperation.date < date_to
     )
+    if master_id is not None:
+        query = query.where(FinanceOperation.record_id.in_(_master_records(master_id)))
+    if location:
+        query = query.where(FinanceOperation.cash_register_id.in_(_location_registers(location)))
+    operations = list(await tenant_session.scalars(query.order_by(FinanceOperation.date)))
     methods, registers = await _refs(tenant_session, operations)
 
     wb = Workbook()

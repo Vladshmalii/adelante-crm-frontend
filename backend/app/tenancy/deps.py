@@ -34,7 +34,7 @@ async def get_salon_id_from_slug(
     try:
         return await registry.resolve_slug(salon_slug)
     except SalonNotFound:
-        raise HTTPException(status_code=404, detail="Салон не найден")
+        raise HTTPException(status_code=404, detail="Салон не знайдено")
 
 
 async def _open_tenant_session(
@@ -43,9 +43,9 @@ async def _open_tenant_session(
     try:
         factory = await registry.get_sessionmaker(salon_id)
     except SalonNotFound:
-        raise HTTPException(status_code=404, detail="Салон не найден")
+        raise HTTPException(status_code=404, detail="Салон не знайдено")
     except SalonSuspended:
-        raise HTTPException(status_code=403, detail="Салон приостановлен")
+        raise HTTPException(status_code=403, detail="Салон призупинено")
 
     async with factory() as session:
         try:

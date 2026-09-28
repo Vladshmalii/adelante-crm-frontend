@@ -4,7 +4,8 @@ import type { Schema } from '@/shared/api';
  * Права доступа по ролям — см. docs/ACCESS.md. Здесь только то, что нужно фронту,
  * чтобы спрятать недоступное; настоящие проверки — на бекенде.
  */
-export type Section = 'clients' | 'staff' | 'services' | 'overview' | 'finances';
+export type Section =
+  'clients' | 'staff' | 'services' | 'inventory' | 'overview' | 'reports' | 'finances';
 
 export interface Viewer {
   id: string;
@@ -32,7 +33,9 @@ const SECTIONS: Record<Section, (v: Viewer) => boolean> = {
   clients: () => true,
   staff: (v) => v.isAdmin,
   services: (v) => v.isAdmin,
+  inventory: (v) => v.isAdmin,
   overview: (v) => v.isAdmin,
+  reports: (v) => v.isAdmin,
   finances: (v) => v.isSuperuser,
 };
 
@@ -57,6 +60,18 @@ export const permissions = (v: Viewer) => ({
   },
   services: {
     manage: v.isAdmin,
+  },
+  inventory: {
+    /** Товары, движения, категории, импорт и экспорт; цены склада видит и администратор. */
+    manage: v.isAdmin,
+  },
+  records: {
+    /** Списание расходников: администратор — по любой записи, мастер — по своей. */
+    writeOffConsumables: true,
+  },
+  reports: {
+    /** Виручка и середній чек; администратору бекенд отдаёт их как null. */
+    viewMoney: v.isSuperuser,
   },
 });
 

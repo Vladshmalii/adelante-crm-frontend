@@ -17,8 +17,10 @@ import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppClientsRouteImport } from './routes/_app/clients'
 import { Route as AppFinancesRouteImport } from './routes/_app/finances'
 import { Route as AppForbiddenRouteImport } from './routes/_app/forbidden'
+import { Route as AppInventoryRouteImport } from './routes/_app/inventory'
 import { Route as AppOverviewRouteImport } from './routes/_app/overview'
 import { Route as AppProfileRouteImport } from './routes/_app/profile'
+import { Route as AppReportsRouteImport } from './routes/_app/reports'
 import { Route as AppServicesRouteImport } from './routes/_app/services'
 import { Route as AppStaffRouteImport } from './routes/_app/staff'
 
@@ -61,6 +63,11 @@ const AppForbiddenRoute = AppForbiddenRouteImport.update({
   path: '/forbidden',
   getParentRoute: () => AppRoute,
 } as any)
+const AppInventoryRoute = AppInventoryRouteImport.update({
+  id: '/inventory',
+  path: '/inventory',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppOverviewRoute = AppOverviewRouteImport.update({
   id: '/overview',
   path: '/overview',
@@ -69,6 +76,11 @@ const AppOverviewRoute = AppOverviewRouteImport.update({
 const AppProfileRoute = AppProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppReportsRoute = AppReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
   getParentRoute: () => AppRoute,
 } as any)
 const AppServicesRoute = AppServicesRouteImport.update({
@@ -90,8 +102,10 @@ export interface FileRoutesByFullPath {
   '/clients': typeof AppClientsRoute
   '/finances': typeof AppFinancesRoute
   '/forbidden': typeof AppForbiddenRoute
+  '/inventory': typeof AppInventoryRoute
   '/overview': typeof AppOverviewRoute
   '/profile': typeof AppProfileRoute
+  '/reports': typeof AppReportsRoute
   '/services': typeof AppServicesRoute
   '/staff': typeof AppStaffRoute
 }
@@ -102,8 +116,10 @@ export interface FileRoutesByTo {
   '/clients': typeof AppClientsRoute
   '/finances': typeof AppFinancesRoute
   '/forbidden': typeof AppForbiddenRoute
+  '/inventory': typeof AppInventoryRoute
   '/overview': typeof AppOverviewRoute
   '/profile': typeof AppProfileRoute
+  '/reports': typeof AppReportsRoute
   '/services': typeof AppServicesRoute
   '/staff': typeof AppStaffRoute
   '/': typeof AppIndexRoute
@@ -117,8 +133,10 @@ export interface FileRoutesById {
   '/_app/clients': typeof AppClientsRoute
   '/_app/finances': typeof AppFinancesRoute
   '/_app/forbidden': typeof AppForbiddenRoute
+  '/_app/inventory': typeof AppInventoryRoute
   '/_app/overview': typeof AppOverviewRoute
   '/_app/profile': typeof AppProfileRoute
+  '/_app/reports': typeof AppReportsRoute
   '/_app/services': typeof AppServicesRoute
   '/_app/staff': typeof AppStaffRoute
   '/_app/': typeof AppIndexRoute
@@ -133,8 +151,10 @@ export interface FileRouteTypes {
     | '/clients'
     | '/finances'
     | '/forbidden'
+    | '/inventory'
     | '/overview'
     | '/profile'
+    | '/reports'
     | '/services'
     | '/staff'
   fileRoutesByTo: FileRoutesByTo
@@ -145,8 +165,10 @@ export interface FileRouteTypes {
     | '/clients'
     | '/finances'
     | '/forbidden'
+    | '/inventory'
     | '/overview'
     | '/profile'
+    | '/reports'
     | '/services'
     | '/staff'
     | '/'
@@ -159,8 +181,10 @@ export interface FileRouteTypes {
     | '/_app/clients'
     | '/_app/finances'
     | '/_app/forbidden'
+    | '/_app/inventory'
     | '/_app/overview'
     | '/_app/profile'
+    | '/_app/reports'
     | '/_app/services'
     | '/_app/staff'
     | '/_app/'
@@ -231,6 +255,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppForbiddenRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/inventory': {
+      id: '/_app/inventory'
+      path: '/inventory'
+      fullPath: '/inventory'
+      preLoaderRoute: typeof AppInventoryRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/overview': {
       id: '/_app/overview'
       path: '/overview'
@@ -243,6 +274,13 @@ declare module '@tanstack/react-router' {
       path: '/profile'
       fullPath: '/profile'
       preLoaderRoute: typeof AppProfileRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/reports': {
+      id: '/_app/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof AppReportsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/services': {
@@ -266,8 +304,10 @@ interface AppRouteChildren {
   AppClientsRoute: typeof AppClientsRoute
   AppFinancesRoute: typeof AppFinancesRoute
   AppForbiddenRoute: typeof AppForbiddenRoute
+  AppInventoryRoute: typeof AppInventoryRoute
   AppOverviewRoute: typeof AppOverviewRoute
   AppProfileRoute: typeof AppProfileRoute
+  AppReportsRoute: typeof AppReportsRoute
   AppServicesRoute: typeof AppServicesRoute
   AppStaffRoute: typeof AppStaffRoute
   AppIndexRoute: typeof AppIndexRoute
@@ -277,8 +317,10 @@ const AppRouteChildren: AppRouteChildren = {
   AppClientsRoute: AppClientsRoute,
   AppFinancesRoute: AppFinancesRoute,
   AppForbiddenRoute: AppForbiddenRoute,
+  AppInventoryRoute: AppInventoryRoute,
   AppOverviewRoute: AppOverviewRoute,
   AppProfileRoute: AppProfileRoute,
+  AppReportsRoute: AppReportsRoute,
   AppServicesRoute: AppServicesRoute,
   AppStaffRoute: AppStaffRoute,
   AppIndexRoute: AppIndexRoute,

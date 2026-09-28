@@ -1,7 +1,7 @@
 # Задача: подключить `web/` к изменениям API бекенда (2026-09-28)
 
-После перегенерации типов в схеме появятся и эндпоинты склада и отчётов — см. раздел
-«Склад и Звіти» ниже.
+После перегенерации типов в схеме появятся и эндпоинты склада и отчётов — страницы для них
+описаны отдельно в [FRONTEND_INVENTORY_REPORTS.md](./FRONTEND_INVENTORY_REPORTS.md).
 
 Бриф для агента, который работает с фронтендом. Бекенд уже изменён и проверен; **бекенд не
 трогать** — если чего-то не хватает, опиши это в отчёте.
@@ -14,8 +14,9 @@
 - Префикс Admin API `/api/admin/v1`, заголовок `X-Salon-Id`, ответы `{data, meta}`, поля camelCase.
 - Все даты в ответах — ISO с зоной (UTC). Время без зоны в запросах бекенд считает киевским.
   Фронт показывает всё в `Europe/Kyiv` (`shared/lib/date.ts`), так и остаётся.
-- Ошибки: `{message, code?, details?}`. Для чужого объекта мастеру приходит `404`,
-  для запрещённого действия — `403`.
+- Ошибки: `{message, code?, details?}`. `message` теперь **на украинском** — его можно показывать
+  пользователю как есть. Для чужого объекта мастеру приходит `404`, для запрещённого действия —
+  `403`.
 
 ### Шаг 1 — типы
 
@@ -34,7 +35,7 @@ npm run check
 | ------------------------------- | ------------------- | ----------------------------------------------------------------------------- |
 | `master`                        | `{id, name, color}` | `{id, name, color} \| null` — `null` = запись «Без майстра»                   |
 | `services`                      | —                   | `[{id, name, price, durationMinutes, category, color}]` по порядку выполнения |
-| `service`                       | единственная услуга | **устарело**: первая услуга из `services`, оставлено для совместимости        |
+| `service`                       | единственная услуга | **удалено** — используйте `services`                                          |
 | `price`, `totalAmount`, `endAt` | по одной услуге     | сумма по всем услугам                                                         |
 
 Что поправить:
@@ -49,11 +50,14 @@ npm run check
   `actor_id`. Фильтр мастера по `master_id` можно оставить — бекенд уже сам шлёт мастеру
   только его события.
 
-Новый фильтр списка: `GET /records?withoutMaster=true` (для мастера — всегда пусто).
+Новые фильтры списка: `GET /records?withoutMaster=true` (для мастера — всегда пусто) и
+`serviceCategory=<категория>` — запись подходит, если хотя бы одна её услуга из этой категории
+(вернуть фильтр «Категорія послуг» на вкладку Огляд → Записи; список категорий —
+`GET /services/categories`).
 
 ### Визиты клиента (`GET /clients/{id}/visits`)
 
-`services: [{id, name}]` — новое; `serviceId`/`serviceName` — устарели (первая услуга);
+`services: [{id, name}]` — новое; `serviceId`/`serviceName` — **удалены**;
 `masterId`, `masterName` — могут быть `null`.
 
 ### Права — бекенд теперь их проверяет
@@ -122,6 +126,15 @@ profile: { salonId, position, specializations[], status, salary, commissionPerce
 - Отмена чека с `recordId` возвращает записи `paymentStatus: "unpaid"`.
 - `GET /finances/dashboard`: `revenueByDay` группируется по киевским суткам; `topServices` —
   по услугам внутри записей.
+- Фильтры `masterId` и `location` в `GET /finances/operations`, `/receipts`, `/dashboard`,
+  `/export`. `masterId` — мастер **записи**, к которой относится операция или чек (операции и
+  чеки без записи под фильтр не попадают); `location` — локация кассы. Вернуть фильтры
+  «Співробітник» и «Локація», которых сейчас нет в Фінансах.
+- `GET /finances/locations` — список локаций активных касс (для выпадающего списка).
+- `PATCH /finances/cash-registers/{id}` — `name`, `location`, `isActive` (удаления нет — выключение).
+  Баланс не редактируется. В выключенную кассу нельзя провести новую операцию, чек или привязать
+  способ оплаты (`422`); в списке касс она остаётся с `isActive: false`. Добавить редактирование
+  касс в «Методи оплат».
 
 ### Записи — для Розкладу (когда до него дойдёт)
 
@@ -134,7 +147,7 @@ profile: { salonId, position, specializations[], status, salary, commissionPerce
 | `POST /records/{id}/status`                             | Без изменений; `cancelled` — отмена                                                                                                                                                                                                                 |
 | `POST /records/{id}/complete`                           | Теперь только `{notes?, photoUrls[]}`, без оплат. Результат: `status: completed`, `paymentStatus: unpaid`. Без мастера → `409`                                                                                                                      |
 | `POST /records/{id}/payment`                            | `{payments: [{paymentMethodId, amount}]}` (сумма = `totalAmount`; частичной оплаты и чаевых нет) → `{record, receipt: {id, number, amount}}`. Только администратор; не завершена / уже оплачена / без мастера → `409`                               |
-| `GET /masters/{id}/slots?date=&serviceIds=&serviceIds=` | Свободное время под набор услуг; мастер — только своё                                                                                                                                                                                               |
+| `GET /masters/{id}/slots?date=&serviceIds=&serviceIds=` | Свободное время под набор услуг (`serviceIds` обязателен, старый `serviceId` удалён); мастер — только своё                                                                                                                                          |
 
 ### Склад и Звіти — API готово
 
@@ -148,7 +161,8 @@ profile: { salonId, position, specializations[], status, salary, commissionPerce
   `null`, `GET /reports/revenue` → `403`, в `GET /reports/export` нет листа «Виручка»).
 - В меню разделы появляются вместе со страницами (решение 4 в FEATURES.md, раздел 12).
 
-Страницы Склада и Звітів делать, только если это есть в твоей задаче.
+Страницы Склада и Звітів — отдельный бриф [FRONTEND_INVENTORY_REPORTS.md](./FRONTEND_INVENTORY_REPORTS.md);
+делать, только если это есть в твоей задаче.
 
 ## Как проверять
 
@@ -165,4 +179,4 @@ profile: { salonId, position, specializations[], status, salary, commissionPerce
 ## Не делать
 
 - Не менять `backend/` и `bot/`.
-- Не делать абонементы и фильтры из разделов 1–4 `BACKEND.md` — на бекенде их ещё нет.
+- Не делать абонементы (раздел 4 `BACKEND.md`) — на бекенде их ещё нет.

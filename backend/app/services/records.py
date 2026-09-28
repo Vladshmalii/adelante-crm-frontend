@@ -75,6 +75,7 @@ class NewRecord(BaseModel):
     importance: RecordImportance = RecordImportance.STANDARD
     visitor_name: str | None = None
     visitor_phone: str | None = None
+    reminder_enabled: bool = True
     created_by: uuid.UUID | None = None
     created_by_name: str | None = None
 
@@ -162,7 +163,6 @@ def apply_services(record: Record, services: list[Service]) -> None:
         )
         for i, s in enumerate(services)
     ]
-    record.service_id = services[0].id
     total = sum((s.price for s in services), Decimal(0))
     record.price = total
     record.total_amount = total
@@ -284,6 +284,7 @@ async def create_record(
         visitor_name=data.visitor_name,
         visitor_phone=data.visitor_phone,
         comment=data.comment,
+        reminder_enabled=data.reminder_enabled,
         created_by=data.created_by,
         created_by_name=data.created_by_name,
     )

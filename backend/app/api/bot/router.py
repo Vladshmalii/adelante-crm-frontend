@@ -199,7 +199,7 @@ async def master_records(
         )
     )
     if master is None:
-        raise HTTPException(404, "Мастер не найден")
+        raise HTTPException(404, "Майстра не знайдено")
 
     registry: EngineRegistry = request.app.state.engine_registry
     start, end = day_bounds(day)

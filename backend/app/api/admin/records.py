@@ -13,19 +13,21 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
 from pydantic import Field
-from sqlalchemy import func, select
+from sqlalchemy import exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.admin.deps import CurrentAuthor, ensure_own_record
 from app.api.schemas import ApiModel, Envelope, PersonRef, page_meta
 from app.api.security import AdminUser, CurrentUser, forbidden, require_salon_access
 from app.config import get_settings
+from app.models.master import Client
 from app.models.shard import (
     AuditAction,
     AuditLog,
     PaymentStatus,
     Record,
     RecordImportance,
+    RecordService,
     RecordSource,
     RecordStatus,
     Service,
@@ -42,13 +44,6 @@ router = APIRouter(tags=["records"], dependencies=[Depends(require_salon_access)
 
 
 # --- Схемы ------------------------------------------------------------------
-
-
-class ServiceRef(ApiModel):
-    id: uuid.UUID
-    name: str
-    category: str
-    color: str | None
 
 
 class RecordServiceOut(ApiModel):
@@ -88,8 +83,6 @@ class RecordOut(ApiModel):
     master: MasterRef | None
     client: ClientRef
     services: list[RecordServiceOut]
-    # Первая услуга записи. Устарело: оставлено для совместимости, используйте services
-    service: ServiceRef
     price: Decimal
     total_amount: Decimal
     visitor_name: str | None
@@ -97,6 +90,11 @@ class RecordOut(ApiModel):
     comment: str | None
     created_at: datetime
     created_by: PersonRef
+    # Напоминание клиенту в Telegram за 30 минут: включено ли, когда ушло,
+    # и привязан ли клиент к боту (без привязки напоминание не дойдёт)
+    reminder_enabled: bool
+    reminder_sent_at: datetime | None
+    client_telegram_linked: bool
 
 
 class HistoryItemOut(ApiModel):
@@ -126,12 +124,16 @@ class _Refs:
         self,
         colors: dict[uuid.UUID, str | None],
         services: dict[uuid.UUID, Service],
+        telegram_clients: set[uuid.UUID],
     ) -> None:
         self.colors = colors
         self.services = services
+        self.telegram_clients = telegram_clients
 
 
-async def _load_refs(tenant_session: AsyncSession, records: list[Record]) -> _Refs:
+async def _load_refs(
+    tenant_session: AsyncSession, master_session: AsyncSession, records: list[Record]
+) -> _Refs:
     master_ids = {r.master_id for r in records if r.master_id}
     service_ids = {s.service_id for r in records for s in r.services}
     colors: dict[uuid.UUID, str | None] = {}
@@ -150,7 +152,17 @@ async def _load_refs(tenant_session: AsyncSession, records: list[Record]) -> _Re
                 select(Service).where(Service.id.in_(service_ids))
             )
         }
-    return _Refs(colors, services)
+    client_ids = {r.client_id for r in records}
+    telegram_clients: set[uuid.UUID] = set()
+    if client_ids:
+        telegram_clients = set(
+            await master_session.scalars(
+                select(Client.id).where(
+                    Client.id.in_(client_ids), Client.telegram_user_id.is_not(None)
+                )
+            )
+        )
+    return _Refs(colors, services, telegram_clients)
 
 
 def _record_out(record: Record, refs: _Refs) -> RecordOut:
@@ -167,7 +179,6 @@ def _record_out(record: Record, refs: _Refs) -> RecordOut:
                 color=current.color if current else None,
             )
         )
-    first = services[0]
     return RecordOut(
         id=record.id,
         status=record.status,
@@ -189,9 +200,6 @@ def _record_out(record: Record, refs: _Refs) -> RecordOut:
         ),
         client=ClientRef(id=record.client_id, name=record.client_name, phone=record.client_phone),
         services=services,
-        service=ServiceRef(
-            id=first.id, name=first.name, category=first.category or "other", color=first.color
-        ),
         price=record.price,
         total_amount=record.total_amount,
         visitor_name=record.visitor_name,
@@ -202,13 +210,20 @@ def _record_out(record: Record, refs: _Refs) -> RecordOut:
             id=str(record.created_by) if record.created_by else None,
             name=record.created_by_name,
         ),
+        reminder_enabled=record.reminder_enabled,
+        reminder_sent_at=record.reminder_sent_at,
+        client_telegram_linked=record.client_id in refs.telegram_clients,
     )
 
 
-async def _one_out(tenant_session: AsyncSession, record: Record) -> RecordOut:
+async def _one_out(
+    tenant_session: AsyncSession, master_session: AsyncSession, record: Record
+) -> RecordOut:
     await tenant_session.flush()
-    await tenant_session.refresh(record, attribute_names=["services", "created_at"])
-    return _record_out(record, await _load_refs(tenant_session, [record]))
+    await tenant_session.refresh(
+        record, attribute_names=["services", "created_at", "reminder_enabled"]
+    )
+    return _record_out(record, await _load_refs(tenant_session, master_session, [record]))
 
 
 # --- Список и создание ------------------------------------------------------
@@ -217,6 +232,7 @@ async def _one_out(tenant_session: AsyncSession, record: Record) -> RecordOut:
 @router.get("/records", response_model=Envelope[list[RecordOut]])
 async def list_records(
     user: CurrentUser,
+    master_session: MasterSession,
     tenant_session: TenantSession,
     date_from: Annotated[LocalDatetime | None, Query(alias="dateFrom")] = None,
     date_to: Annotated[LocalDatetime | None, Query(alias="dateTo")] = None,
@@ -228,6 +244,7 @@ async def list_records(
     source: RecordSource | None = None,
     payment_status: Annotated[PaymentStatus | None, Query(alias="paymentStatus")] = None,
     client_query: Annotated[str | None, Query(alias="clientQuery")] = None,
+    service_category: Annotated[str | None, Query(alias="serviceCategory")] = None,
     page: int = 1,
     per_page: Annotated[int, Query(alias="perPage", le=500)] = 50,
 ) -> Envelope[list[RecordOut]]:
@@ -258,6 +275,13 @@ async def list_records(
     if client_query:
         pattern = f"%{client_query}%"
         query = query.where(Record.client_name.ilike(pattern) | Record.client_phone.ilike(pattern))
+    if service_category:
+        # Хотя бы одна услуга записи — из категории (категория — текущая у услуги)
+        query = query.where(
+            exists()
+            .where(RecordService.record_id == Record.id)
+            .where(Service.id == RecordService.service_id, Service.category == service_category)
+        )
 
     total = await tenant_session.scalar(select(func.count()).select_from(query.subquery()))
     records = list(
@@ -265,7 +289,7 @@ async def list_records(
             query.order_by(Record.start_at).offset((page - 1) * per_page).limit(per_page)
         )
     )
-    refs = await _load_refs(tenant_session, records)
+    refs = await _load_refs(tenant_session, master_session, records)
     return Envelope(
         data=[_record_out(r, refs) for r in records],
         meta=page_meta(page, per_page, total or 0),
@@ -290,6 +314,7 @@ class RecordCreateIn(ApiModel):
     comment: str | None = None
     visitor_name: str | None = None
     visitor_phone: str | None = None
+    reminder_enabled: bool = True
 
 
 @router.post("/records", response_model=Envelope[RecordOut], status_code=status.HTTP_201_CREATED)
@@ -302,14 +327,14 @@ async def create_record(
     tenant_session: TenantSession,
 ) -> Envelope[RecordOut]:
     if body.source not in (RecordSource.ADMIN, RecordSource.PHONE, RecordSource.WALK_IN):
-        raise HTTPException(422, "Недопустимый источник для админки")
+        raise HTTPException(422, "Недопустиме джерело для адмінки")
     if body.client_id is None and body.new_client is None:
-        raise HTTPException(422, "Укажите clientId или newClient")
+        raise HTTPException(422, "Вкажіть clientId або newClient")
 
     master_id = body.master_id
     if user.is_master:
         if master_id is not None and master_id != user.id:
-            raise forbidden("Мастер создаёт записи только к себе")
+            raise forbidden("Майстер створює записи лише до себе")
         master_id = user.id
 
     try:
@@ -337,19 +362,20 @@ async def create_record(
                 importance=body.importance,
                 visitor_name=body.visitor_name,
                 visitor_phone=body.visitor_phone,
+                reminder_enabled=body.reminder_enabled,
                 created_by=author.id,
                 created_by_name=author.name,
             ),
             source=body.source,
         )
     except records_service.MasterUnavailable:
-        raise HTTPException(422, "Мастер не найден, неактивен или не работает в этом салоне")
+        raise HTTPException(422, "Майстра не знайдено, він неактивний або не працює в цьому салоні")
     except records_service.ClientInactive:
-        raise HTTPException(422, "Клиент не найден или деактивирован")
+        raise HTTPException(422, "Клієнта не знайдено або деактивовано")
     except records_service.ServiceUnavailable:
-        raise HTTPException(422, "Услуга не найдена или неактивна")
+        raise HTTPException(422, "Послугу не знайдено або вона неактивна")
 
-    return Envelope(data=await _one_out(tenant_session, record))
+    return Envelope(data=await _one_out(tenant_session, master_session, record))
 
 
 # --- Детали, изменение, статусы --------------------------------------------
@@ -358,14 +384,17 @@ async def create_record(
 async def _get_record(tenant_session, record_id: uuid.UUID, user: CurrentUser) -> Record:
     record = await tenant_session.get(Record, record_id)
     if record is None:
-        raise HTTPException(404, "Запись не найдена")
+        raise HTTPException(404, "Запис не знайдено")
     ensure_own_record(user, record)
     return record
 
 
 @router.get("/records/{record_id}", response_model=Envelope[RecordDetailOut])
 async def get_record(
-    record_id: uuid.UUID, user: CurrentUser, tenant_session: TenantSession
+    record_id: uuid.UUID,
+    user: CurrentUser,
+    master_session: MasterSession,
+    tenant_session: TenantSession,
 ) -> Envelope[RecordDetailOut]:
     record = await _get_record(tenant_session, record_id, user)
     history = await tenant_session.scalars(
@@ -373,7 +402,7 @@ async def get_record(
         .where(AuditLog.entity == "record", AuditLog.entity_id == str(record_id))
         .order_by(AuditLog.created_at.desc())
     )
-    base = _record_out(record, await _load_refs(tenant_session, [record]))
+    base = _record_out(record, await _load_refs(tenant_session, master_session, [record]))
     return Envelope(
         data=RecordDetailOut(
             **base.model_dump(by_alias=False),
@@ -407,9 +436,17 @@ class RecordPatchIn(ApiModel):
     internal_notes: str | None = None
     visitor_name: str | None = None
     visitor_phone: str | None = None
+    reminder_enabled: bool | None = None
 
 
-PLAIN_PATCH_FIELDS = ("importance", "comment", "internal_notes", "visitor_name", "visitor_phone")
+PLAIN_PATCH_FIELDS = (
+    "importance",
+    "comment",
+    "internal_notes",
+    "visitor_name",
+    "visitor_phone",
+    "reminder_enabled",
+)
 
 
 @router.patch("/records/{record_id}", response_model=Envelope[RecordOut])
@@ -424,7 +461,7 @@ async def patch_record(
 ) -> Envelope[RecordOut]:
     record = await _get_record(tenant_session, record_id, user)
     if record.status in (RecordStatus.COMPLETED, RecordStatus.CANCELLED):
-        raise HTTPException(409, "Завершённую или отменённую запись нельзя менять")
+        raise HTTPException(409, "Завершений або скасований запис не можна змінювати")
 
     changes: dict[str, list] = {}
     previous_master_id = record.master_id
@@ -432,7 +469,7 @@ async def patch_record(
 
     if "master_id" in body.model_fields_set and body.master_id != record.master_id:
         if user.is_master:
-            raise forbidden("Мастер не может передать запись другому мастеру")
+            raise forbidden("Майстер не може передати запис іншому майстру")
         new_name: str | None = None
         if body.master_id is not None:
             try:
@@ -440,7 +477,7 @@ async def patch_record(
                     master_session, body.master_id, salon_id
                 )
             except records_service.MasterUnavailable:
-                raise HTTPException(422, "Мастер недоступен")
+                raise HTTPException(422, "Майстер недоступний")
             new_name = master.full_name
         changes["master"] = [record.master_name, new_name]
         record.master_id = body.master_id
@@ -449,6 +486,9 @@ async def patch_record(
     if body.start_at is not None and body.start_at != record.start_at:
         changes["startAt"] = [record.start_at.isoformat(), body.start_at.isoformat()]
         records_service.reschedule(record, body.start_at)
+        # Перенос на будущее — напоминание уйдёт заново к новому времени
+        if record.start_at > datetime.now(UTC):
+            record.reminder_sent_at = None
 
     if body.service_ids is not None:
         current = [s.service_id for s in record.services]
@@ -456,7 +496,7 @@ async def patch_record(
             try:
                 services = await records_service.load_services(tenant_session, body.service_ids)
             except records_service.ServiceUnavailable:
-                raise HTTPException(422, "Услуга не найдена или неактивна")
+                raise HTTPException(422, "Послугу не знайдено або вона неактивна")
             changes["services"] = [
                 [s.name for s in record.services],
                 [s.name for s in services],
@@ -464,6 +504,8 @@ async def patch_record(
             records_service.apply_services(record, services)
 
     plain = body.model_dump(include=set(PLAIN_PATCH_FIELDS), exclude_unset=True, by_alias=False)
+    if plain.get("reminder_enabled", False) is None:
+        raise HTTPException(422, "Поле reminderEnabled не можна очистити")
     changes.update(diff_fields(record, plain))
     for field, value in plain.items():
         setattr(record, field, value)
@@ -496,7 +538,7 @@ async def patch_record(
             extra={"changes": list(changes)},
         )
 
-    return Envelope(data=await _one_out(tenant_session, record))
+    return Envelope(data=await _one_out(tenant_session, master_session, record))
 
 
 class StatusIn(ApiModel):
@@ -510,15 +552,16 @@ async def set_status(
     user: CurrentUser,
     author: CurrentAuthor,
     salon_id: SalonId,
+    master_session: MasterSession,
     tenant_session: TenantSession,
 ) -> Envelope[RecordOut]:
     if body.status == RecordStatus.COMPLETED:
-        raise HTTPException(422, "Завершение — через POST /records/{id}/complete")
+        raise HTTPException(422, "Завершення — через POST /records/{id}/complete")
     record = await _get_record(tenant_session, record_id, user)
     if record.status == RecordStatus.COMPLETED:
-        raise HTTPException(409, "Запись уже завершена")
+        raise HTTPException(409, "Запис уже завершено")
     if record.status == body.status:
-        return Envelope(data=await _one_out(tenant_session, record))
+        return Envelope(data=await _one_out(tenant_session, master_session, record))
 
     old = record.status
     record.status = body.status
@@ -543,7 +586,7 @@ async def set_status(
         actor_id=author.id,
         extra={"previous_status": old.value},
     )
-    return Envelope(data=await _one_out(tenant_session, record))
+    return Envelope(data=await _one_out(tenant_session, master_session, record))
 
 
 class CompleteIn(ApiModel):
@@ -558,6 +601,7 @@ async def complete_record(
     user: CurrentUser,
     author: CurrentAuthor,
     salon_id: SalonId,
+    master_session: MasterSession,
     tenant_session: TenantSession,
 ) -> Envelope[RecordOut]:
     """Завершение визита — без оплаты: запись получает completed + unpaid."""
@@ -574,7 +618,7 @@ async def complete_record(
         )
     except visits_service.CompletionError as exc:
         raise HTTPException(409, str(exc))
-    return Envelope(data=await _one_out(tenant_session, record))
+    return Envelope(data=await _one_out(tenant_session, master_session, record))
 
 
 class PaymentIn(ApiModel):
@@ -605,6 +649,7 @@ async def pay_record(
     user: AdminUser,
     author: CurrentAuthor,
     salon_id: SalonId,
+    master_session: MasterSession,
     tenant_session: TenantSession,
 ) -> Envelope[RecordPaymentOut]:
     """Оплата завершённого визита: чек с recordId на полную сумму (администратор)."""
@@ -625,7 +670,7 @@ async def pay_record(
         raise HTTPException(409, str(exc))
     return Envelope(
         data=RecordPaymentOut(
-            record=await _one_out(tenant_session, record),
+            record=await _one_out(tenant_session, master_session, record),
             receipt=ReceiptRef(id=receipt.id, number=receipt.number, amount=receipt.amount),
         )
     )
@@ -645,19 +690,15 @@ async def master_slots(
     day: Annotated[date_type, Query(alias="date")],
     user: CurrentUser,
     tenant_session: TenantSession,
-    service_ids: Annotated[list[uuid.UUID] | None, Query(alias="serviceIds")] = None,
-    service_id: Annotated[uuid.UUID | None, Query(alias="serviceId")] = None,
+    service_ids: Annotated[list[uuid.UUID], Query(alias="serviceIds", min_length=1)],
 ) -> Envelope[list[SlotOut]]:
     """Свободное время мастера на дату под набор услуг (длительность — сумма)."""
     if user.is_master and master_id != user.id:
         raise forbidden()
-    ids = list(service_ids or []) + ([service_id] if service_id else [])
-    if not ids:
-        raise HTTPException(422, "Укажите serviceIds")
     try:
-        services = await records_service.load_services(tenant_session, ids)
+        services = await records_service.load_services(tenant_session, service_ids)
     except records_service.ServiceUnavailable:
-        raise HTTPException(422, "Услуга не найдена или неактивна")
+        raise HTTPException(422, "Послугу не знайдено або вона неактивна")
     slots = await slots_service.free_slots(
         tenant_session,
         master_id=master_id,
@@ -681,10 +722,10 @@ MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 async def upload_file(file: UploadFile, salon_id: SalonId) -> Envelope[UploadOut]:
     ext = ALLOWED_UPLOAD_TYPES.get(file.content_type or "")
     if ext is None:
-        raise HTTPException(422, "Допустимы только изображения: JPEG, PNG, WebP")
+        raise HTTPException(422, "Допустимі лише зображення: JPEG, PNG, WebP")
     content = await file.read()
     if len(content) > MAX_UPLOAD_BYTES:
-        raise HTTPException(413, "Файл больше 10 МБ")
+        raise HTTPException(413, "Файл більший за 10 МБ")
 
     file_id = uuid.uuid4()
     directory = FsPath(get_settings().upload_dir) / str(salon_id)

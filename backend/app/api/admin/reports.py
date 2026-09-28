@@ -55,9 +55,9 @@ DateTo = Annotated[LocalDatetime, Query(alias="dateTo")]
 
 def _check_period(date_from: datetime, date_to: datetime) -> None:
     if date_to <= date_from:
-        raise HTTPException(422, "dateTo должна быть позже dateFrom")
+        raise HTTPException(422, "dateTo має бути пізніше за dateFrom")
     if date_to - date_from > timedelta(days=731):
-        raise HTTPException(422, "Период отчёта — не больше двух лет")
+        raise HTTPException(422, "Період звіту — не більше двох років")
 
 
 # --- Периоды ------------------------------------------------------------------

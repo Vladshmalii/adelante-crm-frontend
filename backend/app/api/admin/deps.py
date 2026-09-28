@@ -45,7 +45,7 @@ CurrentAuthor = Annotated[Author, Depends(get_author)]
 
 def ensure_own_record(user: AuthenticatedUser, record: Record) -> None:
     if user.is_master and record.master_id != user.id:
-        raise HTTPException(404, "Запись не найдена")
+        raise HTTPException(404, "Запис не знайдено")
 
 
 def own_client_ids(master_id: uuid.UUID) -> Select[uuid.UUID]:
@@ -61,4 +61,4 @@ async def ensure_own_client(
         select(Record.id).where(Record.client_id == client_id, Record.master_id == user.id).limit(1)
     )
     if found is None:
-        raise HTTPException(404, "Клиент не найден")
+        raise HTTPException(404, "Клієнта не знайдено")

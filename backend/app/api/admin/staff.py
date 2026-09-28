@@ -156,17 +156,17 @@ async def _find_staff(
     ).first()
     if row is not None:
         return row[0], Role.ADMINISTRATOR, row[1]
-    raise HTTPException(404, "Сотрудник не найден в этом салоне")
+    raise HTTPException(404, "Співробітника не знайдено в цьому салоні")
 
 
 def _ensure_can_manage(user: security.AuthenticatedUser, role: Role) -> None:
     if role == Role.ADMINISTRATOR and not user.is_superuser:
-        raise forbidden("Администраторами управляет только суперюзер")
+        raise forbidden("Адміністраторами керує лише суперюзер")
 
 
 def _ensure_money_allowed(user: security.AuthenticatedUser, fields: dict[str, Any]) -> None:
     if not user.is_superuser and any(fields.get(f) is not None for f in MONEY_FIELDS):
-        raise forbidden("Зарплату и комиссию меняет только суперюзер")
+        raise forbidden("Зарплату й комісію змінює лише суперюзер")
 
 
 async def _ensure_email_free(
@@ -180,7 +180,7 @@ async def _ensure_email_free(
         if exclude_id is not None:
             query = query.where(model.id != exclude_id)
         if await master_session.scalar(query) is not None:
-            raise HTTPException(409, "Этот email уже используется другим сотрудником")
+            raise HTTPException(409, "Цей email уже використовує інший співробітник")
 
 
 # --- Список / CRUD ----------------------------------------------------------
@@ -410,14 +410,14 @@ async def create_staff(
     _ensure_can_manage(user, body.role)
     _ensure_money_allowed(user, body.model_dump(by_alias=False))
     if body.is_superuser and (body.role != Role.ADMINISTRATOR or not user.is_superuser):
-        raise forbidden("Флаг суперюзера выдаёт суперюзер и только администратору")
+        raise forbidden("Прапорець суперюзера видає суперюзер і лише адміністратору")
     await _ensure_email_free(master_session, body.email)
 
     person_fields = body.model_dump(include=PERSON_FIELDS - {"avatar_url"}, by_alias=False)
     person: Person
     if body.role == Role.ADMINISTRATOR:
         if not body.email or not body.password:
-            raise HTTPException(422, "Администратору нужны email и пароль для входа")
+            raise HTTPException(422, "Адміністратору потрібні email і пароль для входу")
         person = Administrator(
             **person_fields,
             password_hash=security.password_hasher.hash(body.password),
@@ -538,22 +538,22 @@ async def patch_staff(
     _ensure_can_manage(user, role)
     updates = body.model_dump(exclude_unset=True, by_alias=False)
     if not user.is_superuser and MONEY_FIELDS & set(updates):
-        raise forbidden("Зарплату и комиссию меняет только суперюзер")
+        raise forbidden("Зарплату й комісію змінює лише суперюзер")
 
     if updates.get("status") == StaffStatus.FIRED:
-        raise HTTPException(422, "Увольнение — через DELETE /staff/{id}")
+        raise HTTPException(422, "Звільнення — через DELETE /staff/{id}")
     if "email" in updates:
         await _ensure_email_free(master_session, updates["email"], exclude_id=person.id)
         if role == Role.ADMINISTRATOR and not updates["email"]:
-            raise HTTPException(422, "Email администратора — логин, его нельзя очистить")
+            raise HTTPException(422, "Email адміністратора — це логін, його не можна очистити")
 
     changes: dict[str, list] = {}
     if "is_superuser" in updates:
         flag = bool(updates.pop("is_superuser"))
         if role != Role.ADMINISTRATOR or not user.is_superuser:
-            raise forbidden("Флаг суперюзера выдаёт суперюзер и только администратору")
+            raise forbidden("Прапорець суперюзера видає суперюзер і лише адміністратору")
         if person.id == user.id and not flag:
-            raise HTTPException(409, "Нельзя снять флаг суперюзера с самого себя")
+            raise HTTPException(409, "Не можна зняти прапорець суперюзера із себе")
         assert isinstance(person, Administrator)
         if person.is_superuser != flag:
             changes["isSuperuser"] = [person.is_superuser, flag]
@@ -614,7 +614,7 @@ async def fire_staff(
     person, role, _ = await _find_staff(master_session, salon_id, staff_id)
     _ensure_can_manage(user, role)
     if person.id == user.id:
-        raise HTTPException(409, "Нельзя уволить самого себя")
+        raise HTTPException(409, "Не можна звільнити самого себе")
 
     if role == Role.MASTER:
         future = await tenant_session.scalar(
@@ -630,7 +630,7 @@ async def fire_staff(
         )
         if future:
             raise HTTPException(
-                409, f"У мастера {future} будущих записей — отмените или перенесите их"
+                409, f"У майстра {future} майбутніх записів — скасуйте або перенесіть їх"
             )
 
     profile = await _get_or_create_profile(tenant_session, staff_id)
@@ -743,7 +743,7 @@ async def save_schedule(
     _ensure_can_manage(user, role)
     unknown = set(body) - set(WEEKDAYS)
     if unknown:
-        raise HTTPException(422, f"Неизвестные дни недели: {', '.join(unknown)}")
+        raise HTTPException(422, f"Невідомі дні тижня: {', '.join(unknown)}")
 
     await tenant_session.execute(delete(StaffSchedule).where(StaffSchedule.master_id == staff_id))
     for name, day in body.items():
@@ -771,9 +771,31 @@ class ExceptionIn(ApiModel):
     comment: str | None = None
 
 
-def _validate_exception(date_from: date_type, date_to: date_type) -> None:
+async def _validate_exception(
+    tenant_session: AsyncSession,
+    staff_id: uuid.UUID,
+    date_from: date_type,
+    date_to: date_type,
+    exclude_id: uuid.UUID | None = None,
+) -> None:
+    """Даты по порядку и без пересечения с другими исключениями сотрудника:
+    в пересечении было бы неясно, какое исключение действует (решение от 29.09.2026).
+    """
     if date_to < date_from:
-        raise HTTPException(422, "Дата окончания раньше даты начала")
+        raise HTTPException(422, "Дата закінчення раніша за дату початку")
+    query = select(ScheduleException).where(
+        ScheduleException.master_id == staff_id,
+        ScheduleException.date_from <= date_to,
+        ScheduleException.date_to >= date_from,
+    )
+    if exclude_id is not None:
+        query = query.where(ScheduleException.id != exclude_id)
+    other = await tenant_session.scalar(query.limit(1))
+    if other is not None:
+        raise HTTPException(
+            409,
+            f"Перетинається з іншим винятком: {other.date_from:%d.%m.%Y}–{other.date_to:%d.%m.%Y}",
+        )
 
 
 @router.post(
@@ -791,7 +813,7 @@ async def add_exception(
 ) -> Envelope[ExceptionOut]:
     _, role, _ = await _find_staff(master_session, salon_id, staff_id)
     _ensure_can_manage(user, role)
-    _validate_exception(body.date_from, body.date_to)
+    await _validate_exception(tenant_session, staff_id, body.date_from, body.date_to)
     exc = ScheduleException(
         master_id=staff_id,
         date_from=body.date_from,
@@ -811,7 +833,7 @@ async def _get_exception(
 ) -> ScheduleException:
     exc = await tenant_session.get(ScheduleException, exception_id)
     if exc is None or exc.master_id != staff_id:
-        raise HTTPException(404, "Исключение не найдено")
+        raise HTTPException(404, "Виняток не знайдено")
     return exc
 
 
@@ -839,10 +861,20 @@ async def patch_exception(
     _, role, _ = await _find_staff(master_session, salon_id, staff_id)
     _ensure_can_manage(user, role)
     exc = await _get_exception(tenant_session, staff_id, exception_id)
+    updates = body.model_dump(exclude_unset=True, by_alias=False)
+    for required in ("date_from", "date_to", "type"):
+        if required in updates and updates[required] is None:
+            raise HTTPException(422, f"Поле {required} не можна очистити")
+    await _validate_exception(
+        tenant_session,
+        staff_id,
+        updates.get("date_from", exc.date_from),
+        updates.get("date_to", exc.date_to),
+        exclude_id=exc.id,
+    )
     columns = {"start": "start_time", "end": "end_time"}
-    for field, value in body.model_dump(exclude_unset=True, by_alias=False).items():
+    for field, value in updates.items():
         setattr(exc, columns.get(field, field), value)
-    _validate_exception(exc.date_from, exc.date_to)
     return Envelope(data=_exception_out(exc))
 
 

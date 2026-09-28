@@ -40,18 +40,18 @@ class _MasterCalendar:
     exceptions: list[ScheduleException]
     busy: list[tuple[datetime, datetime]]
 
+    def exception_on(self, day: date) -> ScheduleException | None:
+        """Исключение, действующее в день (исключения одного мастера не пересекаются)."""
+        return next((e for e in self.exceptions if e.date_from <= day <= e.date_to), None)
+
     def windows(self, day: date) -> list[tuple[time, time]]:
         """Рабочие интервалы дня с учётом исключений (перерыв вырезан)."""
-        for exc in self.exceptions:
-            if exc.date_from <= day <= exc.date_to:
-                if (
-                    exc.type == ScheduleExceptionType.EXTRA_SHIFT
-                    and exc.start_time
-                    and exc.end_time
-                ):
-                    return [(exc.start_time, exc.end_time)]
-                # vacation / sick / day_off (и доп. смена без часов) перекрывают шаблон
-                return []
+        exc = self.exception_on(day)
+        if exc is not None:
+            if exc.type == ScheduleExceptionType.EXTRA_SHIFT and exc.start_time and exc.end_time:
+                return [(exc.start_time, exc.end_time)]
+            # vacation / sick / day_off (и доп. смена без часов) перекрывают шаблон
+            return []
 
         template = self.templates.get(day.weekday())
         if template is None or not template.is_work_day:
@@ -64,6 +64,12 @@ class _MasterCalendar:
                 (template.break_end, template.end_time),
             ]
         return [(template.start_time, template.end_time)]
+
+    def work_minutes(self, day: date) -> int:
+        return sum(
+            (datetime.combine(day, end) - datetime.combine(day, start)).seconds // 60
+            for start, end in self.windows(day)
+        )
 
     def is_free(self, start: datetime, end: datetime) -> bool:
         return not any(b_start < end and b_end > start for b_start, b_end in self.busy)
@@ -125,6 +131,35 @@ async def _load(
     )
     busy = [(start, end) for start, end in (await session.execute(query)).all()]
     return _MasterCalendar(templates=templates, exceptions=exceptions, busy=busy)
+
+
+async def load_schedules(
+    session: AsyncSession,
+    master_ids: list[uuid.UUID],
+    first_day: date,
+    last_day: date,
+) -> dict[uuid.UUID, _MasterCalendar]:
+    """Графики нескольких мастеров на период — для календаря (без занятости)."""
+    calendars = {
+        master_id: _MasterCalendar(templates={}, exceptions=[], busy=[]) for master_id in master_ids
+    }
+    if not master_ids:
+        return calendars
+    for template in await session.scalars(
+        select(StaffSchedule).where(StaffSchedule.master_id.in_(master_ids))
+    ):
+        calendars[template.master_id].templates[template.weekday] = template
+    for exc in await session.scalars(
+        select(ScheduleException)
+        .where(
+            ScheduleException.master_id.in_(master_ids),
+            ScheduleException.date_from <= last_day,
+            ScheduleException.date_to >= first_day,
+        )
+        .order_by(ScheduleException.date_from)
+    ):
+        calendars[exc.master_id].exceptions.append(exc)
+    return calendars
 
 
 async def free_slots(

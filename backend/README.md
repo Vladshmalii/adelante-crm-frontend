@@ -65,9 +65,8 @@ uvicorn ws.main:app --port 8001                        # WS-notifier
 
 ## Записи
 
-- В записи несколько услуг (`serviceIds[]` → `services[]`): их подряд выполняет
-  один мастер, длительность и цена суммируются. `service` в ответе — первая услуга,
-  оставлен для совместимости.
+- В записи несколько услуг (`serviceIds[]` → `services[]`, таблица `record_services`):
+  их подряд выполняет один мастер, длительность и цена суммируются.
 - Мастер необязателен (`master: null` — очередь «Без майстра»), фильтр
   `GET /records?withoutMaster=true`, назначение — `PATCH` с `masterId`.
 - Завершение (`POST /records/{id}/complete`) — только заметки и фото, ставит
@@ -93,6 +92,10 @@ Outbox → Celery (`workers/tasks/outbox.py`) → Telegram / WebSocket:
 день. Telegram привязывается по контакту — телефон ищется среди администраторов,
 мастеров и клиентов (`POST /api/bot/link-telegram`).
 
+Отправка в Telegram (`workers/telegram.py`) повторяется только на временных сбоях
+(сеть, 429, 5xx); остальные 4xx (бот заблокирован, неверный токен) — предупреждение в
+лог. Токен бота в логи не попадает.
+
 ## Склад и отчёты
 
 Спецификация — `web/docs/BACKEND.md` (разделы 5 и 6).
@@ -104,16 +107,42 @@ Outbox → Celery (`workers/tasks/outbox.py`) → Telegram / WebSocket:
   мастерам и услугам — чеки с `record_id`, выручка записи делится между услугами пропорционально
   цене. Денежные показатели — только суперюзеру.
 
+## Розклад
+
+Графики мастеров на период, сводка записей по дням, способы оплаты для администратора,
+выключатель напоминания в записи, отмена списания расходника — `docs/calendar.md`
+(бриф для фронтенда — `docs/frontend-calendar.md`).
+
+## Налаштування салону и отзывы
+
+`/settings/salon`, `/settings/schedule` (администратор) и ссылка на отзыв клиенту после визита —
+`docs/reviews-settings.md` (бриф для фронтенда — `docs/frontend-reviews-settings.md`).
+
+## Тесты
+
+```bash
+pip install -e .[dev]
+pytest            # нужен запущенный Docker
+```
+
+`tests/conftest.py` поднимает PostgreSQL и Redis через testcontainers, прогоняет миграции через
+`salonctl` и создаёт суперюзера; тесты ходят в API через `TestClient`, у каждого модуля свой
+салон. Воркер проверяется в eager-режиме Celery с подменённой отправкой в Telegram.
+
 ## Выкатка изменений от 2026-09-28
 
-1. `salonctl migrate master` и `salonctl migrate shards` — миграции только
-   расширяют схему (новые колонки с default, таблица `record_services` с переносом
-   услуг существующих записей, таблицы склада с базовыми категориями).
-2. **Выдать флаг суперюзера** владельцу: `salonctl administrator superuser <email>`.
+1. **Остановить api, worker и beat.** Среди shard-миграций есть contract-шаг
+   `d9a3b5c7e1f0` — удаление `records.service_id`: код до этой выкатки пишет эту колонку
+   и после миграции падал бы на создании записей.
+2. `salonctl migrate master` и `salonctl migrate shards`. Кроме удаления
+   `records.service_id` миграции только расширяют схему (новые колонки с default,
+   `record_services` с переносом услуг существующих записей, таблицы склада с базовыми
+   категориями) и переводят старые записи журнала изменений на украинский.
+3. **Выдать флаг суперюзера** владельцу: `salonctl administrator superuser <email>`.
    Без этого раздел «Фінанси», экспорты и зарплаты недоступны никому.
-3. Задать `ADELANTE_FRONTEND_URL`, `ADELANTE_BOOKING_BASE_URL`, `ADELANTE_SMTP_*`,
+4. Задать `ADELANTE_FRONTEND_URL`, `ADELANTE_BOOKING_BASE_URL`, `ADELANTE_SMTP_*`,
    при необходимости `ADELANTE_CORS_ORIGINS` (см. `.env.example`).
-4. Перезапустить api, worker, beat, ws и bot.
+5. Запустить api, worker, beat, ws и bot с новым кодом.
 
 ## Правила
 

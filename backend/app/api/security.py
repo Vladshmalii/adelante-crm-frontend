@@ -84,9 +84,9 @@ def decode_token(settings: Settings, token: str, expected_type: TokenType) -> di
     try:
         payload = jwt.decode(token, settings.jwt_secret, algorithms=["HS256"])
     except jwt.InvalidTokenError:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Невалидный или истёкший токен")
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Недійсний або прострочений токен")
     if payload.get("type") != expected_type.value:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Неверный тип токена")
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Невірний тип токена")
     return payload
 
 
@@ -95,7 +95,7 @@ async def get_current_user(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> AuthenticatedUser:
     if credentials is None:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Требуется Bearer-токен")
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Потрібен Bearer-токен")
     payload = decode_token(settings, credentials.credentials, TokenType.ACCESS)
     return AuthenticatedUser(
         id=uuid.UUID(payload["sub"]),
@@ -110,7 +110,7 @@ async def require_salon_access(
     user: Annotated[AuthenticatedUser, Depends(get_current_user)],
 ) -> AuthenticatedUser:
     if salon_id not in user.salon_ids:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Нет доступа к этому салону")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Немає доступу до цього салону")
     return user
 
 
@@ -144,4 +144,4 @@ async def verify_bot_api_key(
     if not x_api_key or not any(
         secrets.compare_digest(x_api_key, key) for key in settings.bot_api_keys
     ):
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Невалидный service-ключ")
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Недійсний service-ключ")

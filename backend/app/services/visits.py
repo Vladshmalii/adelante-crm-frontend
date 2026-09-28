@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.shard import (
     AuditAction,
+    CashRegister,
     FinanceOperation,
     OperationType,
     PaymentMethod,
@@ -69,9 +70,9 @@ async def complete_record(
     author_name: str | None,
 ) -> Record:
     if record.status not in COMPLETABLE:
-        raise CompletionError(f"Запись в статусе {record.status.value} нельзя завершить")
+        raise CompletionError(f"Запис у статусі {record.status.value} не можна завершити")
     if record.master_id is None:
-        raise CompletionError("Сначала назначьте мастера — без мастера визит не завершить")
+        raise CompletionError("Спочатку призначте майстра — без майстра візит не завершити")
 
     now = datetime.now(UTC)
     old_status = record.status
@@ -130,14 +131,22 @@ async def create_receipt(
         )
     }
     if set(method_ids) - set(methods):
-        raise PaymentError("Неизвестный способ оплаты")
+        raise PaymentError("Невідомий спосіб оплати")
     if any(not m.is_active for m in methods.values()):
-        raise PaymentError("Способ оплаты выключен")
+        raise PaymentError("Спосіб оплати вимкнено")
     cash_register_id = next(
         (m.cash_register_id for m in methods.values() if m.cash_register_id), None
     )
     if cash_register_id is None:
-        raise PaymentError("У способа оплаты не настроена касса")
+        raise PaymentError("Для способу оплати не налаштовано касу")
+    register_ids = {m.cash_register_id for m in methods.values() if m.cash_register_id}
+    inactive = await tenant_session.scalar(
+        select(CashRegister.name).where(
+            CashRegister.id.in_(register_ids), CashRegister.is_active.is_(False)
+        )
+    )
+    if inactive is not None:
+        raise PaymentError(f"Каса «{inactive}» вимкнена")
 
     receipt = Receipt(
         number=receipt_number(),
@@ -198,16 +207,14 @@ async def pay_record(
     source: ReceiptSource = ReceiptSource.WEB,
 ) -> Receipt:
     if record.master_id is None:
-        raise PaymentError("Запись без мастера оплатить нельзя")
+        raise PaymentError("Запис без майстра оплатити не можна")
     if record.status != RecordStatus.COMPLETED:
-        raise PaymentError("Оплатить можно только завершённый визит")
+        raise PaymentError("Оплатити можна лише завершений візит")
     if record.payment_status == PaymentStatus.PAID:
-        raise PaymentError("Запись уже оплачена")
+        raise PaymentError("Запис уже оплачено")
     paid = sum((p.amount for p in payments), Decimal(0))
     if paid != record.total_amount:
-        raise PaymentError(
-            f"Сумма оплаты {paid} не совпадает с суммой записи {record.total_amount}"
-        )
+        raise PaymentError(f"Сума оплати {paid} не збігається з сумою запису {record.total_amount}")
 
     receipt = await create_receipt(
         tenant_session,

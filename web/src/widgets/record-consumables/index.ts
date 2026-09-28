@@ -1,0 +1,1 @@
+export { RecordConsumables } from './RecordConsumables';
