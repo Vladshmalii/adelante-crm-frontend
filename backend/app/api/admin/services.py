@@ -123,7 +123,7 @@ async def _validate_masters(
     )
     missing = set(master_ids) - bound
     if missing:
-        raise HTTPException(422, "Часть мастеров не работает в этом салоне")
+        raise HTTPException(422, "Частина майстрів не працює в цьому салоні")
 
 
 @router.post("", response_model=Envelope[ServiceOut], status_code=status.HTTP_201_CREATED)
@@ -181,7 +181,7 @@ async def patch_service(
 ) -> Envelope[ServiceOut]:
     service = await tenant_session.get(Service, service_id)
     if service is None:
-        raise HTTPException(404, "Услуга не найдена")
+        raise HTTPException(404, "Послугу не знайдено")
 
     updates = body.model_dump(exclude_unset=True, by_alias=False)
     master_ids = updates.pop("master_ids", None)
@@ -226,7 +226,7 @@ async def archive_service(
     """Архивирование вместо удаления — на услугу ссылаются записи."""
     service = await tenant_session.get(Service, service_id)
     if service is None:
-        raise HTTPException(404, "Услуга не найдена")
+        raise HTTPException(404, "Послугу не знайдено")
     service.status = ServiceStatus.ARCHIVED
     write_audit(
         tenant_session,

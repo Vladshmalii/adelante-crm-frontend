@@ -139,7 +139,7 @@ async def _get_product(
         query = query.with_for_update()
     product = await tenant_session.scalar(query)
     if product is None:
-        raise HTTPException(404, "Товар не найден")
+        raise HTTPException(404, "Товар не знайдено")
     return product
 
 
@@ -265,12 +265,12 @@ async def _ensure_sku_free(
     if exclude_id is not None:
         query = query.where(Product.id != exclude_id)
     if await tenant_session.scalar(query) is not None:
-        raise HTTPException(409, "Товар с таким артикулом уже есть")
+        raise HTTPException(409, "Товар з таким артикулом уже існує")
 
 
 async def _ensure_category(tenant_session: AsyncSession, category_id: uuid.UUID) -> None:
     if await tenant_session.get(InventoryCategory, category_id) is None:
-        raise HTTPException(422, "Категория не найдена")
+        raise HTTPException(422, "Категорію не знайдено")
 
 
 def _add_movement(
@@ -373,7 +373,7 @@ async def patch_product(
     updates = body.model_dump(exclude_unset=True, by_alias=False)
     for required in ("name", "sku", "category_id", "unit", "min_quantity", "is_active"):
         if required in updates and updates[required] is None:
-            raise HTTPException(422, f"Поле {required} нельзя очистить")
+            raise HTTPException(422, f"Поле {required} не можна очистити")
     if updates.get("sku"):
         await _ensure_sku_free(tenant_session, updates["sku"], exclude_id=product.id)
     if updates.get("category_id"):
@@ -457,11 +457,12 @@ def _movement_delta(product: Product, body: MovementIn) -> Decimal:
     if body.type == MovementType.ADJUSTMENT:
         return body.quantity - product.quantity
     if body.quantity <= 0:
-        raise HTTPException(422, "Количество должно быть больше нуля")
+        raise HTTPException(422, "Кількість має бути більшою за нуль")
     if body.type == MovementType.WRITE_OFF:
         if body.quantity > product.quantity:
             raise HTTPException(
-                409, f"Недостаточно товара: в наличии {product.quantity} {UNIT_NAMES[product.unit]}"
+                409,
+                f"Недостатньо товару: в наявності {product.quantity} {UNIT_NAMES[product.unit]}",
             )
         return -body.quantity
     return body.quantity
@@ -487,7 +488,7 @@ async def create_movement(
 ) -> Envelope[MovementOut]:
     product = await _get_product(tenant_session, product_id, for_update=True)
     if not product.is_active:
-        raise HTTPException(409, "Товар удалён")
+        raise HTTPException(409, "Товар видалено")
     delta = _movement_delta(product, body)
     movement = _add_movement(
         tenant_session,
@@ -585,7 +586,7 @@ async def _ensure_category_name_free(
     if exclude_id is not None:
         query = query.where(InventoryCategory.id != exclude_id)
     if await tenant_session.scalar(query) is not None:
-        raise HTTPException(409, "Категория с таким названием уже есть")
+        raise HTTPException(409, "Категорія з такою назвою вже існує")
 
 
 @router.post(
@@ -622,9 +623,9 @@ async def _get_editable_category(
 ) -> InventoryCategory:
     category = await tenant_session.get(InventoryCategory, category_id)
     if category is None:
-        raise HTTPException(404, "Категория не найдена")
+        raise HTTPException(404, "Категорію не знайдено")
     if category.is_system:
-        raise HTTPException(409, "Системную категорию нельзя изменить или удалить")
+        raise HTTPException(409, "Системну категорію не можна змінити чи видалити")
     return category
 
 
@@ -752,7 +753,7 @@ async def import_products(
     try:
         wb = load_workbook(io.BytesIO(await file.read()), read_only=True, data_only=True)
     except Exception:  # noqa: BLE001 - openpyxl raises assorted exceptions for malformed uploads
-        raise HTTPException(422, "Не удалось прочитать файл — ожидается .xlsx")
+        raise HTTPException(422, "Не вдалося прочитати файл — очікується .xlsx")
 
     categories = {
         c.name.lower(): c for c in await tenant_session.scalars(select(InventoryCategory))
@@ -916,6 +917,10 @@ class ConsumableOut(ApiModel):
     quantity: Decimal
     author: PersonRef
     created_at: datetime
+    # Списание отменено (DELETE …/consumables/{movementId}): товар вернулся на склад
+    cancelled: bool = False
+    cancelled_at: datetime | None = None
+    cancelled_by: PersonRef | None = None
 
 
 class ConsumableIn(ApiModel):
@@ -932,30 +937,48 @@ async def _record_for_consumables(
 ) -> Record:
     record = await tenant_session.get(Record, record_id)
     if record is None:
-        raise HTTPException(404, "Запись не найдена")
+        raise HTTPException(404, "Запис не знайдено")
     ensure_own_record(user, record)
     return record
 
 
+def _person(author_id: uuid.UUID | None, name: str | None) -> PersonRef:
+    return PersonRef(id=str(author_id) if author_id else None, name=name)
+
+
 async def _consumables(tenant_session: AsyncSession, record_id: uuid.UUID) -> list[ConsumableOut]:
-    rows = await tenant_session.execute(
-        select(StockMovement, Product)
-        .join(Product, Product.id == StockMovement.product_id)
-        .where(StockMovement.record_id == record_id)
-        .order_by(StockMovement.created_at)
-    )
-    return [
-        ConsumableOut(
-            movement_id=m.id,
-            product_id=p.id,
-            product_name=p.name,
-            unit=p.unit,
-            quantity=-m.delta,
-            author=PersonRef(id=str(m.author_id) if m.author_id else None, name=m.author_name),
-            created_at=m.created_at,
+    """Списания по записи; отменённые остаются в списке с cancelled=true."""
+    movements = (
+        await tenant_session.execute(
+            select(StockMovement, Product)
+            .join(Product, Product.id == StockMovement.product_id)
+            .where(StockMovement.record_id == record_id)
+            .order_by(StockMovement.created_at)
         )
-        for m, p in rows.all()
-    ]
+    ).all()
+    reversals = {m.cancels_movement_id: m for m, _ in movements if m.cancels_movement_id}
+    result = []
+    for m, p in movements:
+        if m.type != MovementType.WRITE_OFF:
+            continue
+        reversal = reversals.get(m.id)
+        result.append(
+            ConsumableOut(
+                movement_id=m.id,
+                product_id=p.id,
+                product_name=p.name,
+                unit=p.unit,
+                quantity=-m.delta,
+                author=_person(m.author_id, m.author_name),
+                created_at=m.created_at,
+                cancelled=reversal is not None,
+                cancelled_at=reversal.created_at if reversal else None,
+                cancelled_by=_person(reversal.author_id, reversal.author_name)
+                if reversal
+                else None,
+            )
+        )
+    return result
 
 
 @router.get("/records/{record_id}/consumables", response_model=Envelope[list[ConsumableOut]])
@@ -981,7 +1004,7 @@ async def write_off_consumables(
     """Списание расходников по записи (мастер — по своей записи, администратор — по любой)."""
     record = await _record_for_consumables(tenant_session, record_id, user)
     if record.status == RecordStatus.CANCELLED:
-        raise HTTPException(409, "По отменённой записи списывать нельзя")
+        raise HTTPException(409, "За скасованим записом списувати не можна")
 
     # Одинаковые товары суммируются; блокировки — в порядке id (без взаимоблокировок)
     totals: dict[uuid.UUID, Decimal] = {}
@@ -990,11 +1013,11 @@ async def write_off_consumables(
     for product_id in sorted(totals):
         product = await _get_product(tenant_session, product_id, for_update=True)
         if not product.is_active:
-            raise HTTPException(409, f"Товар «{product.name}» удалён")
+            raise HTTPException(409, f"Товар «{product.name}» видалено")
         if totals[product_id] > product.quantity:
             raise HTTPException(
                 409,
-                f"Недостаточно «{product.name}»: в наличии {product.quantity} "
+                f"Недостатньо «{product.name}»: в наявності {product.quantity} "
                 f"{UNIT_NAMES[product.unit]}",
             )
         _add_movement(
@@ -1016,6 +1039,63 @@ async def write_off_consumables(
         author_id=author.id,
         author_name=author.name,
         details={"consumables": [None, len(totals)]},
+    )
+    await tenant_session.flush()
+    return Envelope(data=await _consumables(tenant_session, record.id))
+
+
+@router.delete(
+    "/records/{record_id}/consumables/{movement_id}",
+    response_model=Envelope[list[ConsumableOut]],
+)
+async def cancel_consumable(
+    record_id: uuid.UUID,
+    movement_id: uuid.UUID,
+    user: CurrentUser,
+    author: CurrentAuthor,
+    tenant_session: TenantSession,
+) -> Envelope[list[ConsumableOut]]:
+    """Отмена ошибочного списания: обратное движение «надходження» с record_id.
+
+    Исходное движение не удаляется. Можно по любой записи, в том числе
+    завершённой, оплаченной и с удалённым товаром (ошибки находят после визита).
+    Ответ — обновлённый список расходников записи.
+    """
+    record = await _record_for_consumables(tenant_session, record_id, user)
+    movement = await tenant_session.get(StockMovement, movement_id)
+    if (
+        movement is None
+        or movement.record_id != record.id
+        or movement.type != MovementType.WRITE_OFF
+    ):
+        raise HTTPException(404, "Списання не знайдено")
+    already = await tenant_session.scalar(
+        select(StockMovement.id).where(StockMovement.cancels_movement_id == movement.id)
+    )
+    if already is not None:
+        raise HTTPException(409, "Це списання вже скасовано")
+
+    product = await _get_product(tenant_session, movement.product_id, for_update=True)
+    reversal = _add_movement(
+        tenant_session,
+        product,
+        type_=MovementType.RECEIPT,
+        delta=-movement.delta,
+        reason=f"Скасування списання: {record.client_name}",
+        author_id=author.id,
+        author_name=author.name,
+        record_id=record.id,
+    )
+    reversal.cancels_movement_id = movement.id
+    write_audit(
+        tenant_session,
+        entity="record",
+        entity_id=record.id,
+        entity_name=f"{record.client_name} → {record.master_name or 'без майстра'}",
+        action=AuditAction.UPDATED,
+        author_id=author.id,
+        author_name=author.name,
+        details={"consumableCancelled": [f"{product.name}: {-movement.delta}", None]},
     )
     await tenant_session.flush()
     return Envelope(data=await _consumables(tenant_session, record.id))

@@ -13,7 +13,7 @@
 
 import contextlib
 import uuid
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 from typing import Annotated
 
@@ -38,6 +38,7 @@ from app.models.shard import (
 )
 from app.notifications.outbox import REVIEW_CREATED, add_outbox_event
 from app.services import records as records_service
+from app.services import salon_settings
 from app.services import slots as slots_service
 from app.tenancy.deps import MasterSession, SalonIdBySlug, TenantSessionBySlug
 from app.timeutils import SALON_TZ_NAME, LocalDatetime, now_local, to_local
@@ -53,19 +54,54 @@ BOOKING_HORIZON_DAYS = 90
 # --- Салон и каталог ----------------------------------------------------------
 
 
+class SalonDayOut(BaseModel):
+    is_work_day: bool
+    start: time | None
+    end: time | None
+
+
 class SalonOut(BaseModel):
     id: uuid.UUID
     name: str
     slug: str
     timezone: str
+    city: str | None = None
+    address: str | None = None
+    phone: str | None = None
+    email: str | None = None
+    website: str | None = None
+    instagram: str | None = None
+    facebook: str | None = None
+    description: str | None = None
+    # Графік роботи салону по дням недели (monday…sunday); null — не заполнен
+    schedule: dict[str, SalonDayOut] | None = None
 
 
 @router.get("/salon", response_model=SalonOut)
-async def get_salon(salon_id: SalonIdBySlug, master_session: MasterSession) -> SalonOut:
+async def get_salon(
+    salon_id: SalonIdBySlug, master_session: MasterSession, tenant_session: TenantSessionBySlug
+) -> SalonOut:
+    """Карточка салона для сайта записи: контакты и график (без юридического названия)."""
     salon = await master_session.get(Salon, salon_id)
     if salon is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Салон не найден")
-    return SalonOut(id=salon.id, name=salon.name, slug=salon.slug, timezone=SALON_TZ_NAME)
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Салон не знайдено")
+    info = await salon_settings.load_info(tenant_session)
+    week = await salon_settings.load_schedule(tenant_session)
+    return SalonOut(
+        id=salon.id,
+        name=salon.name,
+        slug=salon.slug,
+        timezone=SALON_TZ_NAME,
+        **info.model_dump(exclude={"legal_name", "opened_on"}),
+        schedule=(
+            {
+                day: SalonDayOut(is_work_day=d.is_work_day, start=d.start, end=d.end)
+                for day, d in week.items()
+            }
+            if week is not None
+            else None
+        ),
+    )
 
 
 class ServiceOut(BaseModel):
@@ -97,7 +133,7 @@ async def list_services(tenant_session: TenantSessionBySlug) -> list[Service]:
 async def _get_service(tenant_session: AsyncSession, service_id: uuid.UUID) -> Service:
     service = await tenant_session.get(Service, service_id)
     if service is None or service.status != ServiceStatus.ACTIVE:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Услуга не найдена")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Послугу не знайдено")
     return service
 
 
@@ -182,7 +218,7 @@ async def _masters_for(
         return masters
     chosen = [m for m in masters if m.id == master_id]
     if not chosen:
-        raise HTTPException(422, "Мастер не выполняет эту услугу")
+        raise HTTPException(422, "Майстер не виконує цю послугу")
     return chosen
 
 
@@ -249,7 +285,7 @@ async def availability(
     service = await _get_service(tenant_session, service_id)
     year, mon = map(int, month.split("-"))
     if not 1 <= mon <= 12:
-        raise HTTPException(422, "Неверный месяц")
+        raise HTTPException(422, "Невірний місяць")
     month_start = date(year, mon, 1)
     month_end = (month_start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
     window_first, window_last = _booking_window()
@@ -315,7 +351,7 @@ async def _check_rate_limit(request: Request, salon_id: uuid.UUID, phone: str) -
                 await redis.expire(key, RATE_WINDOW)
             if count > limit:
                 raise HTTPException(
-                    status.HTTP_429_TOO_MANY_REQUESTS, "Слишком много записей, попробуйте позже"
+                    status.HTTP_429_TOO_MANY_REQUESTS, "Забагато записів, спробуйте пізніше"
                 )
     except RedisError:
         # Redis недоступен — лучше пропустить запись, чем отказать клиенту
@@ -343,7 +379,7 @@ async def create_booking(
 
     _, last_day = _booking_window()
     if body.start_at <= datetime.now(UTC) or to_local(body.start_at).date() > last_day:
-        raise HTTPException(422, "Выберите время в пределах доступного периода")
+        raise HTTPException(422, "Оберіть час у межах доступного періоду")
     await _check_rate_limit(request, salon_id, body.client_phone)
     service = await _get_service(tenant_session, body.service_id)
     duration = timedelta(minutes=service.duration_minutes)
@@ -367,7 +403,7 @@ async def create_booking(
                 )
             ]
             if not candidates:
-                raise HTTPException(status.HTTP_409_CONFLICT, "Это время недоступно")
+                raise HTTPException(status.HTTP_409_CONFLICT, "Цей час недоступний")
 
             client = await records_service.get_or_create_client(
                 master_session, name=body.client_name, phone=body.client_phone
@@ -396,20 +432,20 @@ async def create_booking(
                 except records_service.SlotTaken:
                     continue
             if record is None:
-                raise HTTPException(status.HTTP_409_CONFLICT, "Это время уже занято")
+                raise HTTPException(status.HTTP_409_CONFLICT, "Цей час уже зайнятий")
             await master_session.commit()
         except HTTPException:
             await master_session.rollback()
             raise
         except records_service.MasterUnavailable:
             await master_session.rollback()
-            raise HTTPException(422, "Мастер недоступен")
+            raise HTTPException(422, "Майстер недоступний")
         except records_service.ServiceUnavailable:
             await master_session.rollback()
-            raise HTTPException(422, "Услуга недоступна")
+            raise HTTPException(422, "Послуга недоступна")
         except records_service.ClientInactive:
             await master_session.rollback()
-            raise HTTPException(422, "Онлайн-запись для этого клиента недоступна")
+            raise HTTPException(422, "Онлайн-запис для цього клієнта недоступний")
         except Exception:
             await master_session.rollback()
             raise
@@ -431,6 +467,35 @@ async def create_booking(
 
 
 # --- Отзывы -------------------------------------------------------------------
+
+
+class ReviewContextOut(BaseModel):
+    """Что показать на форме отзыва: к кому и когда был визит."""
+
+    salon_name: str
+    master_name: str
+    services: list[str]
+    visit_at: datetime
+
+
+@router.get("/reviews/{token}", response_model=ReviewContextOut)
+async def review_context(
+    token: uuid.UUID,
+    salon_id: SalonIdBySlug,
+    master_session: MasterSession,
+    tenant_session: TenantSessionBySlug,
+) -> ReviewContextOut:
+    """Данные визита по токену из ссылки; использованный или чужой токен — 404."""
+    record = await tenant_session.scalar(select(Record).where(Record.review_token == token))
+    if record is None or record.status != RecordStatus.COMPLETED or record.master_name is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Посилання недійсне")
+    salon = await master_session.get(Salon, salon_id)
+    return ReviewContextOut(
+        salon_name=salon.name if salon else "",
+        master_name=record.master_name,
+        services=[s.name for s in record.services],
+        visit_at=record.start_at,
+    )
 
 
 class ReviewCreate(BaseModel):
@@ -458,7 +523,7 @@ async def create_review(
         or record.master_id is None
         or record.master_name is None
     ):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Ссылка недействительна")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Посилання недійсне")
 
     review = Review(
         record_id=record.id,

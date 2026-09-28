@@ -52,6 +52,8 @@ def _publish_salon(salon_id: UUID) -> None:
                     notify.notify_manager_telegram.delay(envelope)
                 if notify.wants_master_notification(event.event_type, payload):
                     notify.notify_master_telegram.delay(envelope)
+                if notify.wants_review_request(event.event_type, payload):
+                    notify.notify_client_review.delay(envelope)
                 notify.notify_web.delay(envelope)
             elif event.event_type == REVIEW_CREATED:
                 notify.notify_web.delay(envelope)

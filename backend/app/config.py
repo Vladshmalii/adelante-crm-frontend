@@ -84,6 +84,10 @@ class Settings(BaseSettings):
     def booking_url(self, slug: str) -> str:
         return f"{self.booking_base_url.rstrip('/')}/{slug}"
 
+    def review_url(self, slug: str, token: str) -> str:
+        """Форма отзыва на сайте записи; токен одноразовый (POST /api/booking/{slug}/reviews)."""
+        return f"{self.booking_url(slug)}/review?token={token}"
+
 
 @lru_cache
 def get_settings() -> Settings:

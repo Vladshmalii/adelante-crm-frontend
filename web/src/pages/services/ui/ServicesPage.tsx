@@ -7,12 +7,12 @@ import { useState } from 'react';
 
 import { errorMessage, type Schema } from '@/shared/api';
 import { useViewer } from '@/shared/auth';
-import { formatMoney } from '@/shared/lib';
+import { formatMoney, serviceCategoryLabel } from '@/shared/lib';
 import { QueryErrorAlert } from '@/shared/ui';
 
 import { useArchiveService } from '../api/services.mutations';
 import { serviceCategoriesQueryOptions, servicesListQueryOptions } from '../api/services.queries';
-import { categoryLabel, categoryOptions, statusLabels } from '../model/labels';
+import { categoryOptions, statusLabels } from '../model/labels';
 import type { ServicesSearch } from '../model/search';
 import { ServiceFormModal } from './ServiceFormModal';
 
@@ -54,7 +54,7 @@ export function ServicesPage() {
         </Space>
       ),
     },
-    { title: 'Категорія', key: 'category', render: (_, s) => categoryLabel(s.category) },
+    { title: 'Категорія', key: 'category', render: (_, s) => serviceCategoryLabel(s.category) },
     {
       title: 'Тривалість',
       key: 'duration',

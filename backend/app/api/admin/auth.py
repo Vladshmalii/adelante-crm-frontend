@@ -99,12 +99,12 @@ async def login(
 ) -> Envelope[TokenPairOut]:
     account = await _find_account(master_session, body.email)
     if account is None:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Неверный email или пароль")
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Невірний email або пароль")
     person, role = account
     if person.password_hash is None or not security.password_hasher.verify(
         body.password, person.password_hash
     ):
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Неверный email или пароль")
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Невірний email або пароль")
     access, refresh_token, salon_ids = _issue_tokens(settings, person, role)
     return Envelope(
         data=TokenPairOut(
@@ -150,7 +150,7 @@ async def refresh(
     payload = security.decode_token(settings, body.refresh_token, security.TokenType.REFRESH)
     person = await _load_account(master_session, uuid.UUID(payload["sub"]), Role(payload["role"]))
     if person is None:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Учётная запись недоступна")
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Обліковий запис недоступний")
     access, refresh_token, _ = _issue_tokens(settings, person, Role(payload["role"]))
     return Envelope(data=TokensOnlyOut(access_token=access, refresh_token=refresh_token))
 
@@ -204,15 +204,15 @@ async def reset_password(
     try:
         user_id = await redis.get(f"pwdreset:{body.token}")
     except RedisError:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Попробуйте позже")
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Спробуйте пізніше")
     if not user_id:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Токен недействителен или истёк")
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Токен недійсний або прострочений")
 
     person: Account | None = await master_session.get(Administrator, uuid.UUID(user_id))
     if person is None:
         person = await master_session.get(Master, uuid.UUID(user_id))
     if person is None:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Пользователь не найден")
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Користувача не знайдено")
 
     person.password_hash = security.password_hasher.hash(body.password)
     with contextlib.suppress(RedisError):
@@ -335,7 +335,7 @@ async def me(
 ) -> Envelope[MeOut]:
     person = await _load_account(master_session, user.id, user.role)
     if person is None:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Учётная запись недоступна")
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Обліковий запис недоступний")
     return Envelope(data=await _me_out(person, user, registry, salon_id))
 
 
@@ -360,7 +360,7 @@ async def patch_me(
 ) -> Envelope[MeOut]:
     person = await _load_account(master_session, user.id, user.role)
     if person is None:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Учётная запись недоступна")
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Обліковий запис недоступний")
     for field, value in body.model_dump(exclude_unset=True, by_alias=False).items():
         setattr(person, field, value)
     return Envelope(data=await _me_out(person, user, registry, salon_id))

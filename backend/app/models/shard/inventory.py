@@ -73,6 +73,11 @@ class StockMovement(ShardBase):
     reason: Mapped[str | None] = mapped_column(String(500))
     # Списание расходников по записи
     record_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("records.id"), index=True)
+    # Отмена ошибочного списания: обратное движение ссылается на отменённое
+    # (unique — одно списание отменяется один раз)
+    cancels_movement_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("stock_movements.id"), unique=True
+    )
     author_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     author_name: Mapped[str | None] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

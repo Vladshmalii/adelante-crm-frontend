@@ -63,10 +63,10 @@ async def ws_events(
     try:
         claims = jwt.decode(token, settings.jwt_secret, algorithms=["HS256"])
     except jwt.InvalidTokenError:
-        await websocket.close(code=4401, reason="Невалидный токен")
+        await websocket.close(code=4401, reason="Недійсний токен")
         return
     if claims.get("type") != "access" or str(salon_id) not in claims.get("salon_ids", []):
-        await websocket.close(code=4403, reason="Нет доступа к салону")
+        await websocket.close(code=4403, reason="Немає доступу до салону")
         return
 
     await websocket.accept()

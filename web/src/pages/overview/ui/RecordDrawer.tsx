@@ -15,8 +15,10 @@ import {
 } from 'antd';
 
 import type { Schema } from '@/shared/api';
+import { useViewer } from '@/shared/auth';
 import { formatDateTime, formatMoney, formatPhone, inSalonTz } from '@/shared/lib';
 import { ChangeDetails } from '@/shared/ui';
+import { RecordConsumables } from '@/widgets/record-consumables';
 
 import { recordQueryOptions } from '../api/overview.queries';
 import {
@@ -35,6 +37,7 @@ interface RecordDrawerProps {
 }
 
 export function RecordDrawer({ recordId, onClose }: RecordDrawerProps) {
+  const { can } = useViewer();
   const {
     data: record,
     isPending,
@@ -69,6 +72,16 @@ export function RecordDrawer({ recordId, onClose }: RecordDrawerProps) {
           items={[
             { key: 'details', label: 'Запис', children: <Details record={record} /> },
             { key: 'finance', label: 'Фінанси', children: <Finance record={record} /> },
+            {
+              key: 'consumables',
+              label: 'Витрати',
+              children: (
+                <RecordConsumables
+                  recordId={record.id}
+                  canWriteOff={can.records.writeOffConsumables && record.status !== 'cancelled'}
+                />
+              ),
+            },
             {
               key: 'history',
               label: `Історія (${record.history.length})`,

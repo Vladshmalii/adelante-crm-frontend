@@ -11,7 +11,15 @@ export {
   toPickerDateTime,
 } from './date';
 export { saveBlob } from './download';
-export { COLOR_PRESETS, genderLabels, roleLabels, toOptions } from './labels';
+export {
+  COLOR_PRESETS,
+  genderLabels,
+  KNOWN_SERVICE_CATEGORIES,
+  roleLabels,
+  serviceCategoryLabel,
+  toOptions,
+} from './labels';
 export { formatMoney } from './money';
 export { formatPhone, isValidPhone, normalizePhone } from './phone';
+export { formatQuantity, productUnitLabels } from './quantity';
 export { useDebouncedValue } from './use-debounced-value';

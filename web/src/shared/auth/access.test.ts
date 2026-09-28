@@ -36,6 +36,9 @@ describe('права доступа (docs/ACCESS.md)', () => {
     expect(canAccess(v, 'staff')).toBe(false);
     expect(canAccess(v, 'services')).toBe(false);
     expect(canAccess(v, 'finances')).toBe(false);
+    expect(canAccess(v, 'inventory')).toBe(false);
+    expect(canAccess(v, 'reports')).toBe(false);
+    expect(permissions(v).records.writeOffConsumables).toBe(true);
     expect(permissions(v).clients).toMatchObject({
       create: false,
       createInRecord: true,
@@ -47,8 +50,12 @@ describe('права доступа (docs/ACCESS.md)', () => {
   it('администратор — всё, кроме финансов и выгрузок', () => {
     const v = toViewer(me('administrator'));
     expect(canAccess(v, 'staff')).toBe(true);
+    expect(canAccess(v, 'inventory')).toBe(true);
+    expect(canAccess(v, 'reports')).toBe(true);
     expect(canAccess(v, 'finances')).toBe(false);
     const can = permissions(v);
+    expect(can.inventory.manage).toBe(true);
+    expect(can.reports.viewMoney).toBe(false);
     expect(can.clients).toMatchObject({ edit: true, import: true, export: false });
     expect(can.staff).toMatchObject({
       manageMasters: true,
@@ -62,6 +69,7 @@ describe('права доступа (docs/ACCESS.md)', () => {
     expect(canAccess(v, 'finances')).toBe(true);
     const can = permissions(v);
     expect(can.clients.export).toBe(true);
+    expect(can.reports.viewMoney).toBe(true);
     expect(can.staff).toMatchObject({ manageAdmins: true, viewFinance: true });
   });
 

@@ -48,6 +48,7 @@ def scan_shard(salon_id: str) -> None:
                 select(Record)
                 .where(
                     Record.status.in_([RecordStatus.SCHEDULED, RecordStatus.CONFIRMED]),
+                    Record.reminder_enabled.is_(True),
                     Record.reminder_sent_at.is_(None),
                     Record.start_at >= window_start - WINDOW_MARGIN,
                     Record.start_at < window_end,

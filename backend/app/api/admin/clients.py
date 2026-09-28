@@ -55,6 +55,8 @@ class ClientOut(ApiModel):
     importance: ClientImportance
     discount_percent: int
     no_online_booking: bool
+    # Привязан к Telegram-боту — получит напоминания о визитах
+    telegram_linked: bool = False
     # Агрегаты по текущему салону
     total_visits: int = 0
     total_spent: Decimal = Decimal(0)
@@ -97,6 +99,7 @@ def _segment(visits: int, last: datetime | None) -> str:
 def _client_out(client: Client, agg: Aggregates) -> ClientOut:
     visits, spent, first, last = agg.get(client.id, (0, Decimal(0), None, None))
     out = ClientOut.model_validate(client)
+    out.telegram_linked = client.telegram_user_id is not None
     out.total_visits = visits
     out.total_spent = spent
     out.first_visit = first
@@ -185,7 +188,7 @@ async def create_client(
 ) -> Envelope[ClientOut]:
     existing = await master_session.scalar(select(Client).where(Client.phone == body.phone))
     if existing is not None:
-        raise HTTPException(409, "Клиент с таким телефоном уже существует")
+        raise HTTPException(409, "Клієнт з таким телефоном уже існує")
 
     client = Client(**body.model_dump(by_alias=False))
     master_session.add(client)
@@ -206,7 +209,7 @@ async def create_client(
 async def _get_client(master_session, client_id: uuid.UUID) -> Client:
     client = await master_session.get(Client, client_id)
     if client is None or not client.is_active:
-        raise HTTPException(404, "Клиент не найден")
+        raise HTTPException(404, "Клієнта не знайдено")
     return client
 
 
@@ -306,14 +309,14 @@ async def import_clients(
     try:
         wb = load_workbook(io.BytesIO(await file.read()), read_only=True)
     except Exception:  # noqa: BLE001 - openpyxl raises assorted exceptions for malformed uploads
-        raise HTTPException(422, "Не удалось прочитать файл — ожидается .xlsx")
+        raise HTTPException(422, "Не вдалося прочитати файл — очікується .xlsx")
 
     created = updated = 0
     errors: list[str] = []
     for i, row in enumerate(wb.active.iter_rows(min_row=2, values_only=True), start=2):
         first_name, last_name, phone, email = (list(row) + [None] * 4)[:4]
         if not phone or not first_name:
-            errors.append(f"Строка {i}: нужны имя и телефон")
+            errors.append(f"Рядок {i}: потрібні імʼя і телефон")
             continue
         phone = str(phone).strip()
         client = await master_session.scalar(select(Client).where(Client.phone == phone))
@@ -441,9 +444,6 @@ class VisitOut(ApiModel):
     id: uuid.UUID
     start_at: datetime
     services: list[VisitServiceOut]
-    # Первая услуга визита. Устарело: используйте services
-    service_id: uuid.UUID
-    service_name: str
     master_id: uuid.UUID | None
     master_name: str | None
     status: RecordStatus
@@ -479,8 +479,6 @@ def _visit_out(record: Record) -> VisitOut:
         id=record.id,
         start_at=record.start_at,
         services=[VisitServiceOut(id=s.service_id, name=s.name) for s in services],
-        service_id=services[0].service_id,
-        service_name=services[0].name,
         master_id=record.master_id,
         master_name=record.master_name,
         status=record.status,

@@ -5,7 +5,8 @@
   записи другому мастеру;
 - администраторам салона — каждая новая запись, а для записей без мастера
   ещё перенос и отмена;
-- клиенту — напоминание за 30 минут (workers.tasks.reminders).
+- клиенту — напоминание за 30 минут (workers.tasks.reminders) и после
+  завершения визита — ссылка на отзыв.
 Автору изменения уведомление о его же действии не отправляется.
 
 Дедупликация: доставка at-least-once, поэтому перед отправкой — SETNX по
@@ -27,6 +28,7 @@ from sqlalchemy import select
 
 from app.config import get_settings
 from app.models.master import Administrator, Client, Master, Salon, administrator_salons
+from app.models.shard import Record, RecordStatus
 from app.notifications.outbox import RECORD_CREATED, RECORD_UPDATED
 from app.timeutils import format_local
 from workers import db, telegram
@@ -77,6 +79,10 @@ def wants_master_notification(event_type: str, payload: dict[str, Any]) -> bool:
     if event_type == RECORD_UPDATED and payload.get("change") in MASTER_CHANGES:
         return bool(payload.get("master_id") or payload.get("previous_master_id"))
     return False
+
+
+def wants_review_request(event_type: str, payload: dict[str, Any]) -> bool:
+    return event_type == RECORD_UPDATED and payload.get("change") == "completed"
 
 
 def wants_manager_notification(event_type: str, payload: dict[str, Any]) -> bool:
@@ -231,6 +237,48 @@ def notify_client_telegram(envelope: dict[str, Any]) -> None:
         booking_url = get_settings().booking_url(salon.slug)
         lines.append(f'Записатися знову: <a href="{html.escape(booking_url)}">сайт запису</a>')
     telegram.send_message(chat_id, "\n".join(lines))
+
+
+@celery.task(autoretry_for=(httpx.HTTPError,), retry_backoff=True, max_retries=5)
+def notify_client_review(envelope: dict[str, Any]) -> None:
+    """После завершения визита — клиенту ссылка на отзыв.
+
+    Токен в outbox не кладётся (событие уходит и в WebSocket админки) —
+    читается из записи. Отзыв уже оставлен (токена нет) — не отправляем.
+    """
+    if not _first_delivery(envelope["event_id"], "client_review"):
+        return
+    salon_id = UUID(envelope["salon_id"])
+    payload = envelope["payload"]
+
+    with db.shard_session(salon_id) as session:
+        record = session.get(Record, UUID(payload["record_id"]))
+        if record is None or record.status != RecordStatus.COMPLETED or not record.review_token:
+            return
+        token = str(record.review_token)
+        master_name = record.master_name
+        services = ", ".join(s.name for s in record.services)
+        client_id = record.client_id
+    with db.master_session() as session:
+        chat_id = session.scalar(select(Client.telegram_user_id).where(Client.id == client_id))
+        salon = session.get(Salon, salon_id)
+    if chat_id is None or salon is None:
+        logger.info("Клиент %s без Telegram — ссылка на отзыв не отправлена", client_id)
+        return
+
+    link = get_settings().review_url(salon.slug, token)
+    telegram.send_message(
+        chat_id,
+        "\n".join(
+            [
+                "💐 <b>Дякуємо за візит!</b>",
+                f"Майстер: {_esc(master_name)}",
+                f"Послуги: {_esc(services)}",
+                f"Салон: {_esc(salon.name)}",
+                f'Будемо вдячні за відгук: <a href="{html.escape(link)}">оцінити візит</a>',
+            ]
+        ),
+    )
 
 
 @celery.task

@@ -1,5 +1,7 @@
 import {
+  BarChartOutlined,
   DashboardOutlined,
+  InboxOutlined,
   ScissorOutlined,
   TeamOutlined,
   UserOutlined,
@@ -26,6 +28,8 @@ export const menuItems: MenuItem[] = [
   { path: '/clients', name: 'Клієнти', icon: <UserOutlined />, section: 'clients' },
   { path: '/staff', name: 'Співробітники', icon: <TeamOutlined />, section: 'staff' },
   { path: '/services', name: 'Послуги', icon: <ScissorOutlined />, section: 'services' },
+  { path: '/inventory', name: 'Склад', icon: <InboxOutlined />, section: 'inventory' },
   { path: '/overview', name: 'Огляд', icon: <DashboardOutlined />, section: 'overview' },
+  { path: '/reports', name: 'Звіти', icon: <BarChartOutlined />, section: 'reports' },
   { path: '/finances', name: 'Фінанси', icon: <WalletOutlined />, section: 'finances' },
 ];

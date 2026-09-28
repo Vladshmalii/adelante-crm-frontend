@@ -49,6 +49,19 @@ packages = ["app", "workers", "ws"]
 line-length = 100
 target-version = "py312"
 
+[tool.ruff.lint.per-file-ignores]
+# Тесты намеренно шлют время без зоны: API трактует его как киевское
+"tests/*" = ["DTZ"]
+
+[tool.pytest.ini_options]
+# Интеграционные тесты поднимают PostgreSQL и Redis в Docker (tests/conftest.py)
+testpaths = ["tests"]
+pythonpath = ["."]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore:Using `httpx` with `starlette.testclient`",
+]
+
 [tool.mypy]
 python_version = "3.12"
 files = ["app", "workers", "ws", "cli.py"]
