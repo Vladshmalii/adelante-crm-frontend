@@ -1,4 +1,5 @@
 export {
+  DAY_LABELS,
   type DaySchedule,
   defaultWeek,
   type Weekday,

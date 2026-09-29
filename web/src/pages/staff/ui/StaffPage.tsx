@@ -6,7 +6,7 @@ import {
   StatisticCard,
 } from '@ant-design/pro-components';
 import { useQueries, useQuery } from '@tanstack/react-query';
-import { getRouteApi } from '@tanstack/react-router';
+import { getRouteApi, useNavigate } from '@tanstack/react-router';
 import { App, Button, Dropdown, type MenuProps, Select, Space, Tag, Typography } from 'antd';
 import { useState } from 'react';
 
@@ -22,7 +22,6 @@ import { canManage, isSelf } from '../model/rules';
 import { type StaffSearch, toListParams } from '../model/search';
 import { StaffDrawer } from './StaffDrawer';
 import { StaffFormModal } from './StaffFormModal';
-import { StaffScheduleModal } from './StaffScheduleModal';
 import { StaffStatsModal } from './StaffStatsModal';
 
 type Staff = Schema<'StaffOut'>;
@@ -34,6 +33,7 @@ const STATUSES = Object.keys(statusLabels) as Status[];
 export function StaffPage() {
   const search = route.useSearch();
   const navigate = route.useNavigate();
+  const navigateTo = useNavigate();
   const { message, modal } = App.useApp();
   const { viewer, can } = useViewer();
   const { data, error, isFetching, refetch } = useQuery(
@@ -45,7 +45,6 @@ export function StaffPage() {
   const exportStaff = useExportStaff();
 
   const [form, setForm] = useState<{ staff?: Staff } | null>(null);
-  const [scheduleFor, setScheduleFor] = useState<Staff | null>(null);
   const [statsFor, setStatsFor] = useState<Staff | null>(null);
 
   const setSearch = (patch: Partial<StaffSearch>) =>
@@ -104,10 +103,11 @@ export function StaffPage() {
         },
       },
       {
+        // Смены — на странице «Графік роботи» (сетка по дням для всех сотрудников).
         key: 'schedule',
         label: 'Графік роботи',
         onClick: () => {
-          setScheduleFor(staff);
+          void navigateTo({ to: '/shifts' });
         },
       },
       ...(can.staff.viewFinance && staff.role === 'master'
@@ -304,12 +304,6 @@ export function StaffPage() {
         staff={form?.staff}
         onOpenChange={(open) => {
           if (!open) setForm(null);
-        }}
-      />
-      <StaffScheduleModal
-        staff={scheduleFor}
-        onClose={() => {
-          setScheduleFor(null);
         }}
       />
       <StaffStatsModal

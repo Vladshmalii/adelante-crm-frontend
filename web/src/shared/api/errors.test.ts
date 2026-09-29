@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { ApiError, errorMessage, unwrap } from './errors';
+import { ApiError, conflictRecords, errorMessage, unwrap } from './errors';
 
 const response = (status: number) => new Response(null, { status });
 
@@ -49,5 +49,29 @@ describe('errorMessage', () => {
     expect(errorMessage(new TypeError('x.format is not a function'))).toBe(
       'x.format is not a function',
     );
+  });
+});
+
+describe('conflictRecords', () => {
+  const record = {
+    id: 'r1',
+    startAt: '2026-10-06T07:00:00Z',
+    endAt: '2026-10-06T08:00:00Z',
+    clientName: 'Анна',
+  };
+
+  it('достаёт записи из 409 has_records и не пишет их в текст', () => {
+    const error = new ApiError(409, {
+      message: 'На цей день є записи',
+      code: 'has_records',
+      details: { records: [record] },
+    });
+    expect(error.message).toBe('На цей день є записи');
+    expect(conflictRecords(error)).toEqual([record]);
+  });
+
+  it('для других ошибок — пусто', () => {
+    expect(conflictRecords(new ApiError(422, { message: 'x', code: 'past' }))).toEqual([]);
+    expect(conflictRecords(new Error('x'))).toEqual([]);
   });
 });

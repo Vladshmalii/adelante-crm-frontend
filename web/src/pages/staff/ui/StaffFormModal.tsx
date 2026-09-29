@@ -17,7 +17,6 @@ import { genderLabels, isValidPhone, roleLabels, toOptions } from '@/shared/lib'
 import { ColorInput, PhoneInput } from '@/shared/ui';
 
 import { useCreateStaff, useUpdateStaff } from '../api/staff.mutations';
-import { statusSingular } from '../model/labels';
 
 type Staff = Schema<'StaffOut'>;
 // Роль видна только суперюзеру; когда поля нет в форме, нет и значения в onFinish.
@@ -89,7 +88,6 @@ export function StaffFormModal({ open, onOpenChange, staff }: StaffFormModalProp
           ...common,
           ...superuserFlag,
           ...(values.password ? { password: values.password } : {}),
-          ...(staff.status !== 'fired' && values.status ? { status: values.status } : {}),
         },
       });
     } else {
@@ -210,18 +208,6 @@ export function StaffFormModal({ open, onOpenChange, staff }: StaffFormModalProp
       >
         <PhoneInput />
       </ProForm.Item>
-      {isEdit && staff.status !== 'fired' && (
-        <ProFormSelect
-          name="status"
-          label="Статус"
-          allowClear={false}
-          tooltip="Звільнення — окремою дією в списку"
-          options={(['active', 'vacation', 'sick'] as const).map((value) => ({
-            value,
-            label: statusSingular[value],
-          }))}
-        />
-      )}
       <ProForm.Item name="color" label="Колір у календарі">
         <ColorInput />
       </ProForm.Item>

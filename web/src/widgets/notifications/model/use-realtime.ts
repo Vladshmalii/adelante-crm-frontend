@@ -13,6 +13,8 @@ const STALE_KEYS: Record<string, string[][]> = {
   'record.created': [['records'], ['clients'], ['audit']],
   'record.updated': [['records'], ['clients'], ['audit'], ['finances']],
   'review.created': [['reviews']],
+  // Смены поменялись: сетка «Графік роботи», рабочее время и загрузка в Розкладі.
+  'shift.changed': [['shifts'], ['schedule'], ['records', 'daily-summary']],
 };
 
 /** Подписка на WebSocket-уведомления салона на время жизни layout. */

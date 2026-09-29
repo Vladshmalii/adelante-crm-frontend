@@ -38,8 +38,6 @@ const TELEGRAM_BOT = 'https://t.me/AdelanteCrmBot';
 
 const STATUS_LABELS: Record<Schema<'StaffStatus'>, string> = {
   active: 'Працює',
-  vacation: 'У відпустці',
-  sick: 'На лікарняному',
   fired: 'Звільнений',
 };
 
