@@ -4,6 +4,7 @@ import {
   ClockCircleOutlined,
   CloseCircleOutlined,
   DollarCircleFilled,
+  FieldTimeOutlined,
   LoginOutlined,
   StopOutlined,
 } from '@ant-design/icons';
@@ -76,6 +77,8 @@ export function RecordCard({ record, size = 'large', style, onClick }: RecordCar
         lineHeight: 1.35,
         boxShadow: token.boxShadowTertiary,
         opacity: record.status === 'no_show' ? 0.6 : 1,
+        // Запись вне смены мастера — пунктирная рамка (сама запись допустима).
+        outline: record.outsideShift ? `1px dashed ${token.colorWarning}` : undefined,
         ...style,
       }}
     >
@@ -84,6 +87,11 @@ export function RecordCard({ record, size = 'large', style, onClick }: RecordCar
           {timeRange(record)}
         </Typography.Text>
         <StatusIcon status={record.status} />
+        {record.outsideShift && (
+          <Tooltip title="Поза зміною майстра">
+            <FieldTimeOutlined style={{ color: token.colorWarning }} />
+          </Tooltip>
+        )}
         {record.paymentStatus === 'paid' && (
           <Tooltip title="Оплачено">
             <DollarCircleFilled style={{ color: token.colorSuccess }} />

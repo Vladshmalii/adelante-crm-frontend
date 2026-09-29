@@ -197,6 +197,7 @@ function RecordForm({
         });
       }
       message.success(editing ? 'Запис оновлено' : 'Запис створено');
+      if (saved.outsideShift) message.warning('Запис поза зміною майстра');
       onSaved(saved);
       return true;
     } catch (error) {

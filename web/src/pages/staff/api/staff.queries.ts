@@ -9,7 +9,6 @@ export const staffKeys = {
   list: (params: StaffListParams) => [...staffKeys.all, 'list', params] as const,
   detail: (id: string) => [...staffKeys.all, 'detail', id] as const,
   count: (status: Schema<'StaffStatus'>) => [...staffKeys.all, 'count', status] as const,
-  schedule: (id: string) => [...staffKeys.all, 'schedule', id] as const,
   stats: (id: string, from: string, to: string) =>
     [...staffKeys.all, 'stats', id, from, to] as const,
 };
@@ -45,18 +44,6 @@ export const staffCountQueryOptions = (status: Schema<'StaffStatus'>) =>
           signal,
         }),
       ).meta?.total ?? 0,
-  });
-
-export const staffScheduleQueryOptions = (id: string) =>
-  queryOptions({
-    queryKey: staffKeys.schedule(id),
-    queryFn: async ({ signal }) =>
-      unwrap(
-        await api.GET('/api/admin/v1/staff/{staff_id}/schedule', {
-          params: { path: { staff_id: id } },
-          signal,
-        }),
-      ).data,
   });
 
 export const staffStatsQueryOptions = (id: string, dateFrom: string, dateTo: string) =>

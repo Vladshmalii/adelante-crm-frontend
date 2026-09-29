@@ -115,6 +115,7 @@ export function RecordDetailsDrawer({
       extra={
         record && (
           <Space>
+            {record.outsideShift && <Tag color="warning">Поза зміною майстра</Tag>}
             <Tag color={recordStatusLabels[record.status].color}>
               {recordStatusLabels[record.status].text}
             </Tag>

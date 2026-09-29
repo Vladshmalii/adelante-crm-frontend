@@ -1,4 +1,10 @@
-import { LogoutOutlined, MoonOutlined, SunOutlined, UserOutlined } from '@ant-design/icons';
+import {
+  LogoutOutlined,
+  MoonOutlined,
+  SettingOutlined,
+  SunOutlined,
+  UserOutlined,
+} from '@ant-design/icons';
 import { ProLayout } from '@ant-design/pro-components';
 import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
 import { Link, type LinkProps, useLocation, useNavigate } from '@tanstack/react-router';
@@ -104,6 +110,16 @@ export function AppLayout({ children }: { children: ReactNode }) {
                   label: 'Мій профіль',
                   onClick: () => void navigate({ to: '/profile' }),
                 },
+                ...(canAccess(viewer, 'settings')
+                  ? [
+                      {
+                        key: 'settings',
+                        icon: <SettingOutlined />,
+                        label: 'Налаштування',
+                        onClick: () => void navigate({ to: '/settings' }),
+                      },
+                    ]
+                  : []),
                 { type: 'divider' },
                 { key: 'logout', icon: <LogoutOutlined />, label: 'Вийти', onClick: logout },
               ],

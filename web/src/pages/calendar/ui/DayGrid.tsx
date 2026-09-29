@@ -11,6 +11,7 @@ import { theme, Typography } from 'antd';
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 
 import type { Schema } from '@/shared/api';
+import { shiftMarkLabels } from '@/shared/lib';
 
 import { type Column, columnKey, isMovable, recordsOf } from '../model/columns';
 import {
@@ -64,20 +65,14 @@ const windowsOf = (column: Column, date: string): Interval[] =>
     end: parseClock(w.end),
   }));
 
-const EXCEPTION_LABELS: Record<Schema<'ScheduleExceptionType'>, string> = {
-  vacation: 'Відпустка',
-  sick: 'Лікарняний',
-  day_off: 'Вихідний',
-  extra_shift: 'Додаткова зміна',
-};
-
 /** Подпись под именем мастера: часы работы, причина отсутствия или «не працює». */
 function workLabel(column: Column, date: string): string | null {
   if (!column.schedule) return 'Черга';
   const day = column.schedule.days.find((d) => d.date === date);
   if (!day) return null;
-  if (day.exception && day.exception.type !== 'extra_shift')
-    return EXCEPTION_LABELS[day.exception.type];
+  // Отметки графика — відпустка і лікарняний; выходной — просто нет смены.
+  if (day.exception && day.exception.type !== 'shift')
+    return shiftMarkLabels[day.exception.type].text;
   if (!day.isWorkDay || !day.windows.length) return 'Не працює';
   const first = day.windows[0];
   const last = day.windows[day.windows.length - 1];

@@ -1047,9 +1047,73 @@ export interface paths {
         /**
          * Put Salon Schedule
          * @description Весь график целиком: все семь дней недели.
+         *
+         *     Будущие смены сотрудников обрезаются по новым часам, кроме смен, у которых
+         *     на обрезаемое время есть записи (backend/docs/shifts.md).
          */
         put: operations["put_salon_schedule_api_admin_v1_settings_schedule_put"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/shifts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Shift Grid
+         * @description Сетка графика: мастера, потом администраторы; мастеру — только его строка.
+         */
+        get: operations["shift_grid_api_admin_v1_shifts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/shifts/{staffId}/{date}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Put Shift */
+        put: operations["put_shift_api_admin_v1_shifts__staffId___date__put"];
+        post?: never;
+        /**
+         * Delete Shift
+         * @description Убрать смену или отметку (день становится выходным).
+         */
+        delete: operations["delete_shift_api_admin_v1_shifts__staffId___date__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/shifts/fill": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Fill Shifts
+         * @description Заполнить смены или отметки на период для нескольких сотрудников.
+         */
+        post: operations["fill_shifts_api_admin_v1_shifts_fill_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1094,59 +1158,6 @@ export interface paths {
         head?: never;
         /** Patch Staff */
         patch: operations["patch_staff_api_admin_v1_staff__staff_id__patch"];
-        trace?: never;
-    };
-    "/api/admin/v1/staff/{staff_id}/schedule": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Schedule */
-        get: operations["get_schedule_api_admin_v1_staff__staff_id__schedule_get"];
-        put?: never;
-        /** Save Schedule */
-        post: operations["save_schedule_api_admin_v1_staff__staff_id__schedule_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/admin/v1/staff/{staff_id}/schedule/exceptions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Add Exception */
-        post: operations["add_exception_api_admin_v1_staff__staff_id__schedule_exceptions_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/admin/v1/staff/{staff_id}/schedule/exceptions/{exception_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** Delete Exception */
-        delete: operations["delete_exception_api_admin_v1_staff__staff_id__schedule_exceptions__exception_id__delete"];
-        options?: never;
-        head?: never;
-        /** Patch Exception */
-        patch: operations["patch_exception_api_admin_v1_staff__staff_id__schedule_exceptions__exception_id__patch"];
         trace?: never;
     };
     "/api/admin/v1/staff/{staff_id}/stats": {
@@ -2057,6 +2068,29 @@ export interface components {
             /** Items */
             items: components["schemas"]["ConsumableIn"][];
         };
+        /** CopyIn */
+        CopyIn: {
+            /**
+             * Datefrom
+             * Format: date
+             */
+            dateFrom: string;
+            /**
+             * Dateto
+             * Format: date
+             */
+            dateTo: string;
+        };
+        /** CycleIn */
+        CycleIn: {
+            /** Offdays */
+            offDays: number;
+            shift: components["schemas"]["ShiftTimesIn"];
+            /** Startdate */
+            startDate?: string | null;
+            /** Workdays */
+            workDays: number;
+        };
         /** DashboardOut */
         DashboardOut: {
             /** Expensesbycategory */
@@ -2085,23 +2119,7 @@ export interface components {
         DayExceptionOut: {
             /** Comment */
             comment: string | null;
-            type: components["schemas"]["ScheduleExceptionType"];
-        };
-        /** DayScheduleIn */
-        DayScheduleIn: {
-            /** Breakend */
-            breakEnd?: string | null;
-            /** Breakstart */
-            breakStart?: string | null;
-            /** End */
-            end?: string | null;
-            /**
-             * Isworkday
-             * @default false
-             */
-            isWorkDay: boolean;
-            /** Start */
-            start?: string | null;
+            type: components["schemas"]["ShiftKind"];
         };
         /** DaySummaryOut */
         DaySummaryOut: {
@@ -2228,9 +2246,9 @@ export interface components {
             data: components["schemas"]["DocumentOut"];
             meta?: components["schemas"]["PageMeta"] | null;
         };
-        /** Envelope[ExceptionOut] */
-        Envelope_ExceptionOut_: {
-            data: components["schemas"]["ExceptionOut"];
+        /** Envelope[FillReportOut] */
+        Envelope_FillReportOut_: {
+            data: components["schemas"]["FillReportOut"];
             meta?: components["schemas"]["PageMeta"] | null;
         };
         /** Envelope[ImportReportOut] */
@@ -2429,9 +2447,9 @@ export interface components {
             data: components["schemas"]["SalonScheduleOut"];
             meta?: components["schemas"]["PageMeta"] | null;
         };
-        /** Envelope[ScheduleOut] */
-        Envelope_ScheduleOut_: {
-            data: components["schemas"]["ScheduleOut"];
+        /** Envelope[SalonSchedulePutOut] */
+        Envelope_SalonSchedulePutOut_: {
+            data: components["schemas"]["SalonSchedulePutOut"];
             meta?: components["schemas"]["PageMeta"] | null;
         };
         /** Envelope[ServiceOut] */
@@ -2442,6 +2460,16 @@ export interface components {
         /** Envelope[ServicesOut] */
         Envelope_ServicesOut_: {
             data: components["schemas"]["ServicesOut"];
+            meta?: components["schemas"]["PageMeta"] | null;
+        };
+        /** Envelope[ShiftCellOut] */
+        Envelope_ShiftCellOut_: {
+            data: components["schemas"]["ShiftCellOut"];
+            meta?: components["schemas"]["PageMeta"] | null;
+        };
+        /** Envelope[ShiftGridOut] */
+        Envelope_ShiftGridOut_: {
+            data: components["schemas"]["ShiftGridOut"];
             meta?: components["schemas"]["PageMeta"] | null;
         };
         /** Envelope[StaffOut] */
@@ -2474,10 +2502,10 @@ export interface components {
             data: components["schemas"]["UploadOut"];
             meta?: components["schemas"]["PageMeta"] | null;
         };
-        /** ExceptionIn */
-        ExceptionIn: {
-            /** Comment */
-            comment?: string | null;
+        /** FillIn */
+        FillIn: {
+            copyFrom?: components["schemas"]["CopyIn"] | null;
+            cycle?: components["schemas"]["CycleIn"] | null;
             /**
              * Datefrom
              * Format: date
@@ -2488,50 +2516,34 @@ export interface components {
              * Format: date
              */
             dateTo: string;
-            /** End */
-            end?: string | null;
-            /** Start */
-            start?: string | null;
-            type: components["schemas"]["ScheduleExceptionType"];
+            mark?: components["schemas"]["MarkIn"] | null;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "weekdays" | "cycle" | "copy" | "mark";
+            /**
+             * Overwrite
+             * @default false
+             */
+            overwrite: boolean;
+            /** Staffids */
+            staffIds: string[];
+            /** Weekdays */
+            weekdays?: {
+                [key: string]: components["schemas"]["ShiftTimesIn"] | null;
+            } | null;
         };
-        /** ExceptionOut */
-        ExceptionOut: {
-            /** Comment */
-            comment?: string | null;
-            /**
-             * Datefrom
-             * Format: date
-             */
-            dateFrom: string;
-            /**
-             * Dateto
-             * Format: date
-             */
-            dateTo: string;
-            /** End */
-            end?: string | null;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Start */
-            start?: string | null;
-            type: components["schemas"]["ScheduleExceptionType"];
-        };
-        /** ExceptionPatchIn */
-        ExceptionPatchIn: {
-            /** Comment */
-            comment?: string | null;
-            /** Datefrom */
-            dateFrom?: string | null;
-            /** Dateto */
-            dateTo?: string | null;
-            /** End */
-            end?: string | null;
-            /** Start */
-            start?: string | null;
-            type?: components["schemas"]["ScheduleExceptionType"] | null;
+        /** FillReportOut */
+        FillReportOut: {
+            /** Created */
+            created: number;
+            /** Removed */
+            removed: number;
+            /** Skipped */
+            skipped: components["schemas"]["SkippedOut"][];
+            /** Updated */
+            updated: number;
         };
         /** ForgotPasswordIn */
         ForgotPasswordIn: {
@@ -2622,6 +2634,16 @@ export interface components {
             email: string;
             /** Password */
             password: string;
+        };
+        /** MarkIn */
+        MarkIn: {
+            /** Comment */
+            comment?: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "vacation" | "sick";
         };
         /** MasterOut */
         MasterOut: {
@@ -3295,6 +3317,8 @@ export interface components {
             /** Internalnotes */
             internalNotes: string | null;
             master: components["schemas"]["MasterRef"] | null;
+            /** Outsideshift */
+            outsideShift: boolean;
             paymentStatus: components["schemas"]["PaymentStatus"];
             /** Photos */
             photos: components["schemas"]["PhotoOut"][];
@@ -3354,6 +3378,8 @@ export interface components {
             id: string;
             importance: components["schemas"]["RecordImportance"];
             master: components["schemas"]["MasterRef"] | null;
+            /** Outsideshift */
+            outsideShift: boolean;
             paymentStatus: components["schemas"]["PaymentStatus"];
             /** Price */
             price: string;
@@ -3548,6 +3574,18 @@ export interface components {
             /** Start */
             start?: string | null;
         };
+        /** SalonDayHoursOut */
+        SalonDayHoursOut: {
+            /** Close */
+            close: string | null;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Open */
+            open: string | null;
+        };
         /** SalonDayOut */
         SalonDayOut: {
             /** End */
@@ -3672,6 +3710,16 @@ export interface components {
                 [key: string]: components["schemas"]["SalonDay"];
             };
         };
+        /** SalonSchedulePutOut */
+        SalonSchedulePutOut: {
+            /** Configured */
+            configured: boolean;
+            shifts: components["schemas"]["ShiftTrimOut"];
+            /** Week */
+            week: {
+                [key: string]: components["schemas"]["SalonDay"];
+            };
+        };
         /** ScheduleDayOut */
         ScheduleDayOut: {
             /**
@@ -3684,20 +3732,6 @@ export interface components {
             isWorkDay: boolean;
             /** Windows */
             windows: components["schemas"]["WindowOut"][];
-        };
-        /**
-         * ScheduleExceptionType
-         * @enum {string}
-         */
-        ScheduleExceptionType: "vacation" | "sick" | "day_off" | "extra_shift";
-        /** ScheduleOut */
-        ScheduleOut: {
-            /** Exceptions */
-            exceptions: components["schemas"]["ExceptionOut"][];
-            /** Week */
-            week: {
-                [key: string]: components["schemas"]["DayScheduleIn"];
-            };
         };
         /** ServiceCreateIn */
         ServiceCreateIn: {
@@ -3770,6 +3804,142 @@ export interface components {
          * @enum {string}
          */
         ServiceStatus: "active" | "inactive" | "archived";
+        /** ShiftCellOut */
+        ShiftCellOut: {
+            /** Breakend */
+            breakEnd?: string | null;
+            /** Breakstart */
+            breakStart?: string | null;
+            /** Comment */
+            comment?: string | null;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** End */
+            end?: string | null;
+            kind: components["schemas"]["ShiftKind"] | null;
+            /**
+             * Recordscount
+             * @default 0
+             */
+            recordsCount: number;
+            /** Start */
+            start?: string | null;
+        };
+        /** ShiftConflictOut */
+        ShiftConflictOut: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Records */
+            records: components["schemas"]["ShiftConflictRecordOut"][];
+            /**
+             * Staffid
+             * Format: uuid
+             */
+            staffId: string;
+            /** Staffname */
+            staffName: string | null;
+        };
+        /** ShiftConflictRecordOut */
+        ShiftConflictRecordOut: {
+            /** Clientname */
+            clientName: string;
+            /**
+             * Endat
+             * Format: date-time
+             */
+            endAt: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Startat
+             * Format: date-time
+             */
+            startAt: string;
+        };
+        /** ShiftGridOut */
+        ShiftGridOut: {
+            /** Days */
+            days: components["schemas"]["SalonDayHoursOut"][];
+            /** Salonscheduleconfigured */
+            salonScheduleConfigured: boolean;
+            /** Staff */
+            staff: components["schemas"]["StaffShiftsOut"][];
+        };
+        /**
+         * ShiftIn
+         * @description Смена (`kind: shift` + время) или отметка (`vacation` / `sick`).
+         */
+        ShiftIn: {
+            /** Breakend */
+            breakEnd?: string | null;
+            /** Breakstart */
+            breakStart?: string | null;
+            /** Comment */
+            comment?: string | null;
+            /** End */
+            end?: string | null;
+            /** @default shift */
+            kind: components["schemas"]["ShiftKind"];
+            /** Start */
+            start?: string | null;
+        };
+        /**
+         * ShiftKind
+         * @enum {string}
+         */
+        ShiftKind: "shift" | "vacation" | "sick";
+        /** ShiftTimesIn */
+        ShiftTimesIn: {
+            /** Breakend */
+            breakEnd?: string | null;
+            /** Breakstart */
+            breakStart?: string | null;
+            /**
+             * End
+             * Format: time
+             */
+            end: string;
+            /**
+             * Start
+             * Format: time
+             */
+            start: string;
+        };
+        /** ShiftTrimOut */
+        ShiftTrimOut: {
+            /** Conflicts */
+            conflicts: components["schemas"]["ShiftConflictOut"][];
+            /** Removed */
+            removed: number;
+            /** Trimmed */
+            trimmed: number;
+        };
+        /** SkippedOut */
+        SkippedOut: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Message */
+            message: string;
+            /** Reason */
+            reason: string;
+            /**
+             * Staffid
+             * Format: uuid
+             */
+            staffId: string;
+        };
         /** StaffCreateIn */
         StaffCreateIn: {
             /** Additionalphone */
@@ -3942,6 +4112,23 @@ export interface components {
             /** Reviews */
             reviews: number;
         };
+        /** StaffShiftsOut */
+        StaffShiftsOut: {
+            /** Canedit */
+            canEdit: boolean;
+            /** Color */
+            color: string | null;
+            /** Days */
+            days: components["schemas"]["ShiftCellOut"][];
+            /** Name */
+            name: string;
+            role: components["schemas"]["Role"];
+            /**
+             * Staffid
+             * Format: uuid
+             */
+            staffId: string;
+        };
         /** StaffStatsOut */
         StaffStatsOut: {
             /** Avgcheck */
@@ -3955,9 +4142,10 @@ export interface components {
         };
         /**
          * StaffStatus
+         * @description Статус в салоне. Отпуск и больничный — отметки в графике (StaffShift).
          * @enum {string}
          */
-        StaffStatus: "active" | "vacation" | "sick" | "fired";
+        StaffStatus: "active" | "fired";
         /** StatusIn */
         StatusIn: {
             status: components["schemas"]["RecordStatus"];
@@ -6637,7 +6825,138 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Envelope_SalonScheduleOut_"];
+                    "application/json": components["schemas"]["Envelope_SalonSchedulePutOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    shift_grid_api_admin_v1_shifts_get: {
+        parameters: {
+            query: {
+                dateFrom: string;
+                dateTo: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_ShiftGridOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_shift_api_admin_v1_shifts__staffId___date__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                date: string;
+                staffId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShiftIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_ShiftCellOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_shift_api_admin_v1_shifts__staffId___date__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                date: string;
+                staffId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    fill_shifts_api_admin_v1_shifts_fill_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FillIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_FillReportOut_"];
                 };
             };
             /** @description Validation Error */
@@ -6803,175 +7122,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_StaffOut_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_schedule_api_admin_v1_staff__staff_id__schedule_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                staff_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Envelope_ScheduleOut_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    save_schedule_api_admin_v1_staff__staff_id__schedule_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                staff_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    [key: string]: components["schemas"]["DayScheduleIn"];
-                };
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Envelope_ScheduleOut_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    add_exception_api_admin_v1_staff__staff_id__schedule_exceptions_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                staff_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ExceptionIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Envelope_ExceptionOut_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_exception_api_admin_v1_staff__staff_id__schedule_exceptions__exception_id__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                exception_id: string;
-                staff_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    patch_exception_api_admin_v1_staff__staff_id__schedule_exceptions__exception_id__patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                exception_id: string;
-                staff_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ExceptionPatchIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Envelope_ExceptionOut_"];
                 };
             };
             /** @description Validation Error */

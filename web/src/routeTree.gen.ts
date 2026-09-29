@@ -23,6 +23,8 @@ import { Route as AppOverviewRouteImport } from './routes/_app/overview'
 import { Route as AppProfileRouteImport } from './routes/_app/profile'
 import { Route as AppReportsRouteImport } from './routes/_app/reports'
 import { Route as AppServicesRouteImport } from './routes/_app/services'
+import { Route as AppSettingsRouteImport } from './routes/_app/settings'
+import { Route as AppShiftsRouteImport } from './routes/_app/shifts'
 import { Route as AppStaffRouteImport } from './routes/_app/staff'
 
 const AppRoute = AppRouteImport.update({
@@ -94,6 +96,16 @@ const AppServicesRoute = AppServicesRouteImport.update({
   path: '/services',
   getParentRoute: () => AppRoute,
 } as any)
+const AppSettingsRoute = AppSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppShiftsRoute = AppShiftsRouteImport.update({
+  id: '/shifts',
+  path: '/shifts',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppStaffRoute = AppStaffRouteImport.update({
   id: '/staff',
   path: '/staff',
@@ -114,6 +126,8 @@ export interface FileRoutesByFullPath {
   '/profile': typeof AppProfileRoute
   '/reports': typeof AppReportsRoute
   '/services': typeof AppServicesRoute
+  '/settings': typeof AppSettingsRoute
+  '/shifts': typeof AppShiftsRoute
   '/staff': typeof AppStaffRoute
 }
 export interface FileRoutesByTo {
@@ -129,6 +143,8 @@ export interface FileRoutesByTo {
   '/profile': typeof AppProfileRoute
   '/reports': typeof AppReportsRoute
   '/services': typeof AppServicesRoute
+  '/settings': typeof AppSettingsRoute
+  '/shifts': typeof AppShiftsRoute
   '/staff': typeof AppStaffRoute
   '/': typeof AppIndexRoute
 }
@@ -147,6 +163,8 @@ export interface FileRoutesById {
   '/_app/profile': typeof AppProfileRoute
   '/_app/reports': typeof AppReportsRoute
   '/_app/services': typeof AppServicesRoute
+  '/_app/settings': typeof AppSettingsRoute
+  '/_app/shifts': typeof AppShiftsRoute
   '/_app/staff': typeof AppStaffRoute
   '/_app/': typeof AppIndexRoute
 }
@@ -166,6 +184,8 @@ export interface FileRouteTypes {
     | '/profile'
     | '/reports'
     | '/services'
+    | '/settings'
+    | '/shifts'
     | '/staff'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -181,6 +201,8 @@ export interface FileRouteTypes {
     | '/profile'
     | '/reports'
     | '/services'
+    | '/settings'
+    | '/shifts'
     | '/staff'
     | '/'
   id:
@@ -198,6 +220,8 @@ export interface FileRouteTypes {
     | '/_app/profile'
     | '/_app/reports'
     | '/_app/services'
+    | '/_app/settings'
+    | '/_app/shifts'
     | '/_app/staff'
     | '/_app/'
   fileRoutesById: FileRoutesById
@@ -309,6 +333,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppServicesRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/settings': {
+      id: '/_app/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AppSettingsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/shifts': {
+      id: '/_app/shifts'
+      path: '/shifts'
+      fullPath: '/shifts'
+      preLoaderRoute: typeof AppShiftsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/staff': {
       id: '/_app/staff'
       path: '/staff'
@@ -329,6 +367,8 @@ interface AppRouteChildren {
   AppProfileRoute: typeof AppProfileRoute
   AppReportsRoute: typeof AppReportsRoute
   AppServicesRoute: typeof AppServicesRoute
+  AppSettingsRoute: typeof AppSettingsRoute
+  AppShiftsRoute: typeof AppShiftsRoute
   AppStaffRoute: typeof AppStaffRoute
   AppIndexRoute: typeof AppIndexRoute
 }
@@ -343,6 +383,8 @@ const AppRouteChildren: AppRouteChildren = {
   AppProfileRoute: AppProfileRoute,
   AppReportsRoute: AppReportsRoute,
   AppServicesRoute: AppServicesRoute,
+  AppSettingsRoute: AppSettingsRoute,
+  AppShiftsRoute: AppShiftsRoute,
   AppStaffRoute: AppStaffRoute,
   AppIndexRoute: AppIndexRoute,
 }

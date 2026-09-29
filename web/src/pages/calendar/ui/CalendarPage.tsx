@@ -155,7 +155,10 @@ export function CalendarPage() {
             },
           })
           .then(
-            () => void message.success('Запис перенесено'),
+            (saved) => {
+              void message.success('Запис перенесено');
+              if (saved.outsideShift) void message.warning('Запис поза зміною майстра');
+            },
             (e: unknown) => void message.error(errorMessage(e)),
           ),
     });

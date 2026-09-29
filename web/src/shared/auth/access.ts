@@ -5,7 +5,16 @@ import type { Schema } from '@/shared/api';
  * чтобы спрятать недоступное; настоящие проверки — на бекенде.
  */
 export type Section =
-  'calendar' | 'clients' | 'staff' | 'services' | 'inventory' | 'overview' | 'reports' | 'finances';
+  | 'calendar'
+  | 'shifts'
+  | 'clients'
+  | 'staff'
+  | 'services'
+  | 'inventory'
+  | 'overview'
+  | 'reports'
+  | 'finances'
+  | 'settings';
 
 export interface Viewer {
   id: string;
@@ -31,6 +40,8 @@ export function toViewer(me: Me): Viewer {
 
 const SECTIONS: Record<Section, (v: Viewer) => boolean> = {
   calendar: () => true,
+  // Сетку видят все; мастер — только свою строку (фильтрует бекенд).
+  shifts: () => true,
   clients: () => true,
   staff: (v) => v.isAdmin,
   services: (v) => v.isAdmin,
@@ -38,6 +49,7 @@ const SECTIONS: Record<Section, (v: Viewer) => boolean> = {
   overview: (v) => v.isAdmin,
   reports: (v) => v.isAdmin,
   finances: (v) => v.isSuperuser,
+  settings: (v) => v.isAdmin,
 };
 
 export const canAccess = (viewer: Viewer, section: Section) => SECTIONS[section](viewer);

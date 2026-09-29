@@ -1,8 +1,16 @@
 import dayjs, { type Dayjs } from 'dayjs';
 
-import type { Schema } from '@/shared/api';
-
-export type DaySchedule = Schema<'DayScheduleIn'>;
+/**
+ * День недельного графика: часы салона (без перерыва) или шаблон смены для заполнения графика
+ * сотрудников по дням недели (с необязательным перерывом).
+ */
+export interface DaySchedule {
+  isWorkDay: boolean;
+  start: string | null;
+  end: string | null;
+  breakStart?: string | null;
+  breakEnd?: string | null;
+}
 export const WEEKDAYS = [
   'monday',
   'tuesday',
@@ -50,7 +58,9 @@ export const defaultWeek = (): WeekSchedule =>
   ) as WeekSchedule;
 
 /** Ответ API → значение редактора (время обрезается до `HH:mm`, пустые дни — выходные). */
-export function weekFromApi(week: Record<string, DaySchedule>): WeekSchedule {
+export function weekFromApi(
+  week: Record<string, Partial<DaySchedule> & { isWorkDay: boolean }>,
+): WeekSchedule {
   const base = defaultWeek();
   // График ещё ни разу не сохраняли — бекенд отдаёт все дни пустыми; предлагаем типовую неделю.
   if (Object.values(week).every((d) => !d.isWorkDay && !d.start)) return base;

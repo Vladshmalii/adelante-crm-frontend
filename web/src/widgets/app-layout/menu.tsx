@@ -1,8 +1,10 @@
 import {
   BarChartOutlined,
   CalendarOutlined,
+  FieldTimeOutlined,
   DashboardOutlined,
   InboxOutlined,
+  SettingOutlined,
   ScissorOutlined,
   TeamOutlined,
   UserOutlined,
@@ -27,6 +29,7 @@ interface MenuItem {
  */
 export const menuItems: MenuItem[] = [
   { path: '/calendar', name: 'Розклад', icon: <CalendarOutlined />, section: 'calendar' },
+  { path: '/shifts', name: 'Графік роботи', icon: <FieldTimeOutlined />, section: 'shifts' },
   { path: '/clients', name: 'Клієнти', icon: <UserOutlined />, section: 'clients' },
   { path: '/staff', name: 'Співробітники', icon: <TeamOutlined />, section: 'staff' },
   { path: '/services', name: 'Послуги', icon: <ScissorOutlined />, section: 'services' },
@@ -34,4 +37,5 @@ export const menuItems: MenuItem[] = [
   { path: '/overview', name: 'Огляд', icon: <DashboardOutlined />, section: 'overview' },
   { path: '/reports', name: 'Звіти', icon: <BarChartOutlined />, section: 'reports' },
   { path: '/finances', name: 'Фінанси', icon: <WalletOutlined />, section: 'finances' },
+  { path: '/settings', name: 'Налаштування', icon: <SettingOutlined />, section: 'settings' },
 ];

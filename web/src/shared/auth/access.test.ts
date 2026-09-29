@@ -39,6 +39,8 @@ describe('права доступа (docs/ACCESS.md)', () => {
     expect(canAccess(v, 'inventory')).toBe(false);
     expect(canAccess(v, 'reports')).toBe(false);
     expect(canAccess(v, 'calendar')).toBe(true);
+    expect(canAccess(v, 'shifts')).toBe(true);
+    expect(canAccess(v, 'settings')).toBe(false);
     expect(permissions(v).records).toMatchObject({
       manageAll: false,
       pay: false,
@@ -57,6 +59,7 @@ describe('права доступа (docs/ACCESS.md)', () => {
     expect(canAccess(v, 'staff')).toBe(true);
     expect(canAccess(v, 'inventory')).toBe(true);
     expect(canAccess(v, 'reports')).toBe(true);
+    expect(canAccess(v, 'settings')).toBe(true);
     expect(canAccess(v, 'finances')).toBe(false);
     const can = permissions(v);
     expect(can.inventory.manage).toBe(true);
