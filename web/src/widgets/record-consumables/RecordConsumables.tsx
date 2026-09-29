@@ -1,13 +1,30 @@
-import { PlusOutlined } from '@ant-design/icons';
+import { PlusOutlined, UndoOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
-import { Alert, App, Button, Empty, InputNumber, Select, Space, Table, Typography } from 'antd';
+import {
+  Alert,
+  App,
+  Button,
+  Empty,
+  InputNumber,
+  Popconfirm,
+  Select,
+  Space,
+  Table,
+  Tooltip,
+  Typography,
+} from 'antd';
 import { useState } from 'react';
 
 import { errorMessage, type Schema } from '@/shared/api';
 import { formatDateTime, formatQuantity, productUnitLabels, useDebouncedValue } from '@/shared/lib';
 import { QueryErrorAlert } from '@/shared/ui';
 
-import { consumablesQueryOptions, productPickerQueryOptions, useWriteOffConsumables } from './api';
+import {
+  consumablesQueryOptions,
+  productPickerQueryOptions,
+  useCancelConsumable,
+  useWriteOffConsumables,
+} from './api';
 
 type Product = Schema<'ProductOut'>;
 type Consumable = Schema<'ConsumableOut'>;
@@ -16,14 +33,28 @@ interface RecordConsumablesProps {
   recordId: string;
   /** По отменённой записи бекенд списывать не даёт (409) — форму не показываем. */
   canWriteOff: boolean;
+  /** Отменить списание можно по любой записи, в том числе завершённой и оплаченной. */
+  canCancel: boolean;
 }
 
 /**
  * «Списання витрат» по записи: что уже списано и форма списания со склада. Используется
  * в карточке записи (Огляд, позже Розклад).
  */
-export function RecordConsumables({ recordId, canWriteOff }: RecordConsumablesProps) {
+export function RecordConsumables({ recordId, canWriteOff, canCancel }: RecordConsumablesProps) {
+  const { message } = App.useApp();
   const { data, error, isPending, refetch } = useQuery(consumablesQueryOptions(recordId));
+  const cancel = useCancelConsumable(recordId);
+
+  // Отменённое списание остаётся в списке зачёркнутым.
+  const struck = (c: Consumable, text: string) =>
+    c.cancelled ? (
+      <Typography.Text delete type="secondary">
+        {text}
+      </Typography.Text>
+    ) : (
+      text
+    );
 
   return (
     <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
@@ -37,15 +68,52 @@ export function RecordConsumables({ recordId, canWriteOff }: RecordConsumablesPr
         dataSource={data}
         locale={{ emptyText: <Empty description="Нічого не списано" /> }}
         columns={[
-          { title: 'Товар', dataIndex: 'productName' },
+          { title: 'Товар', key: 'product', render: (_, c) => struck(c, c.productName) },
           {
             title: 'Кількість',
             key: 'quantity',
             align: 'right',
-            render: (_, c) => formatQuantity(c.quantity, c.unit),
+            render: (_, c) => struck(c, formatQuantity(c.quantity, c.unit)),
           },
           { title: 'Хто списав', key: 'author', render: (_, c) => c.author.name ?? '—' },
           { title: 'Коли', key: 'date', render: (_, c) => formatDateTime(c.createdAt) },
+          {
+            title: '',
+            key: 'actions',
+            width: 96,
+            render: (_, c) =>
+              c.cancelled ? (
+                <Tooltip
+                  title={`Скасовано ${formatDateTime(c.cancelledAt ?? null)}${
+                    c.cancelledBy?.name ? `, ${c.cancelledBy.name}` : ''
+                  }`}
+                >
+                  <Typography.Text type="secondary">Скасовано</Typography.Text>
+                </Tooltip>
+              ) : (
+                canCancel && (
+                  <Popconfirm
+                    title="Скасувати списання?"
+                    description="Товар повернеться на склад."
+                    okText="Скасувати списання"
+                    cancelText="Назад"
+                    onConfirm={() =>
+                      cancel.mutateAsync(c.movementId).then(
+                        () => void message.success('Списання скасовано'),
+                        (e: unknown) => void message.error(errorMessage(e)),
+                      )
+                    }
+                  >
+                    <Button
+                      type="text"
+                      aria-label="Скасувати списання"
+                      icon={<UndoOutlined />}
+                      loading={cancel.isPending && cancel.variables === c.movementId}
+                    />
+                  </Popconfirm>
+                )
+              ),
+          },
         ]}
       />
     </Space>
@@ -124,9 +192,6 @@ function WriteOffForm({ recordId }: { recordId: string }) {
           title={`На складі лише ${formatQuantity(product.quantity, product.unit)}`}
         />
       )}
-      <Typography.Text type="secondary">
-        Списання не скасовується — помилку виправляйте коригуванням залишку на складі.
-      </Typography.Text>
     </Space>
   );
 }

@@ -16,18 +16,21 @@ import {
 
 import type { Schema } from '@/shared/api';
 import { useViewer } from '@/shared/auth';
-import { formatDateTime, formatMoney, formatPhone, inSalonTz } from '@/shared/lib';
+import {
+  formatDateTime,
+  formatMoney,
+  formatPhone,
+  importanceLabels,
+  inSalonTz,
+  paymentStatusLabels,
+  recordStatusLabels,
+  sourceLabels,
+} from '@/shared/lib';
 import { ChangeDetails } from '@/shared/ui';
 import { RecordConsumables } from '@/widgets/record-consumables';
 
 import { recordQueryOptions } from '../api/overview.queries';
-import {
-  auditActionLabels,
-  importanceLabels,
-  paymentStatusLabels,
-  recordStatusLabels,
-  sourceLabels,
-} from '../model/labels';
+import { auditActionLabels } from '../model/labels';
 
 type RecordItem = Schema<'RecordDetailOut'>;
 
@@ -79,6 +82,7 @@ export function RecordDrawer({ recordId, onClose }: RecordDrawerProps) {
                 <RecordConsumables
                   recordId={record.id}
                   canWriteOff={can.records.writeOffConsumables && record.status !== 'cancelled'}
+                  canCancel={can.records.writeOffConsumables}
                 />
               ),
             },

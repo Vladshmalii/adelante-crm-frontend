@@ -23,3 +23,9 @@ export { formatMoney } from './money';
 export { formatPhone, isValidPhone, normalizePhone } from './phone';
 export { formatQuantity, productUnitLabels } from './quantity';
 export { useDebouncedValue } from './use-debounced-value';
+export {
+  importanceLabels,
+  paymentStatusLabels,
+  recordStatusLabels,
+  sourceLabels,
+} from './record-labels';

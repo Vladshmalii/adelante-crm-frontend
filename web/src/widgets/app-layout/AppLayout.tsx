@@ -3,11 +3,12 @@ import { ProLayout } from '@ant-design/pro-components';
 import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
 import { Link, type LinkProps, useLocation, useNavigate } from '@tanstack/react-router';
 import { Button, Dropdown, Select } from 'antd';
-import type { ReactNode } from 'react';
+import { type ReactNode, useEffect } from 'react';
 
 import { canAccess, meQueryOptions, useViewer } from '@/shared/auth';
 import { usePreferencesStore } from '@/shared/preferences';
 import { useSessionStore } from '@/shared/session';
+import { MiniCalendar } from '@/widgets/mini-calendar';
 import { NotificationsBell } from '@/widgets/notifications';
 
 import { GlobalSearch } from './GlobalSearch';
@@ -29,6 +30,20 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const setSalonId = useSessionStore((s) => s.setSalonId);
   const logout = useSessionStore((s) => s.clear);
 
+  // Alt+N — новая запись из любого раздела.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.altKey && e.code === 'KeyN') {
+        e.preventDefault();
+        void navigate({ to: '/calendar', search: { create: true } });
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [navigate]);
+
   const switchSalon = (id: string) => {
     setSalonId(id);
     // Все данные, кроме профиля, принадлежат салону — сбрасываем и грузим заново.
@@ -47,6 +62,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
       location={{ pathname }}
       collapsed={siderCollapsed}
       onCollapse={setSiderCollapsed}
+      // Мини-календарь с загрузкой дней и «Додати запис» — над меню; в свёрнутом меню не помещается.
+      menuExtraRender={({ collapsed }) => (collapsed ? null : <MiniCalendar />)}
+      siderWidth={264}
       menuItemRender={(item, dom) =>
         // ProLayout отдаёт path как string; все пути берутся из типизированного menuItems.
         item.path ? <Link to={item.path as LinkProps['to']}>{dom}</Link> : dom

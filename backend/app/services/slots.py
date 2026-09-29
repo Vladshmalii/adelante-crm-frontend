@@ -1,27 +1,21 @@
-"""Свободное время мастера.
+"""Рабочее и свободное время мастера — по сменам (StaffShift).
 
-Источник: недельный шаблон StaffSchedule + исключения ScheduleException
-(времена — киевские), минус записи, занимающие время мастера (UTC).
-Шаг сетки — 15 минут; слот подходит, если интервал услуг целиком помещается
-в рабочее окно (за вычетом перерыва) и не пересекается с записями.
+Смена на дату (киевское время) минус перерыв — рабочие окна; нет смены или
+отметка (відпустка, лікарняний) — нерабочий день. Свободные слоты — окна
+минус записи, занимающие время мастера (UTC). Шаг сетки — 15 минут.
 
 Данные грузятся одним набором запросов на весь диапазон дат — календарь
 доступности на месяц не делает запросов на каждый день.
 """
 
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, time, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.shard import (
-    Record,
-    ScheduleException,
-    ScheduleExceptionType,
-    StaffSchedule,
-)
+from app.models.shard import Record, ShiftKind, StaffShift
 from app.services.records import BUSY_STATUSES
 from app.timeutils import SALON_TZ, day_bounds
 
@@ -34,36 +28,27 @@ class Slot:
     label: str  # «14:30» по Киеву
 
 
+def shift_windows(shift: StaffShift | None) -> list[tuple[time, time]]:
+    """Рабочие интервалы смены (перерыв вырезан); отметка или нет смены — []."""
+    if shift is None or shift.kind != ShiftKind.SHIFT:
+        return []
+    if shift.start_time is None or shift.end_time is None:
+        return []
+    if shift.break_start and shift.break_end:
+        return [(shift.start_time, shift.break_start), (shift.break_end, shift.end_time)]
+    return [(shift.start_time, shift.end_time)]
+
+
 @dataclass
 class _MasterCalendar:
-    templates: dict[int, StaffSchedule]
-    exceptions: list[ScheduleException]
-    busy: list[tuple[datetime, datetime]]
+    shifts: dict[date, StaffShift] = field(default_factory=dict)
+    busy: list[tuple[datetime, datetime]] = field(default_factory=list)
 
-    def exception_on(self, day: date) -> ScheduleException | None:
-        """Исключение, действующее в день (исключения одного мастера не пересекаются)."""
-        return next((e for e in self.exceptions if e.date_from <= day <= e.date_to), None)
+    def shift_on(self, day: date) -> StaffShift | None:
+        return self.shifts.get(day)
 
     def windows(self, day: date) -> list[tuple[time, time]]:
-        """Рабочие интервалы дня с учётом исключений (перерыв вырезан)."""
-        exc = self.exception_on(day)
-        if exc is not None:
-            if exc.type == ScheduleExceptionType.EXTRA_SHIFT and exc.start_time and exc.end_time:
-                return [(exc.start_time, exc.end_time)]
-            # vacation / sick / day_off (и доп. смена без часов) перекрывают шаблон
-            return []
-
-        template = self.templates.get(day.weekday())
-        if template is None or not template.is_work_day:
-            return []
-        if not template.start_time or not template.end_time:
-            return []
-        if template.break_start and template.break_end:
-            return [
-                (template.start_time, template.break_start),
-                (template.break_end, template.end_time),
-            ]
-        return [(template.start_time, template.end_time)]
+        return shift_windows(self.shift_on(day))
 
     def work_minutes(self, day: date) -> int:
         return sum(
@@ -89,7 +74,7 @@ class _MasterCalendar:
         return result
 
     def fits(self, start: datetime, end: datetime) -> bool:
-        """Интервал внутри одного рабочего окна своего дня."""
+        """Интервал внутри одного рабочего окна своего дня (перерыв — вне окон)."""
         local_start, local_end = start.astimezone(SALON_TZ), end.astimezone(SALON_TZ)
         day = local_start.date()
         for win_start, win_end in self.windows(day):
@@ -100,66 +85,46 @@ class _MasterCalendar:
         return False
 
 
+async def load_shifts(
+    session: AsyncSession, staff_ids: list[uuid.UUID], first_day: date, last_day: date
+) -> dict[uuid.UUID, dict[date, StaffShift]]:
+    result: dict[uuid.UUID, dict[date, StaffShift]] = {staff_id: {} for staff_id in staff_ids}
+    if not staff_ids:
+        return result
+    for shift in await session.scalars(
+        select(StaffShift).where(
+            StaffShift.staff_id.in_(staff_ids),
+            StaffShift.date >= first_day,
+            StaffShift.date <= last_day,
+        )
+    ):
+        result[shift.staff_id][shift.date] = shift
+    return result
+
+
 async def _load(
-    session: AsyncSession,
-    master_id: uuid.UUID,
-    first_day: date,
-    last_day: date,
+    session: AsyncSession, master_id: uuid.UUID, first_day: date, last_day: date
 ) -> _MasterCalendar:
-    templates = {
-        t.weekday: t
-        for t in await session.scalars(
-            select(StaffSchedule).where(StaffSchedule.master_id == master_id)
-        )
-    }
-    exceptions = list(
-        await session.scalars(
-            select(ScheduleException).where(
-                ScheduleException.master_id == master_id,
-                ScheduleException.date_from <= last_day,
-                ScheduleException.date_to >= first_day,
-            )
-        )
-    )
+    shifts = (await load_shifts(session, [master_id], first_day, last_day))[master_id]
     range_start, _ = day_bounds(first_day)
     _, range_end = day_bounds(last_day)
-    query = select(Record.start_at, Record.end_at).where(
-        Record.master_id == master_id,
-        Record.status.in_(BUSY_STATUSES),
-        Record.start_at < range_end,
-        Record.end_at > range_start,
+    rows = await session.execute(
+        select(Record.start_at, Record.end_at).where(
+            Record.master_id == master_id,
+            Record.status.in_(BUSY_STATUSES),
+            Record.start_at < range_end,
+            Record.end_at > range_start,
+        )
     )
-    busy = [(start, end) for start, end in (await session.execute(query)).all()]
-    return _MasterCalendar(templates=templates, exceptions=exceptions, busy=busy)
+    return _MasterCalendar(shifts=shifts, busy=[(start, end) for start, end in rows.all()])
 
 
 async def load_schedules(
-    session: AsyncSession,
-    master_ids: list[uuid.UUID],
-    first_day: date,
-    last_day: date,
+    session: AsyncSession, master_ids: list[uuid.UUID], first_day: date, last_day: date
 ) -> dict[uuid.UUID, _MasterCalendar]:
-    """Графики нескольких мастеров на период — для календаря (без занятости)."""
-    calendars = {
-        master_id: _MasterCalendar(templates={}, exceptions=[], busy=[]) for master_id in master_ids
-    }
-    if not master_ids:
-        return calendars
-    for template in await session.scalars(
-        select(StaffSchedule).where(StaffSchedule.master_id.in_(master_ids))
-    ):
-        calendars[template.master_id].templates[template.weekday] = template
-    for exc in await session.scalars(
-        select(ScheduleException)
-        .where(
-            ScheduleException.master_id.in_(master_ids),
-            ScheduleException.date_from <= last_day,
-            ScheduleException.date_to >= first_day,
-        )
-        .order_by(ScheduleException.date_from)
-    ):
-        calendars[exc.master_id].exceptions.append(exc)
-    return calendars
+    """Смены нескольких сотрудников на период — для календаря (без занятости)."""
+    shifts = await load_shifts(session, master_ids, first_day, last_day)
+    return {staff_id: _MasterCalendar(shifts=shifts[staff_id]) for staff_id in master_ids}
 
 
 async def free_slots(
@@ -201,7 +166,7 @@ async def fits_schedule(
     start_at: datetime,
     end_at: datetime,
 ) -> bool:
-    """Время попадает в рабочие часы мастера (занятость не проверяется)."""
+    """Время попадает в смену мастера (занятость не проверяется)."""
     day = start_at.astimezone(SALON_TZ).date()
     calendar = await _load(session, master_id, day, day)
     return calendar.fits(start_at, end_at)

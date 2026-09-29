@@ -31,14 +31,16 @@ from app.models.shard import (
     RecordSource,
     RecordStatus,
     Service,
+    ShiftKind,
     StaffProfile,
+    StaffShift,
 )
 from app.services import records as records_service
 from app.services import slots as slots_service
 from app.services import visits as visits_service
 from app.services.audit import diff_fields, write_audit
 from app.tenancy.deps import MasterSession, SalonId, TenantSession
-from app.timeutils import LocalDatetime, now_local
+from app.timeutils import LocalDatetime, now_local, to_local
 
 router = APIRouter(tags=["records"], dependencies=[Depends(require_salon_access)])
 
@@ -95,6 +97,9 @@ class RecordOut(ApiModel):
     reminder_enabled: bool
     reminder_sent_at: datetime | None
     client_telegram_linked: bool
+    # Запись мастера не помещается целиком в его смену этого дня (или смены нет).
+    # Только для отображения: запись вне смены из админки разрешена
+    outside_shift: bool
 
 
 class HistoryItemOut(ApiModel):
@@ -125,10 +130,22 @@ class _Refs:
         colors: dict[uuid.UUID, str | None],
         services: dict[uuid.UUID, Service],
         telegram_clients: set[uuid.UUID],
+        shifts: dict[tuple[uuid.UUID, date_type], StaffShift],
     ) -> None:
         self.colors = colors
         self.services = services
         self.telegram_clients = telegram_clients
+        self.shifts = shifts
+
+    def outside_shift(self, record: Record) -> bool:
+        if record.master_id is None:
+            return False
+        start, end = to_local(record.start_at), to_local(record.end_at)
+        shift = self.shifts.get((record.master_id, start.date()))
+        if shift is None or shift.kind != ShiftKind.SHIFT or end.date() != start.date():
+            return True
+        assert shift.start_time is not None and shift.end_time is not None
+        return not (shift.start_time <= start.time() and end.time() <= shift.end_time)
 
 
 async def _load_refs(
@@ -162,7 +179,17 @@ async def _load_refs(
                 )
             )
         )
-    return _Refs(colors, services, telegram_clients)
+    shifts: dict[tuple[uuid.UUID, date_type], StaffShift] = {}
+    keys = {(r.master_id, to_local(r.start_at).date()) for r in records if r.master_id}
+    if keys:
+        for shift in await tenant_session.scalars(
+            select(StaffShift).where(
+                StaffShift.staff_id.in_({m for m, _ in keys}),
+                StaffShift.date.in_({d for _, d in keys}),
+            )
+        ):
+            shifts[(shift.staff_id, shift.date)] = shift
+    return _Refs(colors, services, telegram_clients, shifts)
 
 
 def _record_out(record: Record, refs: _Refs) -> RecordOut:
@@ -213,6 +240,7 @@ def _record_out(record: Record, refs: _Refs) -> RecordOut:
         reminder_enabled=record.reminder_enabled,
         reminder_sent_at=record.reminder_sent_at,
         client_telegram_linked=record.client_id in refs.telegram_clients,
+        outside_shift=refs.outside_shift(record),
     )
 
 
@@ -374,6 +402,8 @@ async def create_record(
         raise HTTPException(422, "Клієнта не знайдено або деактивовано")
     except records_service.ServiceUnavailable:
         raise HTTPException(422, "Послугу не знайдено або вона неактивна")
+    except records_service.MasterOnLeave as exc:
+        raise HTTPException(409, str(exc))
 
     return Envelope(data=await _one_out(tenant_session, master_session, record))
 
@@ -502,6 +532,14 @@ async def patch_record(
                 [s.name for s in services],
             ]
             records_service.apply_services(record, services)
+
+    if record.master_id is not None and ("master" in changes or "startAt" in changes):
+        try:
+            await records_service.ensure_master_not_on_leave(
+                tenant_session, record.master_id, record.start_at
+            )
+        except records_service.MasterOnLeave as exc:
+            raise HTTPException(409, str(exc))
 
     plain = body.model_dump(include=set(PLAIN_PATCH_FIELDS), exclude_unset=True, by_alias=False)
     if plain.get("reminder_enabled", False) is None:

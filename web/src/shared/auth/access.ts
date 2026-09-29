@@ -5,7 +5,7 @@ import type { Schema } from '@/shared/api';
  * чтобы спрятать недоступное; настоящие проверки — на бекенде.
  */
 export type Section =
-  'clients' | 'staff' | 'services' | 'inventory' | 'overview' | 'reports' | 'finances';
+  'calendar' | 'clients' | 'staff' | 'services' | 'inventory' | 'overview' | 'reports' | 'finances';
 
 export interface Viewer {
   id: string;
@@ -30,6 +30,7 @@ export function toViewer(me: Me): Viewer {
 }
 
 const SECTIONS: Record<Section, (v: Viewer) => boolean> = {
+  calendar: () => true,
   clients: () => true,
   staff: (v) => v.isAdmin,
   services: (v) => v.isAdmin,
@@ -66,6 +67,10 @@ export const permissions = (v: Viewer) => ({
     manage: v.isAdmin,
   },
   records: {
+    /** Очередь «Без майстра», фильтр мастеров, запись к любому мастеру и смена мастера. */
+    manageAll: v.isAdmin,
+    /** Оплата визита — администратор; мастер только завершает визит. */
+    pay: v.isAdmin,
     /** Списание расходников: администратор — по любой записи, мастер — по своей. */
     writeOffConsumables: true,
   },

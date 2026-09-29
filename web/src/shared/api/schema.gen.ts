@@ -234,6 +234,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/v1/finances/cash-registers/{register_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Patch Cash Register */
+        patch: operations["patch_cash_register_api_admin_v1_finances_cash_registers__register_id__patch"];
+        trace?: never;
+    };
     "/api/admin/v1/finances/dashboard": {
         parameters: {
             query?: never;
@@ -298,6 +315,26 @@ export interface paths {
          * @description Excel-отчёт по операциям за период.
          */
         get: operations["export_operations_api_admin_v1_finances_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/finances/locations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Locations
+         * @description Локации активных касс — для фильтра «Локація».
+         */
+        get: operations["list_locations_api_admin_v1_finances_locations_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -598,6 +635,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/v1/payment-methods": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Payment Methods
+         * @description Способы оплаты для приёма оплаты визита (администратор).
+         *
+         *     Только те, через которые оплата пройдёт: способ активен, у него есть
+         *     касса и она не выключена. Финансовые настройки — в /finances/payment-methods.
+         */
+        get: operations["list_payment_methods_api_admin_v1_payment_methods_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/v1/records": {
         parameters: {
             query?: never;
@@ -675,6 +735,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/v1/records/{record_id}/consumables/{movement_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Cancel Consumable
+         * @description Отмена ошибочного списания: обратное движение «надходження» с record_id.
+         *
+         *     Исходное движение не удаляется. Можно по любой записи, в том числе
+         *     завершённой, оплаченной и с удалённым товаром (ошибки находят после визита).
+         *     Ответ — обновлённый список расходников записи.
+         */
+        delete: operations["cancel_consumable_api_admin_v1_records__record_id__consumables__movement_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/v1/records/{record_id}/payment": {
         parameters: {
             query?: never;
@@ -706,6 +790,29 @@ export interface paths {
         put?: never;
         /** Set Status */
         post: operations["set_status_api_admin_v1_records__record_id__status_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/records/daily-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Daily Summary
+         * @description Число и длительность записей по дням — вид «Місяць» и мини-календарь.
+         *
+         *     Отменённые не считаются, «Не прийшов» — считаются (время мастера было занято).
+         *     Запись относится к дню своего начала.
+         */
+        get: operations["daily_summary_api_admin_v1_records_daily_summary_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -834,6 +941,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/v1/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Schedule
+         * @description Рабочее время мастеров по дням (даты включительно) — сетка Розкладу.
+         */
+        get: operations["schedule_api_admin_v1_schedule_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/v1/services": {
         parameters: {
             query?: never;
@@ -883,6 +1010,45 @@ export interface paths {
         /** List Categories */
         get: operations["list_categories_api_admin_v1_services_categories_get"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/settings/salon": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Salon Info */
+        get: operations["get_salon_info_api_admin_v1_settings_salon_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Patch Salon Info */
+        patch: operations["patch_salon_info_api_admin_v1_settings_salon_patch"];
+        trace?: never;
+    };
+    "/api/admin/v1/settings/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Salon Schedule */
+        get: operations["get_salon_schedule_api_admin_v1_settings_schedule_get"];
+        /**
+         * Put Salon Schedule
+         * @description Весь график целиком: все семь дней недели.
+         */
+        put: operations["put_salon_schedule_api_admin_v1_settings_schedule_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -1108,6 +1274,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/booking/{salon_slug}/reviews/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Review Context
+         * @description Данные визита по токену из ссылки; использованный или чужой токен — 404.
+         */
+        get: operations["review_context_api_booking__salon_slug__reviews__token__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/booking/{salon_slug}/salon": {
         parameters: {
             query?: never;
@@ -1115,7 +1301,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Salon */
+        /**
+         * Get Salon
+         * @description Карточка салона для сайта записи: контакты и график (без юридического названия).
+         */
         get: operations["get_salon_api_booking__salon_slug__salon_get"];
         put?: never;
         post?: never;
@@ -1300,6 +1489,17 @@ export interface components {
             /** Slug */
             slug: string;
         };
+        /** MasterDayOut */
+        app__api__admin__calendar__MasterDayOut: {
+            /** Bookedminutes */
+            bookedMinutes: number;
+            /** Count */
+            count: number;
+            /** Masterid */
+            masterId: string | null;
+            /** Workminutes */
+            workMinutes: number | null;
+        };
         /** CategoryOut */
         app__api__admin__inventory__CategoryOut: {
             /**
@@ -1356,17 +1556,37 @@ export interface components {
         };
         /** SalonOut */
         app__api__booking__router__SalonOut: {
+            /** Address */
+            address?: string | null;
+            /** City */
+            city?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Email */
+            email?: string | null;
+            /** Facebook */
+            facebook?: string | null;
             /**
              * Id
              * Format: uuid
              */
             id: string;
+            /** Instagram */
+            instagram?: string | null;
             /** Name */
             name: string;
+            /** Phone */
+            phone?: string | null;
+            /** Schedule */
+            schedule?: {
+                [key: string]: components["schemas"]["SalonDayOut"];
+            } | null;
             /** Slug */
             slug: string;
             /** Timezone */
             timezone: string;
+            /** Website */
+            website?: string | null;
         };
         /** ServiceOut */
         app__api__booking__router__ServiceOut: {
@@ -1399,6 +1619,18 @@ export interface components {
              * Format: date-time
              */
             start_at: string;
+        };
+        /** MasterDayOut */
+        app__api__bot__router__MasterDayOut: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Master Name */
+            master_name: string;
+            /** Salons */
+            salons: components["schemas"]["SalonRecordsOut"][];
         };
         /** Envelope[list[CategoryOut]] */
         app__api__schemas__Envelope_list_CategoryOut____1: {
@@ -1540,6 +1772,18 @@ export interface components {
             /** Name */
             name: string;
         };
+        /**
+         * CashRegisterPatchIn
+         * @description Баланс не редактируется — только операциями. Удаления нет — isActive=false.
+         */
+        CashRegisterPatchIn: {
+            /** Isactive */
+            isActive?: boolean | null;
+            /** Location */
+            location?: string | null;
+            /** Name */
+            name?: string | null;
+        };
         /** CategoryAmount */
         CategoryAmount: {
             /** Amount */
@@ -1662,6 +1906,11 @@ export interface components {
             /** Source */
             source: string | null;
             /**
+             * Telegramlinked
+             * @default false
+             */
+            telegramLinked: boolean;
+            /**
              * Totalspent
              * @default 0
              */
@@ -1775,6 +2024,14 @@ export interface components {
         ConsumableOut: {
             author: components["schemas"]["PersonRef"];
             /**
+             * Cancelled
+             * @default false
+             */
+            cancelled: boolean;
+            /** Cancelledat */
+            cancelledAt?: string | null;
+            cancelledBy?: components["schemas"]["PersonRef"] | null;
+            /**
              * Createdat
              * Format: date-time
              */
@@ -1824,6 +2081,12 @@ export interface components {
             /** Date */
             date: string;
         };
+        /** DayExceptionOut */
+        DayExceptionOut: {
+            /** Comment */
+            comment: string | null;
+            type: components["schemas"]["ScheduleExceptionType"];
+        };
         /** DayScheduleIn */
         DayScheduleIn: {
             /** Breakend */
@@ -1839,6 +2102,22 @@ export interface components {
             isWorkDay: boolean;
             /** Start */
             start?: string | null;
+        };
+        /** DaySummaryOut */
+        DaySummaryOut: {
+            /** Bookedminutes */
+            bookedMinutes: number;
+            /** Bymaster */
+            byMaster: components["schemas"]["app__api__admin__calendar__MasterDayOut"][];
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Total */
+            total: number;
+            /** Workminutes */
+            workMinutes: number;
         };
         /**
          * DocumentContentType
@@ -1988,10 +2267,22 @@ export interface components {
             data: components["schemas"]["ConsumableOut"][];
             meta?: components["schemas"]["PageMeta"] | null;
         };
+        /** Envelope[list[DaySummaryOut]] */
+        Envelope_list_DaySummaryOut__: {
+            /** Data */
+            data: components["schemas"]["DaySummaryOut"][];
+            meta?: components["schemas"]["PageMeta"] | null;
+        };
         /** Envelope[list[DocumentOut]] */
         Envelope_list_DocumentOut__: {
             /** Data */
             data: components["schemas"]["DocumentOut"][];
+            meta?: components["schemas"]["PageMeta"] | null;
+        };
+        /** Envelope[list[MasterScheduleOut]] */
+        Envelope_list_MasterScheduleOut__: {
+            /** Data */
+            data: components["schemas"]["MasterScheduleOut"][];
             meta?: components["schemas"]["PageMeta"] | null;
         };
         /** Envelope[list[MovementOut]] */
@@ -2010,6 +2301,12 @@ export interface components {
         Envelope_list_PaymentMethodOut__: {
             /** Data */
             data: components["schemas"]["PaymentMethodOut"][];
+            meta?: components["schemas"]["PageMeta"] | null;
+        };
+        /** Envelope[list[PaymentMethodRefOut]] */
+        Envelope_list_PaymentMethodRefOut__: {
+            /** Data */
+            data: components["schemas"]["PaymentMethodRefOut"][];
             meta?: components["schemas"]["PageMeta"] | null;
         };
         /** Envelope[list[ProductOut]] */
@@ -2058,6 +2355,12 @@ export interface components {
         Envelope_list_StaffRowOut__: {
             /** Data */
             data: components["schemas"]["StaffRowOut"][];
+            meta?: components["schemas"]["PageMeta"] | null;
+        };
+        /** Envelope[list[str]] */
+        Envelope_list_str__: {
+            /** Data */
+            data: string[];
             meta?: components["schemas"]["PageMeta"] | null;
         };
         /** Envelope[list[VisitOut]] */
@@ -2114,6 +2417,16 @@ export interface components {
         /** Envelope[RevenueOut] */
         Envelope_RevenueOut_: {
             data: components["schemas"]["RevenueOut"];
+            meta?: components["schemas"]["PageMeta"] | null;
+        };
+        /** Envelope[SalonInfoOut] */
+        Envelope_SalonInfoOut_: {
+            data: components["schemas"]["SalonInfoOut"];
+            meta?: components["schemas"]["PageMeta"] | null;
+        };
+        /** Envelope[SalonScheduleOut] */
+        Envelope_SalonScheduleOut_: {
+            data: components["schemas"]["SalonScheduleOut"];
             meta?: components["schemas"]["PageMeta"] | null;
         };
         /** Envelope[ScheduleOut] */
@@ -2310,18 +2623,6 @@ export interface components {
             /** Password */
             password: string;
         };
-        /** MasterDayOut */
-        MasterDayOut: {
-            /**
-             * Date
-             * Format: date
-             */
-            date: string;
-            /** Master Name */
-            master_name: string;
-            /** Salons */
-            salons: components["schemas"]["SalonRecordsOut"][];
-        };
         /** MasterOut */
         MasterOut: {
             /** Avatar Url */
@@ -2374,6 +2675,20 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Name */
+            name: string;
+        };
+        /** MasterScheduleOut */
+        MasterScheduleOut: {
+            /** Color */
+            color: string | null;
+            /** Days */
+            days: components["schemas"]["ScheduleDayOut"][];
+            /**
+             * Masterid
+             * Format: uuid
+             */
+            masterId: string;
             /** Name */
             name: string;
         };
@@ -2692,6 +3007,17 @@ export interface components {
             sortOrder?: number | null;
             type?: components["schemas"]["PaymentMethodType"] | null;
         };
+        /** PaymentMethodRefOut */
+        PaymentMethodRefOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            type: components["schemas"]["PaymentMethodType"];
+        };
         /**
          * PaymentMethodType
          * @enum {string}
@@ -2914,6 +3240,11 @@ export interface components {
             /** Masterid */
             masterId?: string | null;
             newClient?: components["schemas"]["NewClientIn"] | null;
+            /**
+             * Reminderenabled
+             * @default true
+             */
+            reminderEnabled: boolean;
             /** Serviceids */
             serviceIds: string[];
             /** @default admin */
@@ -2935,6 +3266,8 @@ export interface components {
             /** Actualstartat */
             actualStartAt: string | null;
             client: components["schemas"]["ClientRef"];
+            /** Clienttelegramlinked */
+            clientTelegramLinked: boolean;
             /** Closedat */
             closedAt: string | null;
             closedBy: components["schemas"]["PersonRef"];
@@ -2967,7 +3300,10 @@ export interface components {
             photos: components["schemas"]["PhotoOut"][];
             /** Price */
             price: string;
-            service: components["schemas"]["ServiceRef"];
+            /** Reminderenabled */
+            reminderEnabled: boolean;
+            /** Remindersentat */
+            reminderSentAt: string | null;
             /** Services */
             services: components["schemas"]["RecordServiceOut"][];
             source: components["schemas"]["RecordSource"];
@@ -2996,6 +3332,8 @@ export interface components {
             /** Actualstartat */
             actualStartAt: string | null;
             client: components["schemas"]["ClientRef"];
+            /** Clienttelegramlinked */
+            clientTelegramLinked: boolean;
             /** Comment */
             comment: string | null;
             /**
@@ -3019,7 +3357,10 @@ export interface components {
             paymentStatus: components["schemas"]["PaymentStatus"];
             /** Price */
             price: string;
-            service: components["schemas"]["ServiceRef"];
+            /** Reminderenabled */
+            reminderEnabled: boolean;
+            /** Remindersentat */
+            reminderSentAt: string | null;
             /** Services */
             services: components["schemas"]["RecordServiceOut"][];
             source: components["schemas"]["RecordSource"];
@@ -3045,6 +3386,8 @@ export interface components {
             internalNotes?: string | null;
             /** Masterid */
             masterId?: string | null;
+            /** Reminderenabled */
+            reminderEnabled?: boolean | null;
             /** Serviceids */
             serviceIds?: string[] | null;
             /** Startat */
@@ -3127,6 +3470,23 @@ export interface components {
             /** Receipts */
             receipts: number;
         };
+        /**
+         * ReviewContextOut
+         * @description Что показать на форме отзыва: к кому и когда был визит.
+         */
+        ReviewContextOut: {
+            /** Master Name */
+            master_name: string;
+            /** Salon Name */
+            salon_name: string;
+            /** Services */
+            services: string[];
+            /**
+             * Visit At
+             * Format: date-time
+             */
+            visit_at: string;
+        };
         /** ReviewCreate */
         ReviewCreate: {
             /** Rating */
@@ -3176,6 +3536,80 @@ export interface components {
          * @enum {string}
          */
         Role: "administrator" | "master";
+        /** SalonDay */
+        SalonDay: {
+            /** End */
+            end?: string | null;
+            /**
+             * Isworkday
+             * @default false
+             */
+            isWorkDay: boolean;
+            /** Start */
+            start?: string | null;
+        };
+        /** SalonDayOut */
+        SalonDayOut: {
+            /** End */
+            end: string | null;
+            /** Is Work Day */
+            is_work_day: boolean;
+            /** Start */
+            start: string | null;
+        };
+        /** SalonInfoOut */
+        SalonInfoOut: {
+            /** Address */
+            address: string | null;
+            /** City */
+            city: string | null;
+            /** Description */
+            description: string | null;
+            /** Email */
+            email: string | null;
+            /** Facebook */
+            facebook: string | null;
+            /** Instagram */
+            instagram: string | null;
+            /** Legalname */
+            legalName: string | null;
+            /** Name */
+            name: string;
+            /** Openedon */
+            openedOn: string | null;
+            /** Phone */
+            phone: string | null;
+            /** Website */
+            website: string | null;
+        };
+        /**
+         * SalonInfoPatchIn
+         * @description Передаются только изменённые поля; null — очистить (кроме name).
+         */
+        SalonInfoPatchIn: {
+            /** Address */
+            address?: string | null;
+            /** City */
+            city?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Email */
+            email?: string | null;
+            /** Facebook */
+            facebook?: string | null;
+            /** Instagram */
+            instagram?: string | null;
+            /** Legalname */
+            legalName?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Openedon */
+            openedOn?: string | null;
+            /** Phone */
+            phone?: string | null;
+            /** Website */
+            website?: string | null;
+        };
         /** SalonLinkOut */
         SalonLinkOut: {
             /** Booking Url */
@@ -3221,6 +3655,35 @@ export interface components {
             salon_id: string;
             /** Salon Name */
             salon_name: string;
+        };
+        /** SalonScheduleIn */
+        SalonScheduleIn: {
+            /** Week */
+            week: {
+                [key: string]: components["schemas"]["SalonDay"];
+            };
+        };
+        /** SalonScheduleOut */
+        SalonScheduleOut: {
+            /** Configured */
+            configured: boolean;
+            /** Week */
+            week: {
+                [key: string]: components["schemas"]["SalonDay"];
+            };
+        };
+        /** ScheduleDayOut */
+        ScheduleDayOut: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            exception: components["schemas"]["DayExceptionOut"] | null;
+            /** Isworkday */
+            isWorkDay: boolean;
+            /** Windows */
+            windows: components["schemas"]["WindowOut"][];
         };
         /**
          * ScheduleExceptionType
@@ -3278,20 +3741,6 @@ export interface components {
             /** Price */
             price?: number | string | null;
             status?: components["schemas"]["ServiceStatus"] | null;
-        };
-        /** ServiceRef */
-        ServiceRef: {
-            /** Category */
-            category: string;
-            /** Color */
-            color: string | null;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Name */
-            name: string;
         };
         /** ServiceRowOut */
         ServiceRowOut: {
@@ -3617,13 +4066,6 @@ export interface components {
             masterName: string | null;
             /** Photos */
             photos: string[];
-            /**
-             * Serviceid
-             * Format: uuid
-             */
-            serviceId: string;
-            /** Servicename */
-            serviceName: string;
             /** Services */
             services: components["schemas"]["VisitServiceOut"][];
             /**
@@ -3644,6 +4086,19 @@ export interface components {
             id: string;
             /** Name */
             name: string;
+        };
+        /** WindowOut */
+        WindowOut: {
+            /**
+             * End
+             * Format: time
+             */
+            end: string;
+            /**
+             * Start
+             * Format: time
+             */
+            start: string;
         };
     };
     responses: never;
@@ -4205,11 +4660,48 @@ export interface operations {
             };
         };
     };
+    patch_cash_register_api_admin_v1_finances_cash_registers__register_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                register_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CashRegisterPatchIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_CashRegisterOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     dashboard_api_admin_v1_finances_dashboard_get: {
         parameters: {
             query: {
                 dateFrom: string;
                 dateTo: string;
+                location?: string | null;
+                masterId?: string | null;
             };
             header?: never;
             path?: never;
@@ -4346,6 +4838,8 @@ export interface operations {
             query: {
                 dateFrom: string;
                 dateTo: string;
+                location?: string | null;
+                masterId?: string | null;
             };
             header?: never;
             path?: never;
@@ -4373,6 +4867,35 @@ export interface operations {
             };
         };
     };
+    list_locations_api_admin_v1_finances_locations_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_list_str__"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_operations_api_admin_v1_finances_operations_get: {
         parameters: {
             query?: {
@@ -4380,6 +4903,8 @@ export interface operations {
                 category?: string | null;
                 dateFrom?: string | null;
                 dateTo?: string | null;
+                location?: string | null;
+                masterId?: string | null;
                 page?: number;
                 paymentMethodId?: string | null;
                 perPage?: number;
@@ -4581,6 +5106,8 @@ export interface operations {
             query?: {
                 dateFrom?: string | null;
                 dateTo?: string | null;
+                location?: string | null;
+                masterId?: string | null;
                 page?: number;
                 perPage?: number;
                 status?: components["schemas"]["ReceiptStatus"] | null;
@@ -5136,8 +5663,7 @@ export interface operations {
         parameters: {
             query: {
                 date: string;
-                serviceId?: string | null;
-                serviceIds?: string[] | null;
+                serviceIds: string[];
             };
             header?: never;
             path: {
@@ -5167,6 +5693,35 @@ export interface operations {
             };
         };
     };
+    list_payment_methods_api_admin_v1_payment_methods_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_list_PaymentMethodRefOut__"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_records_api_admin_v1_records_get: {
         parameters: {
             query?: {
@@ -5179,6 +5734,7 @@ export interface operations {
                 page?: number;
                 paymentStatus?: components["schemas"]["PaymentStatus"] | null;
                 perPage?: number;
+                serviceCategory?: string | null;
                 source?: components["schemas"]["RecordSource"] | null;
                 status?: components["schemas"]["RecordStatus"] | null;
                 withoutMaster?: boolean;
@@ -5409,6 +5965,38 @@ export interface operations {
             };
         };
     };
+    cancel_consumable_api_admin_v1_records__record_id__consumables__movement_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                movement_id: string;
+                record_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_list_ConsumableOut__"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     pay_record_api_admin_v1_records__record_id__payment_post: {
         parameters: {
             query?: never;
@@ -5466,6 +6054,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_RecordOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    daily_summary_api_admin_v1_records_daily_summary_get: {
+        parameters: {
+            query: {
+                dateFrom: string;
+                dateTo: string;
+                masterId?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_list_DaySummaryOut__"];
                 };
             };
             /** @description Validation Error */
@@ -5710,6 +6331,39 @@ export interface operations {
             };
         };
     };
+    schedule_api_admin_v1_schedule_get: {
+        parameters: {
+            query: {
+                dateFrom: string;
+                dateTo: string;
+                masterId?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_list_MasterScheduleOut__"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_services_api_admin_v1_services_get: {
         parameters: {
             query?: {
@@ -5860,6 +6514,130 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["app__api__schemas__Envelope_list_CategoryOut____1"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_salon_info_api_admin_v1_settings_salon_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_SalonInfoOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_salon_info_api_admin_v1_settings_salon_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SalonInfoPatchIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_SalonInfoOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_salon_schedule_api_admin_v1_settings_schedule_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_SalonScheduleOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_salon_schedule_api_admin_v1_settings_schedule_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SalonScheduleIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_SalonScheduleOut_"];
                 };
             };
             /** @description Validation Error */
@@ -6444,6 +7222,38 @@ export interface operations {
             };
         };
     };
+    review_context_api_booking__salon_slug__reviews__token__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                salon_slug: string;
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewContextOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_salon_api_booking__salon_slug__salon_get: {
         parameters: {
             query?: never;
@@ -6664,7 +7474,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["MasterDayOut"];
+                    "application/json": components["schemas"]["app__api__bot__router__MasterDayOut"];
                 };
             };
             /** @description Validation Error */

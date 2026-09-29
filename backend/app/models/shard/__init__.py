@@ -38,10 +38,9 @@ from app.models.shard.review import Review
 from app.models.shard.service import Service, ServiceStatus, service_masters
 from app.models.shard.setting import Setting
 from app.models.shard.staff import (
-    ScheduleException,
-    ScheduleExceptionType,
+    ShiftKind,
     StaffProfile,
-    StaffSchedule,
+    StaffShift,
     StaffStatus,
 )
 
@@ -77,13 +76,12 @@ __all__ = [
     "RecordSource",
     "RecordStatus",
     "Review",
-    "ScheduleException",
-    "ScheduleExceptionType",
     "Service",
     "ServiceStatus",
     "Setting",
+    "ShiftKind",
     "StaffProfile",
-    "StaffSchedule",
+    "StaffShift",
     "StaffStatus",
     "StockMovement",
     "service_masters",

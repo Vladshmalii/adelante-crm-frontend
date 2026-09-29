@@ -3,12 +3,19 @@ import { useQuery } from '@tanstack/react-query';
 import { Select, Space, Tag, Typography } from 'antd';
 
 import type { Schema } from '@/shared/api';
-import { formatDateTime, formatMoney, formatPhone, toOptions } from '@/shared/lib';
+import {
+  formatDateTime,
+  formatMoney,
+  formatPhone,
+  paymentStatusLabels,
+  recordStatusLabels,
+  sourceLabels,
+  toOptions,
+} from '@/shared/lib';
 import { staffOptions, staffRefQueryOptions } from '@/shared/refs';
 import { DateRangeFilter, QueryErrorAlert } from '@/shared/ui';
 
 import { recordsParams, recordsQueryOptions } from '../api/overview.queries';
-import { paymentStatusLabels, recordStatusLabels, sourceLabels } from '../model/labels';
 import type { OverviewSearch } from '../model/search';
 
 type RecordItem = Schema<'RecordOut'>;

@@ -1,6 +1,6 @@
 # Бекенд: доработки для Розкладу
 
-ТЗ от 2026-09-28. Дополняет [FEATURES.md](./FEATURES.md) (раздел 2), [ACCESS.md](./ACCESS.md)
+ТЗ от 2026-09-28. **✅ Реализовано бекендом 2026-09-29** — описание API: [`backend/docs/frontend-calendar.md`](../../backend/docs/frontend-calendar.md). Дополняет [FEATURES.md](./FEATURES.md) (раздел 2), [ACCESS.md](./ACCESS.md)
 («Розклад») и [BACKEND_API_CHANGES.md](./BACKEND_API_CHANGES.md) («Записи — для Розкладу»).
 
 Контракт записи уже готов: несколько услуг, запись без мастера, `complete` без оплаты,

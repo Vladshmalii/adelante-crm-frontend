@@ -1,4 +1,6 @@
-"""Данные для Розкладу: способы оплаты, графики на период, сводка записей по дням.
+"""Данные для Розкладу: способы оплаты, рабочее время мастеров, сводка записей по дням.
+
+Рабочее время — по сменам (StaffShift, backend/docs/shifts.md).
 
 ТЗ — backend/docs/calendar.md. Регистрируется в router.py раньше records:
 путь /records/daily-summary иначе перехватил бы /records/{record_id}.
@@ -28,7 +30,7 @@ from app.models.shard import (
     PaymentMethodType,
     Record,
     RecordStatus,
-    ScheduleExceptionType,
+    ShiftKind,
     StaffProfile,
     StaffStatus,
 )
@@ -144,7 +146,8 @@ class WindowOut(ApiModel):
 
 
 class DayExceptionOut(ApiModel):
-    type: ScheduleExceptionType
+    # Отметка в графике: vacation (відпустка) / sick (лікарняний)
+    type: ShiftKind
     comment: str | None
 
 
@@ -183,7 +186,8 @@ async def schedule(
         days = []
         for day in _days(date_from, date_to):
             windows = calendar.windows(day)
-            exc = calendar.exception_on(day)
+            shift = calendar.shift_on(day)
+            exc = shift if shift is not None and shift.kind != ShiftKind.SHIFT else None
             days.append(
                 ScheduleDayOut(
                     date=day,
