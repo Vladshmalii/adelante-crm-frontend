@@ -223,13 +223,54 @@ def phone() -> str:
     return "+38050" + str(uuid.uuid4().int)[:7]
 
 
-WEEK_9_TO_18 = {
-    day: {
-        "isWorkDay": True,
-        "start": "09:00",
-        "end": "18:00",
-        "breakStart": "13:00",
-        "breakEnd": "14:00",
+WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+
+
+def salon_week(start: str = "08:00", end: str = "21:00") -> dict[str, dict[str, Any]]:
+    """Часы салона — все дни одинаково."""
+    return {day: {"isWorkDay": True, "start": start, "end": end} for day in WEEKDAYS}
+
+
+def shift_week(
+    start: str = "09:00",
+    end: str = "18:00",
+    break_start: str | None = "13:00",
+    break_end: str | None = "14:00",
+) -> dict[str, dict[str, Any]]:
+    """Шаблон «по дням недели» для POST /shifts/fill — все дни одинаково."""
+    return {
+        day: {"start": start, "end": end, "breakStart": break_start, "breakEnd": break_end}
+        for day in WEEKDAYS
     }
-    for day in ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
-}
+
+
+def setup_shifts(
+    salon: "Salon",
+    staff_ids: list[str],
+    date_from: Any,
+    date_to: Any,
+    *,
+    hours: tuple[str, str] = ("08:00", "21:00"),
+    **shift: Any,
+) -> dict[str, Any]:
+    """Часы салона + смены сотрудникам на период (суперюзером), отчёт fill."""
+    salon.api.call(
+        "PUT",
+        "/settings/schedule",
+        token=salon.su,
+        salon=salon.id,
+        json={"week": salon_week(*hours)},
+    )
+    return salon.api.post(
+        "/shifts/fill",
+        token=salon.su,
+        salon=salon.id,
+        json={
+            "staffIds": staff_ids,
+            "dateFrom": str(date_from),
+            "dateTo": str(date_to),
+            "mode": "weekdays",
+            "weekdays": shift_week(**shift),
+            "overwrite": True,
+        },
+    )

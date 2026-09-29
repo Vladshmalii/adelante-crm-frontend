@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from tests.conftest import WEEK_9_TO_18, Salon, phone
+from tests.conftest import Salon, phone, setup_shifts
 
 TZ = ZoneInfo("Europe/Kyiv")
 
@@ -45,8 +45,7 @@ def w(new_salon: Salon) -> World:
     admin, adm = s.create_staff("administrator", firstName="Олег")
     master, mst = s.create_staff(firstName="Марія", salary=15000, commissionPercent=30)
     master2, mst2 = s.create_staff(firstName="Інна")
-    for m in (master, master2):
-        s.api.post(f"/staff/{m['id']}/schedule", token=adm, salon=s.id, json=WEEK_9_TO_18)
+    setup_shifts(s, [master["id"], master2["id"]], date.today(), date.today() + timedelta(days=30))
     cut = s.api.post(
         "/services",
         token=adm,
@@ -372,28 +371,54 @@ def test_complete_and_pay(w: World) -> None:
 # --- Сотрудники, увольнение, refresh --------------------------------------------
 
 
-def test_schedule_exceptions(w: World) -> None:
+def test_records_outside_shift_and_on_leave(w: World) -> None:
     api, s = w.s.api, w.s
-    base = f"/staff/{w.master2['id']}/schedule/exceptions"
-    exc = api.post(
-        base,
+    day = w.day + timedelta(days=8)
+    # Вне смены (ночью, салон закрыт) — можно, с признаком outsideShift
+    night = w.record(masterId=w.master["id"], startAt=w.at(22, days=8))
+    assert night["outsideShift"] is True
+    inside = w.record(masterId=w.master["id"], startAt=w.at(10, days=8))
+    assert inside["outsideShift"] is False
+    assert w.record(startAt=w.at(10, days=8))["outsideShift"] is False  # без мастера
+
+    # День відпустки: нельзя создать, перенести, назначить мастера
+    leave = day + timedelta(days=1)
+    api.call(
+        "PUT",
+        f"/shifts/{w.master2['id']}/{leave}",
         token=w.adm,
         salon=s.id,
-        expect=201,
-        json={"dateFrom": "2030-01-01", "dateTo": "2030-01-05", "type": "vacation"},
+        json={"kind": "vacation", "comment": "Відпустка"},
     )
-    patched = api.patch(
-        f"{base}/{exc['id']}",
-        token=w.adm,
-        salon=s.id,
-        json={"dateTo": "2030-01-10", "comment": "Відпустка"},
+    at_leave = datetime(leave.year, leave.month, leave.day, 10).isoformat()
+    error = api.client.post(
+        "/api/admin/v1/records",
+        headers={"Authorization": f"Bearer {w.adm}", "X-Salon-Id": s.id},
+        json={
+            "newClient": {"name": "К", "phone": phone()},
+            "masterId": w.master2["id"],
+            "serviceIds": [w.cut["id"]],
+            "startAt": at_leave,
+        },
     )
-    assert patched["dateTo"] == "2030-01-10"
+    assert error.status_code == 409
+    assert error.json()["message"] == f"Майстер у відпустці {leave:%d.%m.%Y}"
+    rec = w.record(masterId=w.master2["id"], startAt=w.at(10, days=8))
     api.patch(
-        f"{base}/{exc['id']}", token=w.adm, salon=s.id, expect=422, json={"dateTo": "2029-01-01"}
+        f"/records/{rec['id']}", token=w.adm, salon=s.id, expect=409, json={"startAt": at_leave}
     )
-    api.delete(f"{base}/{exc['id']}", token=w.adm, salon=s.id, expect=204)
-    api.delete(f"{base}/{exc['id']}", token=w.adm, salon=s.id, expect=404)
+    queue = w.record(startAt=at_leave)  # запись без мастера на этот день — можно
+    api.patch(
+        f"/records/{queue['id']}",
+        token=w.adm,
+        salon=s.id,
+        expect=409,
+        json={"masterId": w.master2["id"]},
+    )
+    moved = api.patch(
+        f"/records/{queue['id']}", token=w.adm, salon=s.id, json={"masterId": w.master["id"]}
+    )
+    assert moved["outsideShift"] is False
 
 
 def test_fire_and_rehire_admin(w: World) -> None:

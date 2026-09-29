@@ -1,10 +1,10 @@
 """Задачи-отправители (очередь `notifications`).
 
-Кого уведомлять в Telegram (решение от 28.09.2026):
+Кого уведомлять в Telegram (решения от 28–29.09.2026):
 - мастеру — новая запись к нему, перенос и отмена его записи, передача
-  записи другому мастеру;
-- администраторам салона — каждая новая запись, а для записей без мастера
-  ещё перенос и отмена;
+  записи другому мастеру; изменение его смен, если менял не он сам;
+- администраторам салона — новая запись, перенос и отмена, но только тем,
+  кто сейчас на смене; суперюзерам — всегда (backend/docs/shifts.md);
 - клиенту — напоминание за 30 минут (workers.tasks.reminders) и после
   завершения визита — ссылка на отзыв.
 Автору изменения уведомление о его же действии не отправляется.
@@ -28,9 +28,9 @@ from sqlalchemy import select
 
 from app.config import get_settings
 from app.models.master import Administrator, Client, Master, Salon, administrator_salons
-from app.models.shard import Record, RecordStatus
+from app.models.shard import Record, RecordStatus, ShiftKind, StaffShift
 from app.notifications.outbox import RECORD_CREATED, RECORD_UPDATED
-from app.timeutils import format_local
+from app.timeutils import format_local, now_local
 from workers import db, telegram
 from workers.celery_app import celery
 
@@ -40,7 +40,6 @@ DEDUPE_TTL = 86400
 
 # Изменения записи, о которых сообщаем в Telegram
 MASTER_CHANGES = {"rescheduled", "reassigned", "cancelled"}
-QUEUE_CHANGES = {"rescheduled", "cancelled"}
 
 
 def _first_delivery(event_id: str, channel: str) -> bool:
@@ -86,12 +85,14 @@ def wants_review_request(event_type: str, payload: dict[str, Any]) -> bool:
 
 
 def wants_manager_notification(event_type: str, payload: dict[str, Any]) -> bool:
+    """Новая запись, перенос (сменилось время) и отмена — администраторам на смене."""
     if event_type == RECORD_CREATED:
         return True
-    return (
-        event_type == RECORD_UPDATED
-        and payload.get("master_id") is None
-        and payload.get("change") in QUEUE_CHANGES
+    if event_type != RECORD_UPDATED:
+        return False
+    change = payload.get("change")
+    return change == "cancelled" or (
+        change == "rescheduled" and payload.get("previous_start_at") is not None
     )
 
 
@@ -99,9 +100,9 @@ def _manager_text(event_type: str, payload: dict[str, Any]) -> str:
     if event_type == RECORD_CREATED:
         title = "🗓 <b>Новий запис</b>"
     elif payload.get("change") == "cancelled":
-        title = "❌ <b>Запис без майстра скасовано</b>"
+        title = "❌ <b>Запис скасовано</b>"
     else:
-        title = "🔁 <b>Запис без майстра перенесено</b>"
+        title = "🔁 <b>Запис перенесено</b>"
     lines = [title, *_record_lines(payload, with_master=True)]
     if payload.get("previous_start_at"):
         lines.append(f"Було: {_when(payload['previous_start_at'])}")
@@ -119,7 +120,7 @@ def notify_manager_telegram(envelope: dict[str, Any]) -> None:
 
     with db.master_session() as session:
         rows = session.execute(
-            select(Administrator.id, Administrator.telegram_user_id)
+            select(Administrator.id, Administrator.telegram_user_id, Administrator.is_superuser)
             .join(
                 administrator_salons,
                 administrator_salons.c.administrator_id == Administrator.id,
@@ -131,14 +132,40 @@ def notify_manager_telegram(envelope: dict[str, Any]) -> None:
                 Administrator.telegram_user_id.is_not(None),
             )
         ).all()
-    chat_ids = [chat_id for admin_id, chat_id in rows if str(admin_id) != actor_id and chat_id]
+    candidates = [(admin_id, chat_id, su) for admin_id, chat_id, su in rows if chat_id]
+    # Суперюзер получает всегда, остальные администраторы — только на смене
+    on_shift = _on_shift_now(salon_id, [a for a, _, su in candidates if not su])
+    chat_ids = [
+        chat_id
+        for admin_id, chat_id, su in candidates
+        if str(admin_id) != actor_id and (su or admin_id in on_shift)
+    ]
     if not chat_ids:
-        logger.info("Салон %s: нет администраторов с Telegram — уведомление пропущено", salon_id)
+        logger.info("Салон %s: на смене нет администраторов с Telegram — пропущено", salon_id)
         return
 
     text = _manager_text(envelope["event_type"], payload)
     for chat_id in chat_ids:
         telegram.send_message(chat_id, text)
+
+
+def _on_shift_now(salon_id: UUID, staff_ids: list[UUID]) -> set[UUID]:
+    """Сотрудники, у которых сейчас (по Киеву) идёт смена; перерыв не учитывается."""
+    if not staff_ids:
+        return set()
+    now = now_local()
+    with db.shard_session(salon_id) as session:
+        return set(
+            session.scalars(
+                select(StaffShift.staff_id).where(
+                    StaffShift.staff_id.in_(staff_ids),
+                    StaffShift.date == now.date(),
+                    StaffShift.kind == ShiftKind.SHIFT,
+                    StaffShift.start_time <= now.time(),
+                    StaffShift.end_time > now.time(),
+                )
+            )
+        )
 
 
 def _master_messages(event_type: str, payload: dict[str, Any]) -> list[tuple[str, str]]:
@@ -279,6 +306,36 @@ def notify_client_review(envelope: dict[str, Any]) -> None:
             ]
         ),
     )
+
+
+MAX_SHIFT_LINES = 31
+
+
+@celery.task(autoretry_for=(httpx.HTTPError,), retry_backoff=True, max_retries=5)
+def notify_shift_telegram(envelope: dict[str, Any]) -> None:
+    """Мастеру — сводка изменений его смен (поставил или изменил не он сам)."""
+    payload = envelope["payload"]
+    if not payload.get("notify") or not _first_delivery(envelope["event_id"], "shift_tg"):
+        return
+    with db.master_session() as session:
+        chat_id = session.scalar(
+            select(Master.telegram_user_id).where(
+                Master.id == UUID(payload["staff_id"]), Master.is_active.is_(True)
+            )
+        )
+    if chat_id is None:
+        return
+    salon = _salon_name(UUID(envelope["salon_id"]))
+    changes = payload.get("changes") or []
+    lines = ["🗓 <b>Ваш графік змінено</b>"]
+    for change in changes[:MAX_SHIFT_LINES]:
+        day = datetime.fromisoformat(change["date"]).strftime("%d.%m")
+        lines.append(f"{day}: {_esc(change['value'] or 'вихідний')}")
+    if len(changes) > MAX_SHIFT_LINES:
+        lines.append(f"…і ще {len(changes) - MAX_SHIFT_LINES} дн.")
+    if salon:
+        lines.append(f"Салон: {_esc(salon)}")
+    telegram.send_message(chat_id, "\n".join(lines))
 
 
 @celery.task

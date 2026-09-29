@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from tests.conftest import BOT_KEY, WEEK_9_TO_18, Salon, phone
+from tests.conftest import BOT_KEY, Salon, phone, setup_shifts
 
 BOT = {"prefix": "/api/bot", "headers": {"X-API-Key": BOT_KEY}}
 MONDAY = date(2030, 1, 7)  # понедельник в будущем — стабильные дни недели
@@ -45,8 +45,7 @@ def w(new_salon: Salon) -> World:
     m1, mst1 = s.create_staff(firstName="Анна", color="#ff0000")
     m2, mst2 = s.create_staff(firstName="Богдана")
     fired, _ = s.create_staff(firstName="Звільнена")
-    for m in (m1, m2, fired):
-        s.api.post(f"/staff/{m['id']}/schedule", token=adm, salon=s.id, json=WEEK_9_TO_18)
+    setup_shifts(s, [m1["id"], m2["id"], fired["id"]], MONDAY, MONDAY + timedelta(days=20))
     s.api.delete(f"/staff/{fired['id']}", token=adm, salon=s.id)
     svc = s.api.post(
         "/services",
@@ -99,30 +98,26 @@ def test_payment_methods_for_admin(w: World) -> None:
 
 def test_schedule_for_period(w: World) -> None:
     api, s = w.s.api, w.s
-    api.post(
-        f"/staff/{w.m1['id']}/schedule/exceptions",
+    api.call(
+        "PUT",
+        f"/shifts/{w.m1['id']}/{MONDAY + timedelta(days=1)}",
         token=w.adm,
         salon=s.id,
-        expect=201,
-        json={
-            "dateFrom": str(MONDAY + timedelta(days=1)),
-            "dateTo": str(MONDAY + timedelta(days=2)),
-            "type": "vacation",
-            "comment": "Відпустка",
-        },
+        json={"kind": "vacation", "comment": "Відпустка"},
     )
-    api.post(
-        f"/staff/{w.m1['id']}/schedule/exceptions",
+    api.call(
+        "PUT",
+        f"/shifts/{w.m1['id']}/{MONDAY + timedelta(days=2)}",
         token=w.adm,
         salon=s.id,
-        expect=201,
-        json={
-            "dateFrom": str(MONDAY + timedelta(days=3)),
-            "dateTo": str(MONDAY + timedelta(days=3)),
-            "type": "extra_shift",
-            "start": "18:00",
-            "end": "21:00",
-        },
+        json={"kind": "vacation", "comment": "Відпустка"},
+    )
+    api.call(
+        "PUT",
+        f"/shifts/{w.m1['id']}/{MONDAY + timedelta(days=3)}",
+        token=w.adm,
+        salon=s.id,
+        json={"kind": "shift", "start": "18:00", "end": "21:00"},
     )
 
     data = api.get(
@@ -171,41 +166,6 @@ def test_schedule_access_and_limits(w: World) -> None:
         salon=s.id,
         expect=422,
     )
-
-
-def test_exceptions_cannot_overlap(w: World) -> None:
-    api, s = w.s.api, w.s
-    base = f"/staff/{w.m2['id']}/schedule/exceptions"
-    first = api.post(
-        base,
-        token=w.adm,
-        salon=s.id,
-        expect=201,
-        json={"dateFrom": "2031-03-01", "dateTo": "2031-03-10", "type": "vacation"},
-    )
-    api.post(
-        base,
-        token=w.adm,
-        salon=s.id,
-        expect=409,
-        json={"dateFrom": "2031-03-10", "dateTo": "2031-03-12", "type": "day_off"},
-    )
-    second = api.post(
-        base,
-        token=w.adm,
-        salon=s.id,
-        expect=201,
-        json={"dateFrom": "2031-03-11", "dateTo": "2031-03-12", "type": "day_off"},
-    )
-    api.patch(
-        f"{base}/{second['id']}",
-        token=w.adm,
-        salon=s.id,
-        expect=409,
-        json={"dateFrom": "2031-03-05"},
-    )
-    api.patch(f"{base}/{first['id']}", token=w.adm, salon=s.id, json={"comment": "Змінено"})
-    api.patch(f"{base}/{first['id']}", token=w.adm, salon=s.id, expect=422, json={"dateFrom": None})
 
 
 # --- 3. Сводка по дням --------------------------------------------------------------------

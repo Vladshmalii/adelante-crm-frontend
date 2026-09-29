@@ -2,12 +2,14 @@
 
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import pytest
 
-from tests.conftest import BOT_KEY, Salon, phone
+from tests.conftest import BOT_KEY, Salon, phone, salon_week
 
 BOT = {"prefix": "/api/bot", "headers": {"X-API-Key": BOT_KEY}}
+TZ = ZoneInfo("Europe/Kyiv")
 
 
 @pytest.fixture()
@@ -45,6 +47,32 @@ def test_master_and_admin_notifications(new_salon: Salon, sent: list[tuple[int, 
     admin_tg, master_tg = 910_000_000 + int(admin_phone[-5:]), 920_000_000 + int(master_phone[-5:])
     _link(api, admin_phone, admin_tg)
     _link(api, master_phone, master_tg)
+    # Второй администратор — без смены: уведомлений не получает
+    idle_phone = phone()
+    s.create_staff("administrator", phone=idle_phone)
+    idle_tg = 930_000_000 + int(idle_phone[-5:])
+    _link(api, idle_phone, idle_tg)
+    # Суперюзер получает всегда
+    su_phone = phone()
+    api.patch("/auth/me", token=s.su, json={"phone": su_phone})
+    su_tg = 940_000_000 + int(su_phone[-5:])
+    _link(api, su_phone, su_tg)
+    # Смена администратора — прямо сейчас (часы салона на весь день)
+    api.call(
+        "PUT",
+        "/settings/schedule",
+        token=s.su,
+        salon=s.id,
+        json={"week": salon_week("00:00", "23:59")},
+    )
+    admin_id = api.get("/auth/me", token=adm)["id"]
+    api.call(
+        "PUT",
+        f"/shifts/{admin_id}/{datetime.now(TZ).date()}",
+        token=adm,
+        salon=s.id,
+        json={"kind": "shift", "start": "00:00", "end": "23:59"},
+    )
     svc = api.post(
         "/services",
         token=adm,
@@ -120,14 +148,25 @@ def test_master_and_admin_notifications(new_salon: Salon, sent: list[tuple[int, 
     assert "Було:" in moved and "Стало:" in moved and "Салон:" in moved
 
     to_admin = [text.split("\n")[0] for chat, text in sent if chat == admin_tg]
-    # Админ создал первую запись сам — о ней ему не пишем
+    # Свои действия администратору не приходят; остальные — пока он на смене
     assert to_admin == [
         "🗓 <b>Новий запис</b>",
+        "🔁 <b>Запис перенесено</b>",
         "🗓 <b>Новий запис</b>",
-        "❌ <b>Запис без майстра скасовано</b>",
+        "❌ <b>Запис скасовано</b>",
     ]
+    to_su = [text.split("\n")[0] for chat, text in sent if chat == su_tg]
+    assert to_su == [
+        "🗓 <b>Новий запис</b>",
+        "🔁 <b>Запис перенесено</b>",
+        "❌ <b>Запис скасовано</b>",
+        "🗓 <b>Новий запис</b>",
+        "🔁 <b>Запис перенесено</b>",
+    ]
+    assert [chat for chat, _ in sent if chat == idle_tg] == []
     _publish()
-    assert len(sent) == len(to_master) + len(to_admin)  # повторный прогон не дублирует
+    counted = len(to_master) + len(to_admin) + len(to_su)
+    assert len([c for c, _ in sent if c in (master_tg, admin_tg, su_tg, idle_tg)]) == counted
 
 
 def test_client_reminder(new_salon: Salon, sent: list[tuple[int, str]]) -> None:

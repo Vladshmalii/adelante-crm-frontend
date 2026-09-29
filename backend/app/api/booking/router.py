@@ -48,7 +48,7 @@ router = APIRouter(prefix="/api/booking/{salon_slug}", tags=["booking"])
 IDEMPOTENCY_TTL = 600
 RATE_WINDOW = 3600
 # Сколько дней вперёд открыта запись
-BOOKING_HORIZON_DAYS = 90
+BOOKING_HORIZON_DAYS = 30
 
 
 # --- Салон и каталог ----------------------------------------------------------
