@@ -1,8 +1,8 @@
 import { createFileRoute, redirect } from '@tanstack/react-router';
 
-// Стартовая страница — Розклад, когда он появится; пока — клиенты.
+// Стартовая страница — Розклад (главный рабочий экран).
 export const Route = createFileRoute('/_app/')({
   beforeLoad: () => {
-    throw redirect({ to: '/clients', replace: true });
+    throw redirect({ to: '/calendar', replace: true });
   },
 });

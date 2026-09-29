@@ -14,7 +14,7 @@
 
 import hashlib
 import uuid
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -32,9 +32,12 @@ from app.models.shard import (
     RecordStatus,
     Service,
     ServiceStatus,
+    ShiftKind,
+    StaffShift,
 )
 from app.notifications.outbox import RECORD_CREATED, RECORD_UPDATED, add_outbox_event
 from app.services.audit import write_audit
+from app.timeutils import to_local
 
 
 class RecordError(Exception):
@@ -55,6 +58,28 @@ class ClientInactive(RecordError):
 
 class SlotTaken(RecordError):
     """Слот занят — только для публичной записи; админка не блокируется."""
+
+
+class MasterOnLeave(RecordError):
+    """У мастера на этот день отметка відпустка / лікарняний — записывать нельзя."""
+
+    def __init__(self, day: date, kind: ShiftKind) -> None:
+        names = {ShiftKind.VACATION: "у відпустці", ShiftKind.SICK: "на лікарняному"}
+        super().__init__(f"Майстер {names.get(kind, 'не працює')} {day:%d.%m.%Y}")
+        self.day = day
+        self.kind = kind
+
+
+async def ensure_master_not_on_leave(
+    tenant_session: AsyncSession, master_id: uuid.UUID, start_at: datetime
+) -> None:
+    """Запись вне смены разрешена, но не в день відпустки або лікарняного."""
+    day = to_local(start_at).date()
+    kind = await tenant_session.scalar(
+        select(StaffShift.kind).where(StaffShift.staff_id == master_id, StaffShift.date == day)
+    )
+    if kind is not None and kind != ShiftKind.SHIFT:
+        raise MasterOnLeave(day, kind)
 
 
 # Статусы, в которых запись занимает время мастера
@@ -266,6 +291,8 @@ async def create_record(
     services = await load_services(tenant_session, data.service_ids)
 
     end_at = data.start_at + total_duration(services)
+    if master is not None:
+        await ensure_master_not_on_leave(tenant_session, master.id, data.start_at)
     if check_slot and master is not None:
         await lock_master(tenant_session, master.id)
         if not await is_slot_free(tenant_session, master.id, data.start_at, end_at):

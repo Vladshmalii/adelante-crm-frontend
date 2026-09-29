@@ -31,8 +31,19 @@ export const productPickerQueryOptions = (query: string) =>
     staleTime: 30_000,
   });
 
-export function useWriteOffConsumables(recordId: string) {
+/** Ответ списания и отмены — полный список расходников записи; кладём его в кеш сразу. */
+function useApplyConsumables(recordId: string) {
   const queryClient = useQueryClient();
+  return (consumables: Schema<'ConsumableOut'>[]) => {
+    queryClient.setQueryData(consumablesQueryOptions(recordId).queryKey, consumables);
+    // Остатки склада и история записи изменились.
+    void queryClient.invalidateQueries({ queryKey: ['inventory'] });
+    void queryClient.invalidateQueries({ queryKey: ['records', 'detail', recordId] });
+  };
+}
+
+export function useWriteOffConsumables(recordId: string) {
+  const apply = useApplyConsumables(recordId);
   return useMutation({
     mutationFn: async (items: Schema<'ConsumableIn'>[]) =>
       unwrap(
@@ -41,11 +52,20 @@ export function useWriteOffConsumables(recordId: string) {
           body: { items },
         }),
       ).data,
-    onSuccess: (consumables) => {
-      queryClient.setQueryData(consumablesQueryOptions(recordId).queryKey, consumables);
-      // Остатки склада и история записи изменились.
-      void queryClient.invalidateQueries({ queryKey: ['inventory'] });
-      void queryClient.invalidateQueries({ queryKey: ['records', 'detail', recordId] });
-    },
+    onSuccess: apply,
+  });
+}
+
+/** Отмена списания: товар возвращается на склад обратным движением, запись остаётся в истории. */
+export function useCancelConsumable(recordId: string) {
+  const apply = useApplyConsumables(recordId);
+  return useMutation({
+    mutationFn: async (movementId: string) =>
+      unwrap(
+        await api.DELETE('/api/admin/v1/records/{record_id}/consumables/{movement_id}', {
+          params: { path: { record_id: recordId, movement_id: movementId } },
+        }),
+      ).data,
+    onSuccess: apply,
   });
 }

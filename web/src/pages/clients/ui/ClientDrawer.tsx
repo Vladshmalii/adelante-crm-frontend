@@ -149,6 +149,14 @@ function ClientInfo({ client }: { client: Client }) {
         },
         { label: 'Додатковий телефон', children: formatPhone(client.additionalPhone) || '—' },
         { label: 'Email', children: client.email ?? '—' },
+        {
+          label: 'Telegram',
+          children: client.telegramLinked ? (
+            <Tag color="green">Підключено — отримує нагадування</Tag>
+          ) : (
+            <Typography.Text type="secondary">Не підключено</Typography.Text>
+          ),
+        },
         { label: 'Дата народження', children: formatDate(client.birthDate) },
         { label: 'Стать', children: client.gender ? genderLabels[client.gender] : '—' },
         { label: 'Важливість', children: importanceLabels[client.importance] },

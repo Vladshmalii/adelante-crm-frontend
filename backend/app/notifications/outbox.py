@@ -17,6 +17,7 @@ RECORD_CREATED = "record.created"
 RECORD_UPDATED = "record.updated"
 RECORD_REMINDER = "record.reminder"
 REVIEW_CREATED = "review.created"
+SHIFT_CHANGED = "shift.changed"
 
 
 def build_envelope(

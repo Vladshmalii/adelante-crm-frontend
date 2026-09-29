@@ -6,7 +6,7 @@ GET /api/booking/{slug}/salon.
 """
 
 import uuid
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -19,6 +19,7 @@ from app.api.security import require_admin
 from app.models.master import Salon
 from app.models.shard import AuditAction
 from app.services import salon_settings
+from app.services import shifts as shifts_service
 from app.services.audit import write_audit
 from app.tenancy.deps import MasterSession, SalonId, TenantSession
 
@@ -158,13 +159,47 @@ async def get_salon_schedule(tenant_session: TenantSession) -> Envelope[SalonSch
     return Envelope(data=_schedule_out(await salon_settings.load_schedule(tenant_session)))
 
 
-@router.put("/schedule", response_model=Envelope[SalonScheduleOut])
+class ShiftConflictRecordOut(ApiModel):
+    id: uuid.UUID
+    start_at: datetime
+    end_at: datetime
+    client_name: str
+
+
+class ShiftConflictOut(ApiModel):
+    staff_id: uuid.UUID
+    staff_name: str | None
+    date: date
+    records: list[ShiftConflictRecordOut]
+
+
+class ShiftTrimOut(ApiModel):
+    # Будущие смены, подогнанные под новые часы салона
+    trimmed: int
+    # Смены, от которых ничего не осталось (или салон в этот день закрыт)
+    removed: int
+    # Смены, которые не изменены: на обрезаемое время есть записи — перенести
+    # записи и поправить смену вручную
+    conflicts: list[ShiftConflictOut]
+
+
+class SalonSchedulePutOut(SalonScheduleOut):
+    shifts: ShiftTrimOut
+
+
+@router.put("/schedule", response_model=Envelope[SalonSchedulePutOut])
 async def put_salon_schedule(
     body: SalonScheduleIn,
     author: CurrentAuthor,
+    salon_id: SalonId,
+    master_session: MasterSession,
     tenant_session: TenantSession,
-) -> Envelope[SalonScheduleOut]:
-    """Весь график целиком: все семь дней недели."""
+) -> Envelope[SalonSchedulePutOut]:
+    """Весь график целиком: все семь дней недели.
+
+    Будущие смены сотрудников обрезаются по новым часам, кроме смен, у которых
+    на обрезаемое время есть записи (backend/docs/shifts.md).
+    """
     unknown = set(body.week) - set(salon_settings.WEEKDAYS)
     missing = set(salon_settings.WEEKDAYS) - set(body.week)
     if unknown or missing:
@@ -190,7 +225,31 @@ async def put_salon_schedule(
             author_name=author.name,
             details=changes,
         )
-    return Envelope(data=_schedule_out(body.week))
+
+    from app.api.admin.shifts import _active_staff, _masters
+
+    staff = await _active_staff(master_session, tenant_session, salon_id)
+    log = shifts_service.ChangeLog()
+    report = await shifts_service.trim_to_salon_hours(
+        tenant_session,
+        salon_week=body.week,
+        names={p.id: p.name for p in staff},
+        author=shifts_service.Author(author.id, author.name),
+        log=log,
+    )
+    shifts_service.emit_shift_changes(
+        tenant_session, salon_id=salon_id, log=log, masters=_masters(staff), actor_id=author.id
+    )
+    return Envelope(
+        data=SalonSchedulePutOut(
+            **_schedule_out(body.week).model_dump(),
+            shifts=ShiftTrimOut(
+                trimmed=report.trimmed,
+                removed=report.removed,
+                conflicts=[ShiftConflictOut.model_validate(c) for c in report.conflicts],
+            ),
+        )
+    )
 
 
 def _day_text(day: salon_settings.SalonDay) -> str:

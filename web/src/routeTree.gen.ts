@@ -14,6 +14,7 @@ import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
+import { Route as AppCalendarRouteImport } from './routes/_app/calendar'
 import { Route as AppClientsRouteImport } from './routes/_app/clients'
 import { Route as AppFinancesRouteImport } from './routes/_app/finances'
 import { Route as AppForbiddenRouteImport } from './routes/_app/forbidden'
@@ -46,6 +47,11 @@ const ResetPasswordRoute = ResetPasswordRouteImport.update({
 const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppCalendarRoute = AppCalendarRouteImport.update({
+  id: '/calendar',
+  path: '/calendar',
   getParentRoute: () => AppRoute,
 } as any)
 const AppClientsRoute = AppClientsRouteImport.update({
@@ -99,6 +105,7 @@ export interface FileRoutesByFullPath {
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/calendar': typeof AppCalendarRoute
   '/clients': typeof AppClientsRoute
   '/finances': typeof AppFinancesRoute
   '/forbidden': typeof AppForbiddenRoute
@@ -113,6 +120,7 @@ export interface FileRoutesByTo {
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/calendar': typeof AppCalendarRoute
   '/clients': typeof AppClientsRoute
   '/finances': typeof AppFinancesRoute
   '/forbidden': typeof AppForbiddenRoute
@@ -130,6 +138,7 @@ export interface FileRoutesById {
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/_app/calendar': typeof AppCalendarRoute
   '/_app/clients': typeof AppClientsRoute
   '/_app/finances': typeof AppFinancesRoute
   '/_app/forbidden': typeof AppForbiddenRoute
@@ -148,6 +157,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/login'
     | '/reset-password'
+    | '/calendar'
     | '/clients'
     | '/finances'
     | '/forbidden'
@@ -162,6 +172,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/login'
     | '/reset-password'
+    | '/calendar'
     | '/clients'
     | '/finances'
     | '/forbidden'
@@ -178,6 +189,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/login'
     | '/reset-password'
+    | '/_app/calendar'
     | '/_app/clients'
     | '/_app/finances'
     | '/_app/forbidden'
@@ -232,6 +244,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/calendar': {
+      id: '/_app/calendar'
+      path: '/calendar'
+      fullPath: '/calendar'
+      preLoaderRoute: typeof AppCalendarRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/clients': {
@@ -301,6 +320,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppRouteChildren {
+  AppCalendarRoute: typeof AppCalendarRoute
   AppClientsRoute: typeof AppClientsRoute
   AppFinancesRoute: typeof AppFinancesRoute
   AppForbiddenRoute: typeof AppForbiddenRoute
@@ -314,6 +334,7 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppCalendarRoute: AppCalendarRoute,
   AppClientsRoute: AppClientsRoute,
   AppFinancesRoute: AppFinancesRoute,
   AppForbiddenRoute: AppForbiddenRoute,

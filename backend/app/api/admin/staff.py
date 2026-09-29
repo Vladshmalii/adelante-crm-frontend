@@ -11,7 +11,7 @@
 
 import io
 import uuid
-from datetime import UTC, datetime, time
+from datetime import UTC, datetime
 from datetime import date as date_type
 from decimal import Decimal
 from typing import Annotated, Any
@@ -33,19 +33,17 @@ from app.models.shard import (
     Record,
     RecordStatus,
     Review,
-    ScheduleException,
-    ScheduleExceptionType,
     StaffProfile,
-    StaffSchedule,
+    StaffShift,
     StaffStatus,
 )
 from app.services.audit import diff_fields, write_audit
+from app.services.shifts import today_local
 from app.tenancy.deps import MasterSession, SalonId, TenantSession
 from app.timeutils import LocalDatetime
 
 router = APIRouter(prefix="/staff", tags=["staff"], dependencies=[Depends(require_admin)])
 
-WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
 MONEY_FIELDS = {"salary", "commission_percent"}
 
 
@@ -298,8 +296,6 @@ async def export_staff(
     role_names = {Role.MASTER: "Майстер", Role.ADMINISTRATOR: "Адміністратор"}
     status_names = {
         StaffStatus.ACTIVE: "Активний",
-        StaffStatus.VACATION: "У відпустці",
-        StaffStatus.SICK: "На лікарняному",
         StaffStatus.FIRED: "Звільнений",
     }
     wb = Workbook()
@@ -636,6 +632,10 @@ async def fire_staff(
     profile = await _get_or_create_profile(tenant_session, staff_id)
     profile.status = StaffStatus.FIRED
     profile.fired_at = datetime.now(UTC).date()
+    # Будущие смены уволенного не нужны (прошлые остаются в истории)
+    await tenant_session.execute(
+        delete(StaffShift).where(StaffShift.staff_id == staff_id, StaffShift.date >= today_local())
+    )
     await _set_binding_active(master_session, role, staff_id, salon_id, False)
 
     write_audit(
@@ -651,248 +651,6 @@ async def fire_staff(
     return Envelope(
         data=_staff_out(person, role, profile, show_money=user.is_superuser, binding_active=False)
     )
-
-
-# --- Расписание -------------------------------------------------------------
-
-
-class DayScheduleIn(ApiModel):
-    is_work_day: bool = False
-    start: time | None = None
-    end: time | None = None
-    break_start: time | None = None
-    break_end: time | None = None
-
-
-class ExceptionOut(ApiModel):
-    id: uuid.UUID
-    date_from: date_type
-    date_to: date_type
-    type: ScheduleExceptionType
-    start: time | None = None
-    end: time | None = None
-    comment: str | None = None
-
-
-class ScheduleOut(ApiModel):
-    week: dict[str, DayScheduleIn]
-    exceptions: list[ExceptionOut]
-
-
-def _exception_out(e: ScheduleException) -> ExceptionOut:
-    return ExceptionOut(
-        id=e.id,
-        date_from=e.date_from,
-        date_to=e.date_to,
-        type=e.type,
-        start=e.start_time,
-        end=e.end_time,
-        comment=e.comment,
-    )
-
-
-@router.get("/{staff_id}/schedule", response_model=Envelope[ScheduleOut])
-async def get_schedule(
-    staff_id: uuid.UUID,
-    salon_id: SalonId,
-    master_session: MasterSession,
-    tenant_session: TenantSession,
-) -> Envelope[ScheduleOut]:
-    await _find_staff(master_session, salon_id, staff_id)
-    return Envelope(data=await _schedule(tenant_session, staff_id))
-
-
-async def _schedule(tenant_session: AsyncSession, staff_id: uuid.UUID) -> ScheduleOut:
-    rows = {
-        r.weekday: r
-        for r in await tenant_session.scalars(
-            select(StaffSchedule).where(StaffSchedule.master_id == staff_id)
-        )
-    }
-    week = {}
-    for i, name in enumerate(WEEKDAYS):
-        row = rows.get(i)
-        week[name] = DayScheduleIn(
-            is_work_day=bool(row and row.is_work_day),
-            start=row.start_time if row else None,
-            end=row.end_time if row else None,
-            break_start=row.break_start if row else None,
-            break_end=row.break_end if row else None,
-        )
-    exceptions = [
-        _exception_out(e)
-        for e in await tenant_session.scalars(
-            select(ScheduleException)
-            .where(ScheduleException.master_id == staff_id)
-            .order_by(ScheduleException.date_from)
-        )
-    ]
-    return ScheduleOut(week=week, exceptions=exceptions)
-
-
-@router.post("/{staff_id}/schedule", response_model=Envelope[ScheduleOut])
-async def save_schedule(
-    staff_id: uuid.UUID,
-    body: dict[str, DayScheduleIn],
-    user: AdminUser,
-    salon_id: SalonId,
-    master_session: MasterSession,
-    tenant_session: TenantSession,
-) -> Envelope[ScheduleOut]:
-    _, role, _ = await _find_staff(master_session, salon_id, staff_id)
-    _ensure_can_manage(user, role)
-    unknown = set(body) - set(WEEKDAYS)
-    if unknown:
-        raise HTTPException(422, f"Невідомі дні тижня: {', '.join(unknown)}")
-
-    await tenant_session.execute(delete(StaffSchedule).where(StaffSchedule.master_id == staff_id))
-    for name, day in body.items():
-        tenant_session.add(
-            StaffSchedule(
-                master_id=staff_id,
-                weekday=WEEKDAYS.index(name),
-                is_work_day=day.is_work_day,
-                start_time=day.start,
-                end_time=day.end,
-                break_start=day.break_start,
-                break_end=day.break_end,
-            )
-        )
-    await tenant_session.flush()
-    return Envelope(data=await _schedule(tenant_session, staff_id))
-
-
-class ExceptionIn(ApiModel):
-    date_from: date_type
-    date_to: date_type
-    type: ScheduleExceptionType
-    start: time | None = None
-    end: time | None = None
-    comment: str | None = None
-
-
-async def _validate_exception(
-    tenant_session: AsyncSession,
-    staff_id: uuid.UUID,
-    date_from: date_type,
-    date_to: date_type,
-    exclude_id: uuid.UUID | None = None,
-) -> None:
-    """Даты по порядку и без пересечения с другими исключениями сотрудника:
-    в пересечении было бы неясно, какое исключение действует (решение от 29.09.2026).
-    """
-    if date_to < date_from:
-        raise HTTPException(422, "Дата закінчення раніша за дату початку")
-    query = select(ScheduleException).where(
-        ScheduleException.master_id == staff_id,
-        ScheduleException.date_from <= date_to,
-        ScheduleException.date_to >= date_from,
-    )
-    if exclude_id is not None:
-        query = query.where(ScheduleException.id != exclude_id)
-    other = await tenant_session.scalar(query.limit(1))
-    if other is not None:
-        raise HTTPException(
-            409,
-            f"Перетинається з іншим винятком: {other.date_from:%d.%m.%Y}–{other.date_to:%d.%m.%Y}",
-        )
-
-
-@router.post(
-    "/{staff_id}/schedule/exceptions",
-    response_model=Envelope[ExceptionOut],
-    status_code=status.HTTP_201_CREATED,
-)
-async def add_exception(
-    staff_id: uuid.UUID,
-    body: ExceptionIn,
-    user: AdminUser,
-    salon_id: SalonId,
-    master_session: MasterSession,
-    tenant_session: TenantSession,
-) -> Envelope[ExceptionOut]:
-    _, role, _ = await _find_staff(master_session, salon_id, staff_id)
-    _ensure_can_manage(user, role)
-    await _validate_exception(tenant_session, staff_id, body.date_from, body.date_to)
-    exc = ScheduleException(
-        master_id=staff_id,
-        date_from=body.date_from,
-        date_to=body.date_to,
-        type=body.type,
-        start_time=body.start,
-        end_time=body.end,
-        comment=body.comment,
-    )
-    tenant_session.add(exc)
-    await tenant_session.flush()
-    return Envelope(data=_exception_out(exc))
-
-
-async def _get_exception(
-    tenant_session: AsyncSession, staff_id: uuid.UUID, exception_id: uuid.UUID
-) -> ScheduleException:
-    exc = await tenant_session.get(ScheduleException, exception_id)
-    if exc is None or exc.master_id != staff_id:
-        raise HTTPException(404, "Виняток не знайдено")
-    return exc
-
-
-class ExceptionPatchIn(ApiModel):
-    date_from: date_type | None = None
-    date_to: date_type | None = None
-    type: ScheduleExceptionType | None = None
-    start: time | None = None
-    end: time | None = None
-    comment: str | None = None
-
-
-@router.patch(
-    "/{staff_id}/schedule/exceptions/{exception_id}", response_model=Envelope[ExceptionOut]
-)
-async def patch_exception(
-    staff_id: uuid.UUID,
-    exception_id: uuid.UUID,
-    body: ExceptionPatchIn,
-    user: AdminUser,
-    salon_id: SalonId,
-    master_session: MasterSession,
-    tenant_session: TenantSession,
-) -> Envelope[ExceptionOut]:
-    _, role, _ = await _find_staff(master_session, salon_id, staff_id)
-    _ensure_can_manage(user, role)
-    exc = await _get_exception(tenant_session, staff_id, exception_id)
-    updates = body.model_dump(exclude_unset=True, by_alias=False)
-    for required in ("date_from", "date_to", "type"):
-        if required in updates and updates[required] is None:
-            raise HTTPException(422, f"Поле {required} не можна очистити")
-    await _validate_exception(
-        tenant_session,
-        staff_id,
-        updates.get("date_from", exc.date_from),
-        updates.get("date_to", exc.date_to),
-        exclude_id=exc.id,
-    )
-    columns = {"start": "start_time", "end": "end_time"}
-    for field, value in updates.items():
-        setattr(exc, columns.get(field, field), value)
-    return Envelope(data=_exception_out(exc))
-
-
-@router.delete(
-    "/{staff_id}/schedule/exceptions/{exception_id}", status_code=status.HTTP_204_NO_CONTENT
-)
-async def delete_exception(
-    staff_id: uuid.UUID,
-    exception_id: uuid.UUID,
-    user: AdminUser,
-    salon_id: SalonId,
-    master_session: MasterSession,
-    tenant_session: TenantSession,
-) -> None:
-    _, role, _ = await _find_staff(master_session, salon_id, staff_id)
-    _ensure_can_manage(user, role)
-    exc = await _get_exception(tenant_session, staff_id, exception_id)
-    await tenant_session.delete(exc)
 
 
 # --- Статистика -------------------------------------------------------------

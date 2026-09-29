@@ -1,5 +1,6 @@
 import {
   BarChartOutlined,
+  CalendarOutlined,
   DashboardOutlined,
   InboxOutlined,
   ScissorOutlined,
@@ -25,6 +26,7 @@ interface MenuItem {
  * Раздел появляется в меню вместе с рабочей страницей (FEATURES.md, решение 4).
  */
 export const menuItems: MenuItem[] = [
+  { path: '/calendar', name: 'Розклад', icon: <CalendarOutlined />, section: 'calendar' },
   { path: '/clients', name: 'Клієнти', icon: <UserOutlined />, section: 'clients' },
   { path: '/staff', name: 'Співробітники', icon: <TeamOutlined />, section: 'staff' },
   { path: '/services', name: 'Послуги', icon: <ScissorOutlined />, section: 'services' },

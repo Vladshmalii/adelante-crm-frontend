@@ -17,6 +17,7 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from app.api.admin.router import router as admin_router
 from app.api.booking.router import router as booking_router
 from app.api.bot.router import router as bot_router
+from app.api.errors import ApiError
 from app.config import get_settings
 from app.tenancy.registry import EngineRegistry
 
@@ -96,11 +97,12 @@ app.mount("/uploads", StaticFiles(directory=_upload_dir), name="uploads")
 # Формат ошибок, который ожидает фронтенд: { message, code?, details? }
 @app.exception_handler(HTTPException)
 async def http_exception_handler(_request: Request, exc: HTTPException) -> JSONResponse:
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={"message": str(exc.detail)},
-        headers=exc.headers,
-    )
+    content: dict[str, object] = {"message": str(exc.detail)}
+    if isinstance(exc, ApiError):
+        content["code"] = exc.code
+        if exc.details is not None:
+            content["details"] = exc.details
+    return JSONResponse(status_code=exc.status_code, content=content, headers=exc.headers)
 
 
 @app.exception_handler(RequestValidationError)
