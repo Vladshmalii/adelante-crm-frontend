@@ -182,7 +182,10 @@ def test_salon_schedule(new_salon: Salon) -> None:
     assert saved["configured"] is True
     assert saved["week"]["saturday"] == {"isWorkDay": True, "start": "10:00:00", "end": "16:00:00"}
     assert saved["week"]["sunday"] == {"isWorkDay": False, "start": None, "end": None}
-    assert api.get("/settings/schedule", token=adm, salon=s.id) == saved
+    assert api.get("/settings/schedule", token=adm, salon=s.id) == {
+        k: v for k, v in saved.items() if k != "shifts"
+    }
+    assert saved["shifts"] == {"trimmed": 0, "removed": 0, "conflicts": []}
 
     week = _week()
     del week["friday"]

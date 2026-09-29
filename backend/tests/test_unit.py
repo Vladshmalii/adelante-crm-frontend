@@ -2,7 +2,7 @@
 
 from datetime import UTC, date, datetime, time, timedelta
 
-from app.models.shard import ScheduleException, ScheduleExceptionType, StaffSchedule
+from app.models.shard import ShiftKind, StaffShift
 from app.services.phones import normalize_phone, same_phone
 from app.services.slots import _MasterCalendar
 from app.timeutils import SALON_TZ, assume_local, day_bounds, format_local
@@ -62,9 +62,15 @@ def test_notification_routing() -> None:
     assert wants_master_notification(RECORD_CREATED, created)
     assert not wants_master_notification(RECORD_CREATED, queue)
     assert wants_manager_notification(RECORD_CREATED, created)
-    # Записи без мастера: перенос и отмена — администраторам
+    # Администраторам: новая запись, перенос (сменилось время), отмена — любые записи
     assert wants_manager_notification(RECORD_UPDATED, {**queue, "change": "cancelled"})
-    assert not wants_manager_notification(RECORD_UPDATED, {**created, "change": "cancelled"})
+    assert wants_manager_notification(RECORD_UPDATED, {**created, "change": "cancelled"})
+    assert wants_manager_notification(
+        RECORD_UPDATED,
+        {**created, "change": "rescheduled", "previous_start_at": "2026-10-01T08:00:00+00:00"},
+    )
+    assert not wants_manager_notification(RECORD_UPDATED, {**created, "change": "rescheduled"})
+    assert not wants_manager_notification(RECORD_UPDATED, {**created, "change": "status"})
     assert not wants_master_notification(RECORD_UPDATED, {**created, "change": "status"})
 
     reassigned = {**base, "master_id": "m2", "previous_master_id": "m1", "change": "reassigned"}
@@ -76,56 +82,65 @@ def test_notification_routing() -> None:
     assert "Було: 01.10.2026 о 11:00" in text and "Стало: 01.10.2026 о 12:00" in text
 
 
-def _calendar(**kwargs):  # type: ignore[no-untyped-def]
-    templates = {
-        day: StaffSchedule(
-            weekday=day,
-            is_work_day=True,
-            start_time=time(9),
-            end_time=time(18),
-            break_start=time(13),
-            break_end=time(14),
-        )
-        for day in range(7)
-    }
-    return _MasterCalendar(
-        templates=templates,
-        exceptions=kwargs.get("exceptions", []),
-        busy=kwargs.get("busy", []),
+def _shift(day: date, kind: ShiftKind = ShiftKind.SHIFT, **times: time) -> StaffShift:
+    return StaffShift(staff_id=None, date=day, kind=kind, **times)
+
+
+def _calendar(day: date, **kwargs):  # type: ignore[no-untyped-def]
+    shift = kwargs.get("shift") or _shift(
+        day, start_time=time(9), end_time=time(18), break_start=time(13), break_end=time(14)
     )
+    return _MasterCalendar(shifts={day: shift}, busy=kwargs.get("busy", []))
 
 
-def test_slots_respect_break_busy_and_exceptions() -> None:
+def test_slots_respect_shift_break_and_busy() -> None:
     day = date(2026, 10, 1)
     busy_start = datetime(2026, 10, 1, 10, 0, tzinfo=SALON_TZ).astimezone(UTC)
-    calendar = _calendar(busy=[(busy_start, busy_start + timedelta(hours=1))])
+    calendar = _calendar(day, busy=[(busy_start, busy_start + timedelta(hours=1))])
     labels = [s.label for s in calendar.slots(day, timedelta(minutes=60), None)]
     assert labels[0] == "09:00"
     assert "09:15" not in labels  # пересекается с записью 10:00–11:00
     assert "11:00" in labels
     assert "12:15" not in labels  # не помещается до перерыва
     assert "14:00" in labels and labels[-1] == "17:00"
+    assert calendar.work_minutes(day) == 8 * 60
 
-    vacation = ScheduleException(date_from=day, date_to=day, type=ScheduleExceptionType.VACATION)
-    assert _calendar(exceptions=[vacation]).slots(day, timedelta(minutes=30), None) == []
-    extra = ScheduleException(
-        date_from=day,
-        date_to=day,
-        type=ScheduleExceptionType.EXTRA_SHIFT,
-        start_time=time(20),
-        end_time=time(21),
+    vacation = _calendar(day, shift=_shift(day, ShiftKind.VACATION))
+    assert (
+        vacation.slots(day, timedelta(minutes=30), None) == [] and vacation.work_minutes(day) == 0
     )
-    extra_labels = [
-        s.label for s in _calendar(exceptions=[extra]).slots(day, timedelta(minutes=30), None)
-    ]
-    assert extra_labels == ["20:00", "20:15", "20:30"]
+    evening = _calendar(day, shift=_shift(day, start_time=time(20), end_time=time(21)))
+    labels = [s.label for s in evening.slots(day, timedelta(minutes=30), None)]
+    assert labels == ["20:00", "20:15", "20:30"]
+    assert _MasterCalendar().slots(day, timedelta(minutes=30), None) == []  # нет смены
 
 
 def test_fits_schedule() -> None:
-    calendar = _calendar()
+    day = date(2026, 10, 1)
+    calendar = _calendar(day)
     at = datetime(2026, 10, 1, 12, 30, tzinfo=SALON_TZ)
     assert calendar.fits(at, at + timedelta(minutes=30))
     assert not calendar.fits(at, at + timedelta(minutes=45))  # залезает в перерыв
+
+
+def test_shift_spec_validation() -> None:
+    import pytest
+    from pydantic import ValidationError
+
+    from app.services.shifts import ShiftSpec, describe
+
+    ok = ShiftSpec(start=time(9), end=time(18), break_start=time(13), break_end=time(14))
+    assert describe(ok) == "09:00–18:00 (перерва 13:00–14:00)"
+    mark = ShiftSpec(kind=ShiftKind.SICK, start=time(9), end=time(10))
+    assert mark.start is None and describe(mark) == "лікарняний"
+    for bad in (
+        {"start": time(18), "end": time(9)},
+        {"start": time(9)},
+        {"start": time(9), "end": time(18), "break_start": time(13)},
+        {"start": time(9), "end": time(18), "break_start": time(8), "break_end": time(10)},
+    ):
+        with pytest.raises(ValidationError):
+            ShiftSpec(**bad)
 
 
 def test_telegram_errors_hide_token(monkeypatch, caplog) -> None:  # type: ignore[no-untyped-def]

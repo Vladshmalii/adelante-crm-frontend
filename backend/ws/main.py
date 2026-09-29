@@ -25,9 +25,11 @@ def visible_to(event: dict[str, Any], role: str | None, user_id: str | None) -> 
     """Показывать ли событие салона подключённому пользователю."""
     if role != "master":
         return True
+    payload = event.get("payload") or {}
+    if event.get("event_type") == "shift.changed":
+        return user_id is not None and payload.get("staff_id") == user_id
     if event.get("event_type") not in ("record.created", "record.updated"):
         return False
-    payload = event.get("payload") or {}
     return user_id is not None and user_id in (
         payload.get("master_id"),
         payload.get("previous_master_id"),

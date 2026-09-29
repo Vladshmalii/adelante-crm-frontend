@@ -13,7 +13,12 @@ from uuid import UUID
 from sqlalchemy import select
 
 from app.models.shard import OutboxEvent
-from app.notifications.outbox import RECORD_CREATED, RECORD_UPDATED, REVIEW_CREATED
+from app.notifications.outbox import (
+    RECORD_CREATED,
+    RECORD_UPDATED,
+    REVIEW_CREATED,
+    SHIFT_CHANGED,
+)
 from workers import db
 from workers.celery_app import celery
 from workers.tasks import notify
@@ -56,6 +61,9 @@ def _publish_salon(salon_id: UUID) -> None:
                     notify.notify_client_review.delay(envelope)
                 notify.notify_web.delay(envelope)
             elif event.event_type == REVIEW_CREATED:
+                notify.notify_web.delay(envelope)
+            elif event.event_type == SHIFT_CHANGED:
+                notify.notify_shift_telegram.delay(envelope)
                 notify.notify_web.delay(envelope)
             else:
                 logger.warning("Неизвестный тип события в outbox: %s", event.event_type)

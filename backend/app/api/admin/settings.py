@@ -226,9 +226,7 @@ async def put_salon_schedule(
             details=changes,
         )
 
-    from app.api.admin.shifts import _active_staff, _masters
-
-    staff = await _active_staff(master_session, tenant_session, salon_id)
+    staff = await shifts_service.active_staff(master_session, tenant_session, salon_id)
     log = shifts_service.ChangeLog()
     report = await shifts_service.trim_to_salon_hours(
         tenant_session,
@@ -238,7 +236,11 @@ async def put_salon_schedule(
         log=log,
     )
     shifts_service.emit_shift_changes(
-        tenant_session, salon_id=salon_id, log=log, masters=_masters(staff), actor_id=author.id
+        tenant_session,
+        salon_id=salon_id,
+        log=log,
+        masters=shifts_service.master_ids(staff),
+        actor_id=author.id,
     )
     return Envelope(
         data=SalonSchedulePutOut(

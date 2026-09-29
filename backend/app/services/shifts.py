@@ -19,7 +19,17 @@ from pydantic import BaseModel, model_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.shard import AuditAction, Record, RecordStatus, ShiftKind, StaffShift
+from app.api.security import Role
+from app.models.master import Administrator, Master, administrator_salons, master_salons
+from app.models.shard import (
+    AuditAction,
+    Record,
+    RecordStatus,
+    ShiftKind,
+    StaffProfile,
+    StaffShift,
+    StaffStatus,
+)
 from app.notifications.outbox import SHIFT_CHANGED, add_outbox_event
 from app.services.audit import write_audit
 from app.services.salon_settings import WEEKDAYS, SalonDay
@@ -397,3 +407,73 @@ async def trim_to_salon_hours(
         else:
             report.trimmed += 1
     return report
+
+
+# --- Сотрудники салона ------------------------------------------------------------------
+
+
+@dataclass
+class StaffInfo:
+    id: uuid.UUID
+    name: str
+    role: Role
+    color: str | None
+
+
+async def active_staff(
+    master_session: AsyncSession, tenant_session: AsyncSession, salon_id: uuid.UUID
+) -> list[StaffInfo]:
+    """Не уволенные сотрудники салона: сначала мастера, потом администраторы."""
+    masters = list(
+        await master_session.scalars(
+            select(Master)
+            .join(master_salons, master_salons.c.master_id == Master.id)
+            .where(
+                master_salons.c.salon_id == salon_id,
+                master_salons.c.is_active.is_(True),
+                Master.is_active.is_(True),
+            )
+            .order_by(Master.first_name, Master.last_name)
+        )
+    )
+    admins = list(
+        await master_session.scalars(
+            select(Administrator)
+            .join(
+                administrator_salons,
+                administrator_salons.c.administrator_id == Administrator.id,
+            )
+            .where(
+                administrator_salons.c.salon_id == salon_id,
+                administrator_salons.c.is_active.is_(True),
+                Administrator.is_active.is_(True),
+            )
+            .order_by(Administrator.first_name, Administrator.last_name)
+        )
+    )
+    ids = [p.id for p in masters] + [p.id for p in admins]
+    profiles = (
+        {
+            p.master_id: p
+            for p in await tenant_session.scalars(
+                select(StaffProfile).where(StaffProfile.master_id.in_(ids))
+            )
+        }
+        if ids
+        else {}
+    )
+    result = []
+    for person, role in [(m, Role.MASTER) for m in masters] + [
+        (a, Role.ADMINISTRATOR) for a in admins
+    ]:
+        profile = profiles.get(person.id)
+        if profile is not None and profile.status == StaffStatus.FIRED:
+            continue
+        result.append(
+            StaffInfo(person.id, person.full_name, role, profile.color if profile else None)
+        )
+    return result
+
+
+def master_ids(staff: list[StaffInfo]) -> set[uuid.UUID]:
+    return {p.id for p in staff if p.role == Role.MASTER}

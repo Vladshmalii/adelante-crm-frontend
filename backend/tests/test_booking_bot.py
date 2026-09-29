@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from tests.conftest import BOT_KEY, WEEK_9_TO_18, Salon, phone
+from tests.conftest import BOT_KEY, Salon, phone, setup_shifts
 
 TZ = ZoneInfo("Europe/Kyiv")
 BOT = {"prefix": "/api/bot", "headers": {"X-API-Key": BOT_KEY}}
@@ -33,8 +33,7 @@ def w(new_salon: Salon) -> World:
     _, adm = s.create_staff("administrator")
     m1, _ = s.create_staff(firstName="Анна", phone="+380 (67) 555-12-34")
     m2, _ = s.create_staff(firstName="Богдана")
-    for m in (m1, m2):
-        s.api.post(f"/staff/{m['id']}/schedule", token=adm, salon=s.id, json=WEEK_9_TO_18)
+    setup_shifts(s, [m1["id"], m2["id"]], date.today(), date.today() + timedelta(days=45))
     cut = s.api.post(
         "/services",
         token=adm,
@@ -78,6 +77,14 @@ def test_catalog(w: World) -> None:
     day = _day()
     dates = api.get(f"/availability?service_id={w.cut['id']}&month={day:%Y-%m}", **w.booking)
     assert str(day) in dates["dates"]
+
+    # Окно записи — 30 дней, даже если смены стоят дальше
+    far = date.today() + timedelta(days=35)
+    far_dates = api.get(f"/availability?service_id={w.cut['id']}&month={far:%Y-%m}", **w.booking)
+    assert str(far) not in far_dates["dates"]
+    assert api.get(f"/slots?service_id={w.cut['id']}&date={far}", **w.booking) == []
+    edge = date.today() + timedelta(days=30)
+    assert api.get(f"/slots?service_id={w.cut['id']}&date={edge}", **w.booking)
 
 
 def test_any_master_booking(w: World) -> None:

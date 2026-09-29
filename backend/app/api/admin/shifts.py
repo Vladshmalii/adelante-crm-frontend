@@ -6,7 +6,6 @@
 """
 
 import uuid
-from dataclasses import dataclass
 from datetime import date, time, timedelta
 from typing import Annotated, Literal
 
@@ -19,14 +18,11 @@ from app.api.admin.deps import CurrentAuthor
 from app.api.errors import ApiError
 from app.api.schemas import ApiModel, Envelope
 from app.api.security import AuthenticatedUser, CurrentUser, Role, forbidden, require_salon_access
-from app.models.master import Administrator, Master, administrator_salons, master_salons
 from app.models.shard import (
     Record,
     RecordStatus,
     ShiftKind,
-    StaffProfile,
     StaffShift,
-    StaffStatus,
 )
 from app.services import salon_settings
 from app.services import shifts as shifts_service
@@ -42,76 +38,13 @@ MAX_PERIOD_DAYS = 62
 # --- Сотрудники и права ------------------------------------------------------------
 
 
-@dataclass
-class StaffInfo:
-    id: uuid.UUID
-    name: str
-    role: Role
-    color: str | None
-
-
-async def _active_staff(
-    master_session: AsyncSession, tenant_session: AsyncSession, salon_id: uuid.UUID
-) -> list[StaffInfo]:
-    """Не уволенные сотрудники салона: сначала мастера, потом администраторы."""
-    masters = list(
-        await master_session.scalars(
-            select(Master)
-            .join(master_salons, master_salons.c.master_id == Master.id)
-            .where(
-                master_salons.c.salon_id == salon_id,
-                master_salons.c.is_active.is_(True),
-                Master.is_active.is_(True),
-            )
-            .order_by(Master.first_name, Master.last_name)
-        )
-    )
-    admins = list(
-        await master_session.scalars(
-            select(Administrator)
-            .join(
-                administrator_salons,
-                administrator_salons.c.administrator_id == Administrator.id,
-            )
-            .where(
-                administrator_salons.c.salon_id == salon_id,
-                administrator_salons.c.is_active.is_(True),
-                Administrator.is_active.is_(True),
-            )
-            .order_by(Administrator.first_name, Administrator.last_name)
-        )
-    )
-    ids = [p.id for p in masters] + [p.id for p in admins]
-    profiles = (
-        {
-            p.master_id: p
-            for p in await tenant_session.scalars(
-                select(StaffProfile).where(StaffProfile.master_id.in_(ids))
-            )
-        }
-        if ids
-        else {}
-    )
-    result = []
-    for person, role in [(m, Role.MASTER) for m in masters] + [
-        (a, Role.ADMINISTRATOR) for a in admins
-    ]:
-        profile = profiles.get(person.id)
-        if profile is not None and profile.status == StaffStatus.FIRED:
-            continue
-        result.append(
-            StaffInfo(person.id, person.full_name, role, profile.color if profile else None)
-        )
-    return result
-
-
-def _can_edit(user: AuthenticatedUser, target: StaffInfo) -> bool:
+def _can_edit(user: AuthenticatedUser, target: shifts_service.StaffInfo) -> bool:
     if user.is_superuser or user.id == target.id:
         return True
     return user.is_admin and target.role == Role.MASTER
 
 
-def _find(staff: list[StaffInfo], staff_id: uuid.UUID) -> StaffInfo:
+def _find(staff: list[shifts_service.StaffInfo], staff_id: uuid.UUID) -> shifts_service.StaffInfo:
     for person in staff:
         if person.id == staff_id:
             return person
@@ -228,7 +161,7 @@ async def shift_grid(
 ) -> Envelope[ShiftGridOut]:
     """Сетка графика: мастера, потом администраторы; мастеру — только его строка."""
     _check_period(date_from, date_to)
-    staff = await _active_staff(master_session, tenant_session, salon_id)
+    staff = await shifts_service.active_staff(master_session, tenant_session, salon_id)
     if user.is_master:
         staff = [p for p in staff if p.id == user.id]
     ids = [p.id for p in staff]
@@ -298,9 +231,9 @@ async def _prepare(
     master_session: AsyncSession,
     tenant_session: AsyncSession,
     staff_ids: list[uuid.UUID],
-) -> tuple[list[StaffInfo], list[StaffInfo]]:
+) -> tuple[list[shifts_service.StaffInfo], list[shifts_service.StaffInfo]]:
     """Все сотрудники салона и целевые (с проверкой прав)."""
-    staff = await _active_staff(master_session, tenant_session, salon_id)
+    staff = await shifts_service.active_staff(master_session, tenant_session, salon_id)
     targets = [_find(staff, staff_id) for staff_id in dict.fromkeys(staff_ids)]
     for target in targets:
         if not _can_edit(user, target):
@@ -310,10 +243,6 @@ async def _prepare(
                 else "Зміни адміністраторів змінює лише суперюзер"
             )
     return staff, targets
-
-
-def _masters(staff: list[StaffInfo]) -> set[uuid.UUID]:
-    return {p.id for p in staff if p.role == Role.MASTER}
 
 
 StaffIdPath = Annotated[uuid.UUID, Path(alias="staffId")]
@@ -347,7 +276,11 @@ async def put_shift(
     except shifts_service.ShiftError as exc:
         _raise(exc)
     shifts_service.emit_shift_changes(
-        tenant_session, salon_id=salon_id, log=log, masters=_masters(staff), actor_id=user.id
+        tenant_session,
+        salon_id=salon_id,
+        log=log,
+        masters=shifts_service.master_ids(staff),
+        actor_id=user.id,
     )
     count = len(await shifts_service.day_records(tenant_session, target.id, day))
     return Envelope(data=_cell(day, shift, count if target.role == Role.MASTER else 0))
@@ -380,7 +313,11 @@ async def delete_shift(
     except shifts_service.ShiftError as exc:
         _raise(exc)
     shifts_service.emit_shift_changes(
-        tenant_session, salon_id=salon_id, log=log, masters=_masters(staff), actor_id=user.id
+        tenant_session,
+        salon_id=salon_id,
+        log=log,
+        masters=shifts_service.master_ids(staff),
+        actor_id=user.id,
     )
 
 
@@ -570,7 +507,11 @@ async def fill_shifts(
                 updated += 1
 
     shifts_service.emit_shift_changes(
-        tenant_session, salon_id=salon_id, log=log, masters=_masters(staff), actor_id=user.id
+        tenant_session,
+        salon_id=salon_id,
+        log=log,
+        masters=shifts_service.master_ids(staff),
+        actor_id=user.id,
     )
     return Envelope(
         data=FillReportOut(created=created, updated=updated, removed=removed, skipped=skipped)

@@ -193,7 +193,7 @@ async def schedule(
                     date=day,
                     is_work_day=bool(windows),
                     windows=[WindowOut(start=s, end=e) for s, e in windows],
-                    exception=DayExceptionOut(type=exc.type, comment=exc.comment) if exc else None,
+                    exception=DayExceptionOut(type=exc.kind, comment=exc.comment) if exc else None,
                 )
             )
         result.append(
