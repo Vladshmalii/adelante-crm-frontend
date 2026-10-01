@@ -70,7 +70,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       collapsed={siderCollapsed}
       onCollapse={setSiderCollapsed}
       // Мини-календарь с загрузкой дней и «Додати запис» — над меню; в свёрнутом меню не помещается.
-      // Сайдбар тёмный в обеих темах (как в старом UI) — календарь внутри него тоже в тёмной теме.
+      // Сайдбар: в светлой теме светлый, в тёмной — тёмный; календарь внутри — в теме сайдбара.
       menuExtraRender={({ collapsed }) =>
         collapsed ? null : (
           <ConfigProvider theme={siderContentTheme(themeMode)}>

@@ -44,42 +44,55 @@ export function getTheme(mode: ThemeMode): ThemeConfig {
   };
 }
 
-/** Цвета бокового меню ProLayout — тёмное в обеих темах, как в старом UI. */
+/**
+ * Цвета сайдбара: в тёмной теме — тёмный `#212121` старого UI, в светлой — светлый (фон карточек).
+ * Активный пункт в обеих — плашка основного цвета с белым текстом.
+ */
+function siderColors(mode: ThemeMode) {
+  if (mode === 'dark') return siderPalette;
+  return {
+    background: lightPalette.card,
+    text: lightPalette.text,
+    textActive: lightPalette.text,
+    hover: lightPalette.muted,
+    border: lightPalette.borderSecondary,
+  };
+}
+
+/** Цвета бокового меню ProLayout. */
 export function siderToken(mode: ThemeMode) {
   const p = paletteOf(mode);
+  const c = siderColors(mode);
   return {
-    colorMenuBackground: siderPalette.background,
-    colorBgMenuItemCollapsedElevated: siderPalette.background,
-    colorMenuItemDivider: siderPalette.border,
-    colorTextMenu: siderPalette.text,
-    colorTextMenuSecondary: siderPalette.text,
-    colorTextMenuTitle: siderPalette.textActive,
-    colorTextMenuItemHover: siderPalette.textActive,
-    colorTextMenuActive: siderPalette.textActive,
-    colorTextMenuSelected: siderPalette.textActive,
-    colorTextCollapsedButton: siderPalette.text,
-    colorTextCollapsedButtonHover: siderPalette.textActive,
-    colorBgCollapsedButton: siderPalette.background,
-    colorBgMenuItemHover: siderPalette.hover,
-    colorBgMenuItemActive: siderPalette.hover,
+    colorMenuBackground: c.background,
+    colorBgMenuItemCollapsedElevated: c.background,
+    colorMenuItemDivider: c.border,
+    colorTextMenu: c.text,
+    colorTextMenuSecondary: c.text,
+    colorTextMenuTitle: c.textActive,
+    colorTextMenuItemHover: c.textActive,
+    colorTextMenuActive: c.textActive,
+    colorTextMenuSelected: '#ffffff',
+    colorTextCollapsedButton: c.text,
+    colorTextCollapsedButtonHover: c.textActive,
+    colorBgCollapsedButton: c.background,
+    colorBgMenuItemHover: c.hover,
+    colorBgMenuItemActive: c.hover,
     colorBgMenuItemSelected: p.primary,
   };
 }
 
 /**
- * Тема блоков внутри тёмного сайдбара (мини-календарь, «Додати запис»): тёмная основа на фоне
- * сайдбара, но основной цвет — текущей темы, как у кнопки в старом UI.
+ * Тема блоков внутри сайдбара (мини-календарь): в светлой теме — обычная светлая, в тёмной —
+ * тёмная на фоне сайдбара.
  */
 export function siderContentTheme(mode: ThemeMode): ThemeConfig {
-  const p = paletteOf(mode);
-  const dark = getTheme('dark');
+  const base = getTheme(mode);
+  if (mode === 'light') return base;
   return {
-    ...dark,
+    ...base,
     token: {
-      ...dark.token,
-      colorPrimary: p.primary,
-      colorPrimaryHover: p.primaryHover,
-      colorPrimaryActive: p.primaryActive,
+      ...base.token,
       colorBgContainer: siderPalette.background,
       colorBorderSecondary: siderPalette.border,
     },
