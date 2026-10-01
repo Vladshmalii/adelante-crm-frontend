@@ -14,7 +14,8 @@ interface PreferencesState {
 export const usePreferencesStore = create<PreferencesState>()(
   persist(
     (set) => ({
-      themeMode: 'light',
+      // По умолчанию — тёмная тема; выбор пользователя сохраняется в браузере.
+      themeMode: 'dark',
       siderCollapsed: false,
       toggleTheme: () => {
         set((s) => ({ themeMode: s.themeMode === 'light' ? 'dark' : 'light' }));

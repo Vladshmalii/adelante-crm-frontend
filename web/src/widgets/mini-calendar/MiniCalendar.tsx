@@ -1,4 +1,4 @@
-import { LeftOutlined, PlusOutlined, RightOutlined } from '@ant-design/icons';
+import { LeftOutlined, RightOutlined } from '@ant-design/icons';
 import { keepPreviousData, queryOptions, useQuery } from '@tanstack/react-query';
 import { useLocation, useNavigate } from '@tanstack/react-router';
 import { Button, Calendar, Flex, theme, Tooltip, Typography } from 'antd';
@@ -77,7 +77,7 @@ function LoadRing({ load, children }: { load: number | null; children: React.Rea
 }
 
 /**
- * Мини-календарь в меню: выбор даты открывает Розклад на этот день; кольцо вокруг числа —
+ * Мини-календарь в меню (новая запись — «Новий запис» в Розкладі и `Alt+N`): выбор даты открывает Розклад на этот день; кольцо вокруг числа —
  * загрузка мастеров (зелёное < 50%, жёлтое < 80%, красное — почти всё занято).
  */
 export function MiniCalendar() {
@@ -165,17 +165,6 @@ export function MiniCalendar() {
           );
         }}
       />
-      <Button
-        type="primary"
-        block
-        icon={<PlusOutlined />}
-        style={{ marginTop: 8 }}
-        onClick={() =>
-          void navigate({ to: '/calendar', search: { date: routeDate, create: true } })
-        }
-      >
-        Додати запис
-      </Button>
     </div>
   );
 }
