@@ -1,7 +1,7 @@
 import { Bar, Column, Pie } from '@ant-design/plots';
 import { ProCard, StatisticCard } from '@ant-design/pro-components';
 import { useQuery } from '@tanstack/react-query';
-import { Col, Empty, Row, Table } from 'antd';
+import { Col, Empty, Row, Table, theme as antdTheme } from 'antd';
 import dayjs from 'dayjs';
 
 import { formatMoney } from '@/shared/lib';
@@ -16,6 +16,7 @@ export function DashboardTab({ search }: { search: FinancesSearch }) {
   const { dateFrom, dateTo } = periodToApi(search);
   const { data, error, isPending, refetch } = useQuery(dashboardQueryOptions(dateFrom, dateTo));
   const theme = usePreferencesStore((s) => (s.themeMode === 'dark' ? 'classicDark' : 'classic'));
+  const { token } = antdTheme.useToken();
 
   const revenueByDay = (data?.revenueByDay ?? []).map((d) => ({
     day: dayjs(d.date).format('DD.MM'),
@@ -42,7 +43,7 @@ export function DashboardTab({ search }: { search: FinancesSearch }) {
             title: 'Чистий прибуток',
             value: formatMoney(data?.netIncome),
             styles: {
-              content: data && Number(data.netIncome) < 0 ? { color: '#cf1322' } : undefined,
+              content: data && Number(data.netIncome) < 0 ? { color: token.colorError } : undefined,
             },
           }}
         />

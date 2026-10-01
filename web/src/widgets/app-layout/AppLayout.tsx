@@ -8,12 +8,13 @@ import {
 import { ProLayout } from '@ant-design/pro-components';
 import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
 import { Link, type LinkProps, useLocation, useNavigate } from '@tanstack/react-router';
-import { Button, Dropdown, Select } from 'antd';
+import { Button, ConfigProvider, Dropdown, Select } from 'antd';
 import { type ReactNode, useEffect } from 'react';
 
 import { canAccess, meQueryOptions, useViewer } from '@/shared/auth';
 import { usePreferencesStore } from '@/shared/preferences';
 import { useSessionStore } from '@/shared/session';
+import { siderContentTheme, siderToken } from '@/shared/theme';
 import { MiniCalendar } from '@/widgets/mini-calendar';
 import { NotificationsBell } from '@/widgets/notifications';
 
@@ -69,7 +70,15 @@ export function AppLayout({ children }: { children: ReactNode }) {
       collapsed={siderCollapsed}
       onCollapse={setSiderCollapsed}
       // Мини-календарь с загрузкой дней и «Додати запис» — над меню; в свёрнутом меню не помещается.
-      menuExtraRender={({ collapsed }) => (collapsed ? null : <MiniCalendar />)}
+      // Сайдбар тёмный в обеих темах (как в старом UI) — календарь внутри него тоже в тёмной теме.
+      menuExtraRender={({ collapsed }) =>
+        collapsed ? null : (
+          <ConfigProvider theme={siderContentTheme(themeMode)}>
+            <MiniCalendar />
+          </ConfigProvider>
+        )
+      }
+      token={{ sider: siderToken(themeMode) }}
       siderWidth={264}
       menuItemRender={(item, dom) =>
         // ProLayout отдаёт path как string; все пути берутся из типизированного menuItems.

@@ -1,4 +1,4 @@
-export { api, refreshTokens } from './client';
+export { api, publicApi, refreshTokens } from './client';
 export { ApiError, type ConflictRecord, conflictRecords, errorMessage, unwrap } from './errors';
 export type { components, paths } from './schema.gen';
 

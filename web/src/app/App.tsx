@@ -8,10 +8,10 @@ import dayjs from 'dayjs';
 import 'dayjs/locale/uk';
 
 import { usePreferencesStore } from '@/shared/preferences';
+import { getTheme } from '@/shared/theme';
 
 import { queryClient } from './query-client';
 import { router } from './router';
-import { getTheme } from './theme';
 
 dayjs.locale('uk');
 
