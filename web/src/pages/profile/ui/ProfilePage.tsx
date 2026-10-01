@@ -15,6 +15,7 @@ import {
   Tag,
   Typography,
   Upload,
+  theme,
 } from 'antd';
 
 import { errorMessage, type Schema } from '@/shared/api';
@@ -27,14 +28,13 @@ import {
   isValidPhone,
   roleLabels,
 } from '@/shared/lib';
+import { env } from '@/shared/config';
 import { useSessionStore } from '@/shared/session';
 import { PhoneInput } from '@/shared/ui';
 
 import { uploadFile, useUpdateMe } from '../api/profile.mutations';
 
 type Contacts = Schema<'MePatchIn'>;
-
-const TELEGRAM_BOT = 'https://t.me/AdelanteCrmBot';
 
 const STATUS_LABELS: Record<Schema<'StaffStatus'>, string> = {
   active: 'Працює',
@@ -53,6 +53,7 @@ const emptyToNull = (v?: string | null) => (v?.trim() ? v : null);
 export function ProfilePage() {
   const { data: me } = useSuspenseQuery(meQueryOptions);
   const { message } = App.useApp();
+  const { token } = theme.useToken();
   const update = useUpdateMe();
   const salonId = useSessionStore((s) => s.salonId);
   const fullName = [me.lastName, me.firstName, me.middleName].filter(Boolean).join(' ');
@@ -194,7 +195,7 @@ export function ProfilePage() {
           <ProCard title="Telegram" variant="outlined" style={{ marginTop: 16 }}>
             {me.telegramLinked ? (
               <Space>
-                <CheckCircleFilled style={{ color: '#52c41a' }} />
+                <CheckCircleFilled style={{ color: token.colorSuccess }} />
                 Telegram підключено — сповіщення про записи приходять у бот.
               </Space>
             ) : (
@@ -213,7 +214,7 @@ export function ProfilePage() {
                   <Button
                     type="primary"
                     icon={<SendOutlined />}
-                    href={TELEGRAM_BOT}
+                    href={env.telegramBotUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                   >

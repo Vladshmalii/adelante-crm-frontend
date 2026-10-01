@@ -26,6 +26,9 @@ import { Route as AppServicesRouteImport } from './routes/_app/services'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppShiftsRouteImport } from './routes/_app/shifts'
 import { Route as AppStaffRouteImport } from './routes/_app/staff'
+import { Route as BookingIndexRouteImport } from './routes/booking/index'
+import { Route as BookingSlugIndexRouteImport } from './routes/booking/$slug/index'
+import { Route as BookingSlugReviewRouteImport } from './routes/booking/$slug/review'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -111,6 +114,21 @@ const AppStaffRoute = AppStaffRouteImport.update({
   path: '/staff',
   getParentRoute: () => AppRoute,
 } as any)
+const BookingIndexRoute = BookingIndexRouteImport.update({
+  id: '/booking/',
+  path: '/booking/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BookingSlugIndexRoute = BookingSlugIndexRouteImport.update({
+  id: '/booking/$slug/',
+  path: '/booking/$slug/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BookingSlugReviewRoute = BookingSlugReviewRouteImport.update({
+  id: '/booking/$slug/review',
+  path: '/booking/$slug/review',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
@@ -129,6 +147,9 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AppSettingsRoute
   '/shifts': typeof AppShiftsRoute
   '/staff': typeof AppStaffRoute
+  '/booking/': typeof BookingIndexRoute
+  '/booking/$slug/review': typeof BookingSlugReviewRoute
+  '/booking/$slug/': typeof BookingSlugIndexRoute
 }
 export interface FileRoutesByTo {
   '/forgot-password': typeof ForgotPasswordRoute
@@ -147,6 +168,9 @@ export interface FileRoutesByTo {
   '/shifts': typeof AppShiftsRoute
   '/staff': typeof AppStaffRoute
   '/': typeof AppIndexRoute
+  '/booking': typeof BookingIndexRoute
+  '/booking/$slug/review': typeof BookingSlugReviewRoute
+  '/booking/$slug': typeof BookingSlugIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -167,6 +191,9 @@ export interface FileRoutesById {
   '/_app/shifts': typeof AppShiftsRoute
   '/_app/staff': typeof AppStaffRoute
   '/_app/': typeof AppIndexRoute
+  '/booking/': typeof BookingIndexRoute
+  '/booking/$slug/review': typeof BookingSlugReviewRoute
+  '/booking/$slug/': typeof BookingSlugIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -187,6 +214,9 @@ export interface FileRouteTypes {
     | '/settings'
     | '/shifts'
     | '/staff'
+    | '/booking/'
+    | '/booking/$slug/review'
+    | '/booking/$slug/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/forgot-password'
@@ -205,6 +235,9 @@ export interface FileRouteTypes {
     | '/shifts'
     | '/staff'
     | '/'
+    | '/booking'
+    | '/booking/$slug/review'
+    | '/booking/$slug'
   id:
     | '__root__'
     | '/_app'
@@ -224,6 +257,9 @@ export interface FileRouteTypes {
     | '/_app/shifts'
     | '/_app/staff'
     | '/_app/'
+    | '/booking/'
+    | '/booking/$slug/review'
+    | '/booking/$slug/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -231,6 +267,9 @@ export interface RootRouteChildren {
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   LoginRoute: typeof LoginRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  BookingIndexRoute: typeof BookingIndexRoute
+  BookingSlugReviewRoute: typeof BookingSlugReviewRoute
+  BookingSlugIndexRoute: typeof BookingSlugIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -354,6 +393,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppStaffRouteImport
       parentRoute: typeof AppRoute
     }
+    '/booking/': {
+      id: '/booking/'
+      path: '/booking'
+      fullPath: '/booking/'
+      preLoaderRoute: typeof BookingIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/booking/$slug/': {
+      id: '/booking/$slug/'
+      path: '/booking/$slug'
+      fullPath: '/booking/$slug/'
+      preLoaderRoute: typeof BookingSlugIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/booking/$slug/review': {
+      id: '/booking/$slug/review'
+      path: '/booking/$slug/review'
+      fullPath: '/booking/$slug/review'
+      preLoaderRoute: typeof BookingSlugReviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -396,6 +456,9 @@ const rootRouteChildren: RootRouteChildren = {
   ForgotPasswordRoute: ForgotPasswordRoute,
   LoginRoute: LoginRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  BookingIndexRoute: BookingIndexRoute,
+  BookingSlugReviewRoute: BookingSlugReviewRoute,
+  BookingSlugIndexRoute: BookingSlugIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

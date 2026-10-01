@@ -17,17 +17,18 @@ import { formatPhone, inSalonTz, recordStatusLabels } from '@/shared/lib';
 type RecordItem = Schema<'RecordOut'>;
 type Status = Schema<'RecordStatus'>;
 
-const STATUS_ICONS: Record<Status, ReactNode> = {
-  scheduled: <ClockCircleOutlined />,
-  confirmed: <CheckCircleOutlined style={{ color: '#1677ff' }} />,
-  arrived: <LoginOutlined style={{ color: '#13c2c2' }} />,
-  completed: <CheckCircleFilled style={{ color: '#52c41a' }} />,
-  cancelled: <StopOutlined style={{ color: '#ff4d4f' }} />,
-  no_show: <CloseCircleOutlined style={{ color: '#fa8c16' }} />,
-};
-
 export function StatusIcon({ status }: { status: Status }) {
-  return <Tooltip title={recordStatusLabels[status].text}>{STATUS_ICONS[status]}</Tooltip>;
+  const { token } = theme.useToken();
+  // Успех, ошибка и предупреждение — из палитры темы; синий и бирюзовый в ней не заданы.
+  const icons: Record<Status, ReactNode> = {
+    scheduled: <ClockCircleOutlined />,
+    confirmed: <CheckCircleOutlined style={{ color: token.blue6 }} />,
+    arrived: <LoginOutlined style={{ color: token.cyan6 }} />,
+    completed: <CheckCircleFilled style={{ color: token.colorSuccess }} />,
+    cancelled: <StopOutlined style={{ color: token.colorError }} />,
+    no_show: <CloseCircleOutlined style={{ color: token.colorWarning }} />,
+  };
+  return <Tooltip title={recordStatusLabels[status].text}>{icons[status]}</Tooltip>;
 }
 
 /** Цвет карточки — по уровню записи: стандартний / важливий / особливий. */

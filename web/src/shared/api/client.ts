@@ -75,3 +75,9 @@ const authMiddleware: Middleware = {
 
 export const api = createClient<paths>({ baseUrl: env.apiUrl });
 api.use(authMiddleware);
+
+/**
+ * Клиент публичного Booking API (сайт записи): без токена, `X-Salon-Id` и refresh — салон
+ * задаётся slug'ом в пути.
+ */
+export const publicApi = createClient<paths>({ baseUrl: env.apiUrl });
