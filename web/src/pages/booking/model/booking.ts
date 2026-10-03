@@ -6,11 +6,25 @@ import { inSalonTz } from '@/shared/lib';
 type Service = Schema<'app__api__booking__router__ServiceOut'>;
 type Slot = Schema<'app__api__booking__router__SlotOut'>;
 
-/** Услуги по категориям в порядке первого появления. */
-export function groupServices(services: Service[]): [string, Service[]][] {
-  const groups = new Map<string, Service[]>();
-  for (const s of services) groups.set(s.category, [...(groups.get(s.category) ?? []), s]);
-  return [...groups.entries()];
+export interface ServiceGroup {
+  id: string;
+  name: string;
+  services: Service[];
+}
+
+/** Услуги по категориям в порядке первого появления (бекенд уже сортирует по категории). */
+export function groupServices(services: Service[]): ServiceGroup[] {
+  const groups = new Map<string, ServiceGroup>();
+  for (const s of services) {
+    const group = groups.get(s.category_id) ?? {
+      id: s.category_id,
+      name: s.category_name,
+      services: [],
+    };
+    group.services.push(s);
+    groups.set(s.category_id, group);
+  }
+  return [...groups.values()];
 }
 
 export type DayPart = 'morning' | 'day' | 'evening';

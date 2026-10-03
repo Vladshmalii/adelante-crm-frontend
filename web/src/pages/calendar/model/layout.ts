@@ -97,6 +97,32 @@ export function snapMove(start: number, deltaPx: number, pxPerMinute: number, st
   return Math.min(Math.max(snapped, 0), 24 * 60 - step);
 }
 
+export type ResizeEdge = 'start' | 'end';
+
+/**
+ * Растягивание карточки за край: сдвиг в пикселях → новый интервал. Край привязывается к шагу
+ * сетки, запись не короче шага и не выходит за сутки (конец 24:00 допустим).
+ */
+export function snapResize(
+  interval: Interval,
+  edge: ResizeEdge,
+  deltaPx: number,
+  pxPerMinute: number,
+  step: number,
+): Interval {
+  const snap = (m: number) => Math.round((m + deltaPx / pxPerMinute) / step) * step;
+  if (edge === 'start') {
+    return {
+      start: Math.min(Math.max(snap(interval.start), 0), interval.end - step),
+      end: interval.end,
+    };
+  }
+  return {
+    start: interval.start,
+    end: Math.max(Math.min(snap(interval.end), 24 * 60), interval.start + step),
+  };
+}
+
 /** Пересекается ли интервал с чужими записями мастера (проверка занятости). */
 export const overlapsAny = (target: Interval, others: Interval[]) =>
   others.some((o) => o.start < target.end && target.start < o.end);

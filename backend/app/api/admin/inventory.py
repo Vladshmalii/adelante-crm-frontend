@@ -18,8 +18,8 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
 from fastapi.responses import StreamingResponse
-from pydantic import Field
-from sqlalchemy import ColumnElement, case, func, or_, select, update
+from pydantic import BeforeValidator, Field
+from sqlalchemy import ColumnElement, and_, case, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.admin.deps import CurrentAuthor, ensure_own_record
@@ -82,6 +82,7 @@ class ProductOut(ApiModel):
     stock_status: StockStatus
     # Для мастера (выбор при списании) — null
     sku: str | None = None
+    barcode: str | None = None
     category: PersonRef | None = None
     package_volume: Decimal | None = None
     min_quantity: Decimal | None = None
@@ -102,6 +103,7 @@ def _product_out(product: Product, categories: dict[uuid.UUID, str], *, full: bo
     )
     if full:
         out.sku = product.sku
+        out.barcode = product.barcode
         out.category = PersonRef(
             id=str(product.category_id), name=categories.get(product.category_id)
         )
@@ -157,6 +159,42 @@ SORTS = {
     "createdAt": Product.created_at,
 }
 
+# Маржа = (ціна продажу − собівартість) / ціна продажу; без одной из цен или
+# при нулевой цене продажу — NULL (в конце при любом направлении)
+MARGIN = case(
+    (
+        and_(
+            Product.sale_price.is_not(None),
+            Product.cost_price.is_not(None),
+            Product.sale_price > 0,
+        ),
+        (Product.sale_price - Product.cost_price) / Product.sale_price,
+    ),
+    else_=None,
+)
+
+
+def normalize_barcode(value: str | None) -> str | None:
+    """Пробелы по краям обрезаются, пустая строка — null."""
+    if value is None:
+        return None
+    value = value.strip()
+    return value or None
+
+
+def _barcode(value: object) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError("Штрихкод має бути рядком")  # noqa: TRY004 — pydantic ждёт ValueError (→ 422)
+    barcode = normalize_barcode(value)
+    if barcode is not None and len(barcode) > 64:
+        raise ValueError("Штрихкод — не довше 64 символів")
+    return barcode
+
+
+Barcode = Annotated[str | None, BeforeValidator(_barcode)]
+
 
 @router.get("/inventory/products", response_model=Envelope[list[ProductOut]])
 async def list_products(
@@ -177,18 +215,27 @@ async def list_products(
         query = query.where(Product.is_active.is_(True))
     if query_text:
         pattern = f"%{query_text}%"
-        query = query.where(or_(Product.name.ilike(pattern), Product.sku.ilike(pattern)))
+        query = query.where(
+            or_(
+                Product.name.ilike(pattern),
+                Product.sku.ilike(pattern),
+                Product.barcode.ilike(pattern),
+            )
+        )
     if category_id is not None:
         query = query.where(Product.category_id == category_id)
     if stock_status is not None:
         query = query.where(_stock_status_filter(stock_status))
 
     total = await tenant_session.scalar(select(func.count()).select_from(query.subquery()))
-    column = SORTS.get(sort, Product.name)
+    order: ColumnElement[Any]
+    if sort == "margin":
+        order = (MARGIN.desc() if desc else MARGIN.asc()).nulls_last()
+    else:
+        column = SORTS.get(sort, Product.name)
+        order = column.desc() if desc else column.asc()
     products = await tenant_session.scalars(
-        query.order_by(column.desc() if desc else column, Product.name)
-        .offset((page - 1) * per_page)
-        .limit(per_page)
+        query.order_by(order, Product.name).offset((page - 1) * per_page).limit(per_page)
     )
     categories = await _category_names(tenant_session) if user.is_admin else {}
     return Envelope(
@@ -246,6 +293,8 @@ async def get_product(
 class ProductCreateIn(ApiModel):
     name: str = Field(min_length=1, max_length=255)
     sku: str = Field(min_length=1, max_length=64)
+    # Любая строка до 64 символов; уникален в салоне без учёта регистра
+    barcode: Barcode = None
     # Не указана — «Без категорії»
     category_id: uuid.UUID | None = None
     unit: ProductUnit = ProductUnit.PCS
@@ -266,6 +315,18 @@ async def _ensure_sku_free(
         query = query.where(Product.id != exclude_id)
     if await tenant_session.scalar(query) is not None:
         raise HTTPException(409, "Товар з таким артикулом уже існує")
+
+
+async def _ensure_barcode_free(
+    tenant_session: AsyncSession, barcode: str | None, exclude_id: uuid.UUID | None = None
+) -> None:
+    if barcode is None:
+        return
+    query = select(Product.id).where(func.lower(Product.barcode) == barcode.lower())
+    if exclude_id is not None:
+        query = query.where(Product.id != exclude_id)
+    if await tenant_session.scalar(query) is not None:
+        raise HTTPException(409, "Товар з таким штрихкодом вже існує")
 
 
 async def _ensure_category(tenant_session: AsyncSession, category_id: uuid.UUID) -> None:
@@ -309,6 +370,7 @@ async def create_product(
     tenant_session: TenantSession,
 ) -> Envelope[ProductOut]:
     await _ensure_sku_free(tenant_session, body.sku)
+    await _ensure_barcode_free(tenant_session, body.barcode)
     if body.category_id is not None:
         await _ensure_category(tenant_session, body.category_id)
         category_id = body.category_id
@@ -351,6 +413,8 @@ class ProductPatchIn(ApiModel):
 
     name: str | None = Field(default=None, min_length=1, max_length=255)
     sku: str | None = Field(default=None, min_length=1, max_length=64)
+    # null — очистить
+    barcode: Barcode = None
     category_id: uuid.UUID | None = None
     unit: ProductUnit | None = None
     package_volume: Decimal | None = Field(default=None, gt=0)
@@ -376,6 +440,8 @@ async def patch_product(
             raise HTTPException(422, f"Поле {required} не можна очистити")
     if updates.get("sku"):
         await _ensure_sku_free(tenant_session, updates["sku"], exclude_id=product.id)
+    if updates.get("barcode"):
+        await _ensure_barcode_free(tenant_session, updates["barcode"], exclude_id=product.id)
     if updates.get("category_id"):
         await _ensure_category(tenant_session, updates["category_id"])
 
@@ -700,18 +766,40 @@ async def delete_category(
 
 # --- Импорт / экспорт -------------------------------------------------------
 
-IMPORT_COLUMNS = [
-    "Назва",
-    "Артикул",
-    "Категорія",
-    "Одиниця",
-    "Об'єм упаковки",
-    "Залишок",
-    "Мін. залишок",
-    "Собівартість",
-    "Ціна продажу",
-    "Опис",
-]
+# Колонки шаблона (в этом порядке — экспорт и шаблон фронта). Импорт читает
+# колонки по заголовкам; файл без распознанных заголовков читается по старой
+# раскладке LEGACY_IMPORT_COLUMNS (без штрихкода)
+IMPORT_COLUMNS = {
+    "name": "Назва",
+    "sku": "Артикул",
+    "barcode": "Штрихкод",
+    "category": "Категорія",
+    "unit": "Одиниця",
+    "package_volume": "Об'єм упаковки",
+    "quantity": "Залишок",
+    "min_quantity": "Мін. залишок",
+    "cost_price": "Собівартість",
+    "sale_price": "Ціна продажу",
+    "description": "Опис",
+}
+LEGACY_IMPORT_COLUMNS = [key for key in IMPORT_COLUMNS if key != "barcode"]
+_HEADER_ALIASES = {"одиниця виміру": "unit"}
+
+
+def _header_key(value: Any) -> str | None:
+    text = str(value or "").strip().casefold().replace("’", "'").replace("ʼ", "'")
+    by_title = {title.casefold(): key for key, title in IMPORT_COLUMNS.items()}
+    return by_title.get(text) or _HEADER_ALIASES.get(text)
+
+
+def _column_map(header: tuple[Any, ...]) -> dict[str, int]:
+    """Поле → индекс колонки по заголовкам; не распознаны — старая раскладка."""
+    found = {key: i for i, cell in enumerate(header) if (key := _header_key(cell))}
+    if "name" in found and "sku" in found:
+        return found
+    return {key: i for i, key in enumerate(LEGACY_IMPORT_COLUMNS)}
+
+
 UNITS_BY_NAME = {
     **{name: unit for unit, name in UNIT_NAMES.items()},
     **{u.value: u for u in ProductUnit},
@@ -743,10 +831,12 @@ async def import_products(
     author: CurrentAuthor,
     tenant_session: TenantSession,
 ) -> Envelope[ImportReportOut]:
-    """Импорт из Excel (колонки — IMPORT_COLUMNS, первая строка — заголовок).
+    """Импорт из Excel: первая строка — заголовки (IMPORT_COLUMNS, порядок любой).
 
     Товар ищется по артикулу: новый — создаётся, существующий — обновляется;
     отличие остатка оформляется коригуванням. Неизвестная категория создаётся.
+    Штрихкод необязателен; занятый другим товаром — ошибка строки, строка
+    пропускается; пустая ячейка у существующего товара штрихкод не стирает.
     """
     from openpyxl import load_workbook
 
@@ -761,12 +851,25 @@ async def import_products(
     uncategorized = await _system_category(tenant_session)
     created = updated = 0
     errors: list[str] = []
-    for i, raw in enumerate(wb.active.iter_rows(min_row=2, values_only=True), start=2):
-        row = (list(raw) + [None] * len(IMPORT_COLUMNS))[: len(IMPORT_COLUMNS)]
-        if all(v is None or str(v).strip() == "" for v in row):
+    rows = wb.active.iter_rows(values_only=True)
+    columns = _column_map(next(rows, ()))
+    for i, raw in enumerate(rows, start=2):
+        if all(v is None or str(v).strip() == "" for v in raw):
             continue
+
+        def cell(key: str, raw: tuple[Any, ...] = raw) -> Any:
+            index = columns.get(key)
+            return raw[index] if index is not None and index < len(raw) else None
+
+        def text(key: str) -> str:
+            value = cell(key)
+            return str(value).strip() if value is not None else ""
+
         name, sku, category_name, unit_name = (
-            str(v).strip() if v is not None else "" for v in row[:4]
+            text("name"),
+            text("sku"),
+            text("category"),
+            text("unit"),
         )
         if not name or not sku:
             errors.append(f"Рядок {i}: потрібні назва і артикул")
@@ -777,11 +880,36 @@ async def import_products(
             continue
         try:
             volume, quantity, min_quantity, cost, price = (
-                _decimal(row[4 + k], IMPORT_COLUMNS[4 + k], i) for k in range(5)
+                _decimal(cell(key), IMPORT_COLUMNS[key], i)
+                for key in (
+                    "package_volume",
+                    "quantity",
+                    "min_quantity",
+                    "cost_price",
+                    "sale_price",
+                )
             )
         except ValueError as exc:
             errors.append(str(exc))
             continue
+        barcode = normalize_barcode(text("barcode"))
+        if barcode is not None and len(barcode) > 64:
+            errors.append(f"Рядок {i}: штрихкод довший за 64 символи")
+            continue
+
+        product = await tenant_session.scalar(
+            select(Product).where(func.lower(Product.sku) == sku.lower()).with_for_update()
+        )
+        if barcode is not None:
+            owner_query = select(Product).where(func.lower(Product.barcode) == barcode.lower())
+            if product is not None:
+                owner_query = owner_query.where(Product.id != product.id)
+            owner = await tenant_session.scalar(owner_query)
+            if owner is not None:
+                errors.append(
+                    f"Рядок {i}: штрихкод «{barcode}» вже є у товару «{owner.name}» ({owner.sku})"
+                )
+                continue
 
         category = uncategorized
         if category_name:
@@ -801,11 +929,11 @@ async def import_products(
             "min_quantity": min_quantity or Decimal(0),
             "cost_price": cost,
             "sale_price": price,
-            "description": str(row[9]).strip() if row[9] else None,
+            "description": text("description") or None,
         }
-        product = await tenant_session.scalar(
-            select(Product).where(func.lower(Product.sku) == sku.lower()).with_for_update()
-        )
+        # Пустая ячейка штрихкода у существующего товара его не стирает
+        if barcode is not None or product is None:
+            fields["barcode"] = barcode
         if product is None:
             product = Product(sku=sku, quantity=Decimal(0), is_active=True, **fields)
             tenant_session.add(product)
@@ -815,6 +943,7 @@ async def import_products(
             for field, value in fields.items():
                 setattr(product, field, value)
             product.is_active = True
+            await tenant_session.flush()
             updated += 1
         if quantity is not None and quantity != product.quantity:
             _add_movement(
@@ -841,7 +970,7 @@ async def import_products(
 
 
 EXPORT_BLOCKS = {
-    "main": ["Назва", "Артикул", "Категорія", "Одиниця"],
+    "main": ["Назва", "Артикул", "Штрихкод", "Категорія", "Одиниця"],
     "stock": ["Об'єм упаковки", "Залишок", "Мін. залишок", "Статус"],
     "finance": ["Собівартість", "Ціна продажу", "Вартість залишку"],
     "description": ["Опис"],
@@ -855,7 +984,7 @@ STATUS_NAMES = {
 
 def _export_values(block: str, p: Product, categories: dict[uuid.UUID, str]) -> list[Any]:
     if block == "main":
-        return [p.name, p.sku, categories.get(p.category_id), UNIT_NAMES[p.unit]]
+        return [p.name, p.sku, p.barcode, categories.get(p.category_id), UNIT_NAMES[p.unit]]
     if block == "stock":
         return [
             float(p.package_volume) if p.package_volume is not None else None,

@@ -36,14 +36,24 @@ def w(new_salon: Salon) -> World:
         token=adm,
         salon=s.id,
         expect=201,
-        json={"name": "Стрижка", "price": 300, "durationMinutes": 30, "category": "hair"},
+        json={
+            "name": "Стрижка",
+            "price": 300,
+            "durationMinutes": 30,
+            "categoryId": s.service_category("Волосся"),
+        },
     )
     color = api.post(
         "/services",
         token=adm,
         salon=s.id,
         expect=201,
-        json={"name": "Фарбування", "price": 900, "durationMinutes": 90, "category": "color"},
+        json={
+            "name": "Фарбування",
+            "price": 900,
+            "durationMinutes": 90,
+            "categoryId": s.service_category("Фарбування"),
+        },
     )
     reg = api.post(
         "/finances/cash-registers", token=s.su, salon=s.id, expect=201, json={"name": "Каса"}
@@ -195,7 +205,8 @@ def test_services(w: World) -> None:
     # Чек 1200 за «Стрижка + Фарбування» делится пропорционально цене: 300 / 900
     assert _d(by_name["Стрижка"]["revenue"]) == 600 and by_name["Стрижка"]["count"] == 2
     assert _d(by_name["Фарбування"]["revenue"]) == 900 and by_name["Фарбування"]["count"] == 2
-    assert {c["category"] for c in data["categories"]} == {"hair", "color"}
+    assert {c["category"]["name"] for c in data["categories"]} == {"Волосся", "Фарбування"}
+    assert by_name["Стрижка"]["category"]["name"] == "Волосся"
 
 
 def test_period_validation_and_export(w: World) -> None:

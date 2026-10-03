@@ -149,7 +149,7 @@ function WriteOffForm({ recordId }: { recordId: string }) {
       <Space.Compact style={{ width: '100%' }}>
         <Select<string>
           style={{ flex: 1, minWidth: 0 }}
-          placeholder="Товар: назва або артикул"
+          placeholder="Товар: назва, артикул або штрихкод"
           showSearch={{ filterOption: false, onSearch: setQuery }}
           loading={isFetching}
           value={product?.id}

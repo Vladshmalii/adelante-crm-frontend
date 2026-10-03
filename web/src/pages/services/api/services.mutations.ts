@@ -45,3 +45,51 @@ export function useArchiveService() {
     onSuccess: invalidate,
   });
 }
+
+/** Категории услуг. Название категории видно и в записях — их тоже перечитываем. */
+function useInvalidateCategories() {
+  const queryClient = useQueryClient();
+  return () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: servicesKeys.all }),
+      queryClient.invalidateQueries({ queryKey: ['records'] }),
+    ]);
+}
+
+export function useCreateServiceCategory() {
+  const invalidate = useInvalidateCategories();
+  return useMutation({
+    mutationFn: async (name: string) =>
+      unwrap(await api.POST('/api/admin/v1/services/categories', { body: { name } })).data,
+    onSuccess: invalidate,
+  });
+}
+
+export function useRenameServiceCategory() {
+  const invalidate = useInvalidateCategories();
+  return useMutation({
+    mutationFn: async ({ id, name }: { id: string; name: string }) =>
+      unwrap(
+        await api.PATCH('/api/admin/v1/services/categories/{category_id}', {
+          params: { path: { category_id: id } },
+          body: { name },
+        }),
+      ).data,
+    onSuccess: invalidate,
+  });
+}
+
+/** Услуги удалённой категории бекенд переносит в «Інше». */
+export function useDeleteServiceCategory() {
+  const invalidate = useInvalidateCategories();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      unwrap(
+        await api.DELETE('/api/admin/v1/services/categories/{category_id}', {
+          params: { path: { category_id: id } },
+        }),
+      );
+    },
+    onSuccess: invalidate,
+  });
+}

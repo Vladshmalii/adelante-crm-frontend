@@ -6,9 +6,10 @@ import {
   placeOverlapping,
   shortBreaks,
   snapMove,
+  snapResize,
   visibleHours,
 } from './layout';
-import { formatClock, monthGrid, parseClock, weekDays } from './time';
+import { formatClock, monthGrid, parseClock, toIso, weekDays } from './time';
 
 const r = (start: number, end: number, item = `${start}`) => ({ start, end, item });
 
@@ -91,5 +92,25 @@ describe('даты Розкладу', () => {
   it('часы и минуты', () => {
     expect(parseClock('09:30:00')).toBe(570);
     expect(formatClock(570)).toBe('09:30');
+  });
+});
+
+describe('растягивание карточки', () => {
+  const visit = { start: 600, end: 660 }; // 10:00–11:00, 2 px на минуту
+
+  it('тянет конец и начало с привязкой к шагу', () => {
+    expect(snapResize(visit, 'end', 55, 2, 15)).toEqual({ start: 600, end: 690 });
+    expect(snapResize(visit, 'start', -65, 2, 15)).toEqual({ start: 570, end: 660 });
+  });
+
+  it('не короче шага и не за пределы суток', () => {
+    expect(snapResize(visit, 'end', -500, 2, 15)).toEqual({ start: 600, end: 615 });
+    expect(snapResize(visit, 'start', 500, 2, 30)).toEqual({ start: 630, end: 660 });
+    expect(snapResize({ start: 1380, end: 1410 }, 'end', 500, 2, 30).end).toBe(1440);
+    expect(snapResize(visit, 'start', -5000, 2, 30).start).toBe(0);
+  });
+
+  it('конец 24:00 — полночь следующего дня', () => {
+    expect(toIso('2026-10-05', 24 * 60)).toBe(toIso('2026-10-06', 0));
   });
 });

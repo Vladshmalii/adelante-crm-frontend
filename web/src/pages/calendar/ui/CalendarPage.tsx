@@ -26,13 +26,16 @@ import {
   dailySummaryQueryOptions,
   scheduleQueryOptions,
 } from '../api/calendar.queries';
-import { buildColumns, type Column, isWorking } from '../model/columns';
+import { buildColumns, type Column, isMovable, isWorking } from '../model/columns';
+import type { Interval } from '../model/layout';
 import { type CalendarSearch, type CalendarView, STEPS, type Step } from '../model/search';
 import {
   asDay,
   capitalize,
   dateTitle,
+  dayOf,
   formatClock,
+  minutesOfDay,
   shiftDate,
   todayInSalon,
   toIso,
@@ -65,7 +68,7 @@ export function CalendarPage() {
   const search = route.useSearch();
   const navigate = route.useNavigate();
   const { message, modal } = App.useApp();
-  const { can } = useViewer();
+  const { viewer, can } = useViewer();
   const { token } = theme.useToken();
   const update = useUpdateRecord();
 
@@ -120,6 +123,37 @@ export function CalendarPage() {
   // Мастер двигает запись только по времени в своей колонке; в очередь — только администратор.
   const canDrop = (r: RecordItem, c: Column) =>
     can.records.manageAll || c.id === (r.master?.id ?? null);
+
+  // Длительность меняет администратор — любой записи, мастер — только своей.
+  const canResize = (r: RecordItem) =>
+    isMovable(r) && (can.records.manageAll || r.master?.id === viewer.id);
+
+  const confirmResize = (record: RecordItem, next: Interval) => {
+    const day = dayOf(record.startAt);
+    const startChanged = next.start !== minutesOfDay(record.startAt);
+    modal.confirm({
+      title: 'Змінити час запису?',
+      content: `${record.client.name}: ${formatClock(next.start)}–${formatClock(next.end)} · ${next.end - next.start} хв`,
+      okText: 'Зберегти',
+      cancelText: 'Скасувати',
+      onOk: () =>
+        update
+          .mutateAsync({
+            id: record.id,
+            body: {
+              ...(startChanged ? { startAt: toIso(day, next.start) } : {}),
+              endAt: toIso(day, next.end),
+            },
+          })
+          .then(
+            (saved) => {
+              void message.success('Час запису змінено');
+              if (saved.outsideShift) void message.warning('Запис поза зміною майстра');
+            },
+            (e: unknown) => void message.error(errorMessage(e)),
+          ),
+    });
+  };
 
   const openRecord = (r: RecordItem) => {
     setSearch({ recordId: r.id });
@@ -335,6 +369,8 @@ export function CalendarPage() {
             setForm({ mode: 'create', masterId: t.masterId, date: t.date, minutes: t.minutes });
           }}
           onMove={confirmMove}
+          onResize={confirmResize}
+          canResize={canResize}
           canDrop={canDrop}
           canCreateIn={canCreateIn}
         />

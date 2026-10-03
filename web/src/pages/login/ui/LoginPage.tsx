@@ -4,6 +4,7 @@ import { Link, useNavigate } from '@tanstack/react-router';
 import { Alert, Flex } from 'antd';
 
 import { errorMessage } from '@/shared/api';
+import { useLogo } from '@/shared/theme';
 
 import { useLoginMutation } from '../api/login.mutation';
 
@@ -13,13 +14,14 @@ interface LoginPageProps {
 }
 
 export function LoginPage({ redirectTo }: LoginPageProps) {
+  const logo = useLogo();
   const navigate = useNavigate();
   const login = useLoginMutation();
 
   return (
     <Flex align="center" justify="center" style={{ minHeight: '100%' }}>
       <LoginForm<{ email: string; password: string }>
-        logo="/favicon.svg"
+        logo={logo}
         title="Adelante CRM"
         subTitle="Вхід до панелі салону"
         submitter={{ searchConfig: { submitText: 'Увійти' } }}

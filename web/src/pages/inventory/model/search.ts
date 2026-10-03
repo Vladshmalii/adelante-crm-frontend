@@ -7,7 +7,7 @@ export const inventorySearchSchema = z.object({
   stockStatus: z.enum(['in_stock', 'low', 'out']).optional(),
   /** Показать и удалённые (мягко) товары — чтобы восстановить. */
   includeInactive: z.boolean().optional(),
-  sort: z.enum(['name', 'sku', 'quantity', 'createdAt']).optional(),
+  sort: z.enum(['name', 'sku', 'quantity', 'margin', 'createdAt']).optional(),
   desc: z.boolean().optional(),
   page: z.number().int().positive().default(1),
   perPage: z.number().int().positive().max(200).default(25),

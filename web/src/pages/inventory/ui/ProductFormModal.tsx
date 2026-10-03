@@ -22,6 +22,7 @@ type Unit = Schema<'ProductUnit'>;
 interface FormValues {
   name: string;
   sku: string;
+  barcode?: string;
   categoryId?: string;
   unit: Unit;
   packageVolume?: number;
@@ -63,6 +64,7 @@ export function ProductFormModal({ open, onOpenChange, product }: ProductFormMod
         ? {
             name: product.name,
             sku: product.sku ?? '',
+            barcode: product.barcode ?? undefined,
             categoryId: product.category?.id ?? undefined,
             unit: product.unit,
             packageVolume: num(product.packageVolume),
@@ -91,6 +93,7 @@ export function ProductFormModal({ open, onOpenChange, product }: ProductFormMod
         const common = {
           name: v.name.trim(),
           sku: v.sku.trim(),
+          barcode: blank(v.barcode),
           unit: v.unit,
           // Объём упаковки имеет смысл только для фасованных (не штучных) товаров.
           packageVolume: v.unit === 'pcs' ? null : (v.packageVolume ?? null),
@@ -131,6 +134,12 @@ export function ProductFormModal({ open, onOpenChange, product }: ProductFormMod
         label="Артикул (SKU)"
         tooltip="Унікальний; за ним імпорт з Excel знаходить товар"
         rules={[{ required: true, whitespace: true, message: 'Вкажіть артикул' }]}
+      />
+      <ProFormText
+        name="barcode"
+        label="Штрихкод"
+        tooltip="Унікальний. Знаходиться в пошуку за будь-якою частиною, наприклад за останніми цифрами"
+        fieldProps={{ maxLength: 64 }}
       />
       <ProFormSelect
         name="categoryId"

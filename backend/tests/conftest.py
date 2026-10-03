@@ -192,6 +192,12 @@ class Salon:
     su: str  # токен суперюзера
     api: Api
 
+    def service_category(self, name: str) -> str:
+        """Категория услуг (суперюзером); возвращает id."""
+        return self.api.post(
+            "/services/categories", token=self.su, salon=self.id, expect=201, json={"name": name}
+        )["id"]
+
     def create_staff(self, role: str = "master", **fields: Any) -> tuple[dict[str, Any], str]:
         """Сотрудник с паролем; возвращает (сотрудник, токен)."""
         email = f"{role[:3]}-{uuid.uuid4().hex[:8]}@test.ua"

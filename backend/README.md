@@ -125,6 +125,12 @@ Outbox → Celery (`workers/tasks/outbox.py`) → Telegram / WebSocket:
 `/settings/salon`, `/settings/schedule` (администратор) и ссылка на отзыв клиенту после визита —
 `docs/reviews-settings.md` (бриф для фронтенда — `docs/frontend-reviews-settings.md`).
 
+## Категории услуг, штрихкод, длительность записи
+
+Категории услуг — отдельная сущность (`service_categories`, системная «Інше»), штрихкод товара,
+сортировка склада по марже, ручной конец записи (`endAt`) — `docs/categories-barcode-end.md`
+(бриф для фронтенда — `docs/frontend-categories-barcode-end.md`).
+
 ## Тесты
 
 ```bash
@@ -140,8 +146,9 @@ pytest            # нужен запущенный Docker
 
 1. **Остановить api, worker и beat.** Среди shard-миграций есть contract-шаги:
    `d9a3b5c7e1f0` — удаление `records.service_id`, `a8c2e4f6b1d3` — замена
-   `staff_schedules` / `schedule_exceptions` сменами `staff_shifts`; код до этой выкатки
-   использует удаляемое и падал бы.
+   `staff_schedules` / `schedule_exceptions` сменами `staff_shifts`, `b3d5f7a9c1e2` —
+   `services.category` → `service_categories`; код до этой выкатки использует удаляемое и
+   падал бы.
 2. `salonctl migrate master` и `salonctl migrate shards`. Кроме удаления
    `records.service_id` миграции только расширяют схему (новые колонки с default,
    `record_services` с переносом услуг существующих записей, таблицы склада с базовыми

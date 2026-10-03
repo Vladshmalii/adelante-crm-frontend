@@ -525,10 +525,12 @@ export interface paths {
         put?: never;
         /**
          * Import Products
-         * @description Импорт из Excel (колонки — IMPORT_COLUMNS, первая строка — заголовок).
+         * @description Импорт из Excel: первая строка — заголовки (IMPORT_COLUMNS, порядок любой).
          *
          *     Товар ищется по артикулу: новый — создаётся, существующий — обновляется;
          *     отличие остатка оформляется коригуванням. Неизвестная категория создаётся.
+         *     Штрихкод необязателен; занятый другим товаром — ошибка строки, строка
+         *     пропускается; пустая ячейка у существующего товара штрихкод не стирает.
          */
         post: operations["import_products_api_admin_v1_inventory_import_post"];
         delete?: never;
@@ -1010,11 +1012,33 @@ export interface paths {
         /** List Categories */
         get: operations["list_categories_api_admin_v1_services_categories_get"];
         put?: never;
-        post?: never;
+        /** Create Category */
+        post: operations["create_category_api_admin_v1_services_categories_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/services/categories/{category_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Category
+         * @description Удаление: все услуги категории (включая архивные) переходят в «Інше».
+         */
+        delete: operations["delete_category_api_admin_v1_services_categories__category_id__delete"];
+        options?: never;
+        head?: never;
+        /** Rename Category */
+        patch: operations["rename_category_api_admin_v1_services_categories__category_id__patch"];
         trace?: never;
     };
     "/api/admin/v1/settings/salon": {
@@ -1335,6 +1359,9 @@ export interface paths {
         /**
          * List Services
          * @description Активные услуги, которые выполняет хотя бы один мастер.
+         *
+         *     Порядок: по названию категории (украинский алфавит, «Інше» — последней),
+         *     внутри — по названию услуги.
          */
         get: operations["list_services_api_booking__salon_slug__services_get"];
         put?: never;
@@ -1537,15 +1564,21 @@ export interface components {
         };
         /** CategoryOut */
         app__api__admin__services__CategoryOut: {
-            /** Category */
-            category: string;
-            /** Count */
-            count: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Issystem */
+            isSystem: boolean;
+            /** Name */
+            name: string;
+            /** Servicescount */
+            servicesCount: number;
         };
         /** ServiceOut */
         app__api__admin__services__ServiceOut: {
-            /** Category */
-            category: string;
+            category: components["schemas"]["CategoryRef"];
             /** Color */
             color: string | null;
             /** Description */
@@ -1601,8 +1634,13 @@ export interface components {
         };
         /** ServiceOut */
         app__api__booking__router__ServiceOut: {
-            /** Category */
-            category: string;
+            /**
+             * Category Id
+             * Format: uuid
+             */
+            category_id: string;
+            /** Category Name */
+            category_name: string;
             /** Color */
             color: string | null;
             /** Description */
@@ -1642,6 +1680,16 @@ export interface components {
             master_name: string;
             /** Salons */
             salons: components["schemas"]["SalonRecordsOut"][];
+        };
+        /** Envelope[CategoryOut] */
+        app__api__schemas__Envelope_CategoryOut___1: {
+            data: components["schemas"]["app__api__admin__services__CategoryOut"];
+            meta?: components["schemas"]["PageMeta"] | null;
+        };
+        /** Envelope[CategoryOut] */
+        app__api__schemas__Envelope_CategoryOut___2: {
+            data: components["schemas"]["app__api__admin__inventory__CategoryOut"];
+            meta?: components["schemas"]["PageMeta"] | null;
         };
         /** Envelope[list[CategoryOut]] */
         app__api__schemas__Envelope_list_CategoryOut____1: {
@@ -1812,10 +1860,19 @@ export interface components {
             /** Name */
             name: string;
         };
+        /** CategoryRef */
+        CategoryRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+        };
         /** CategoryRowOut */
         CategoryRowOut: {
-            /** Category */
-            category: string;
+            category: components["schemas"]["CategoryRef"];
             /** Count */
             count: number;
             /** Revenue */
@@ -2219,11 +2276,6 @@ export interface components {
         /** Envelope[CashRegisterOut] */
         Envelope_CashRegisterOut_: {
             data: components["schemas"]["CashRegisterOut"];
-            meta?: components["schemas"]["PageMeta"] | null;
-        };
-        /** Envelope[CategoryOut] */
-        Envelope_CategoryOut_: {
-            data: components["schemas"]["app__api__admin__inventory__CategoryOut"];
             meta?: components["schemas"]["PageMeta"] | null;
         };
         /** Envelope[ClientOut] */
@@ -3080,6 +3132,8 @@ export interface components {
         };
         /** ProductCreateIn */
         ProductCreateIn: {
+            /** Barcode */
+            barcode?: string | null;
             /** Categoryid */
             categoryId?: string | null;
             /** Costprice */
@@ -3109,6 +3163,8 @@ export interface components {
         };
         /** ProductOut */
         ProductOut: {
+            /** Barcode */
+            barcode?: string | null;
             category?: components["schemas"]["PersonRef"] | null;
             /** Costprice */
             costPrice?: string | null;
@@ -3146,6 +3202,8 @@ export interface components {
          * @description Остаток здесь не меняется — только движениями.
          */
         ProductPatchIn: {
+            /** Barcode */
+            barcode?: string | null;
             /** Categoryid */
             categoryId?: string | null;
             /** Costprice */
@@ -3257,6 +3315,8 @@ export interface components {
             clientId?: string | null;
             /** Comment */
             comment?: string | null;
+            /** Endat */
+            endAt?: string | null;
             /** @default standard */
             importance: components["schemas"]["RecordImportance"];
             /** Masterid */
@@ -3407,6 +3467,8 @@ export interface components {
         RecordPatchIn: {
             /** Comment */
             comment?: string | null;
+            /** Endat */
+            endAt?: string | null;
             importance?: components["schemas"]["RecordImportance"] | null;
             /** Internalnotes */
             internalNotes?: string | null;
@@ -3438,8 +3500,7 @@ export interface components {
          * @description Услуга в записи: снапшот названия/цены/длительности + текущие категория и цвет.
          */
         RecordServiceOut: {
-            /** Category */
-            category?: string | null;
+            category?: components["schemas"]["CategoryRef"] | null;
             /** Color */
             color?: string | null;
             /** Durationminutes */
@@ -3735,11 +3796,8 @@ export interface components {
         };
         /** ServiceCreateIn */
         ServiceCreateIn: {
-            /**
-             * Category
-             * @default other
-             */
-            category: string;
+            /** Categoryid */
+            categoryId?: string | null;
             /** Color */
             color?: string | null;
             /** Description */
@@ -3760,8 +3818,8 @@ export interface components {
         };
         /** ServicePatchIn */
         ServicePatchIn: {
-            /** Category */
-            category?: string | null;
+            /** Categoryid */
+            categoryId?: string | null;
             /** Color */
             color?: string | null;
             /** Description */
@@ -3778,8 +3836,7 @@ export interface components {
         };
         /** ServiceRowOut */
         ServiceRowOut: {
-            /** Category */
-            category: string;
+            category: components["schemas"]["CategoryRef"];
             /** Count */
             count: number;
             /** Name */
@@ -5438,7 +5495,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Envelope_CategoryOut_"];
+                    "application/json": components["schemas"]["app__api__schemas__Envelope_CategoryOut___2"];
                 };
             };
             /** @description Validation Error */
@@ -5504,7 +5561,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Envelope_CategoryOut_"];
+                    "application/json": components["schemas"]["app__api__schemas__Envelope_CategoryOut___2"];
                 };
             };
             /** @description Validation Error */
@@ -5922,7 +5979,7 @@ export interface operations {
                 page?: number;
                 paymentStatus?: components["schemas"]["PaymentStatus"] | null;
                 perPage?: number;
-                serviceCategory?: string | null;
+                serviceCategoryId?: string | null;
                 source?: components["schemas"]["RecordSource"] | null;
                 status?: components["schemas"]["RecordStatus"] | null;
                 withoutMaster?: boolean;
@@ -6555,7 +6612,7 @@ export interface operations {
     list_services_api_admin_v1_services_get: {
         parameters: {
             query?: {
-                category?: string | null;
+                categoryId?: string | null;
                 priceFrom?: number | string | null;
                 priceTo?: number | string | null;
                 query?: string | null;
@@ -6702,6 +6759,103 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["app__api__schemas__Envelope_list_CategoryOut____1"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_category_api_admin_v1_services_categories_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CategoryIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["app__api__schemas__Envelope_CategoryOut___1"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_category_api_admin_v1_services_categories__category_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                category_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rename_category_api_admin_v1_services_categories__category_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                category_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CategoryIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["app__api__schemas__Envelope_CategoryOut___1"];
                 };
             };
             /** @description Validation Error */

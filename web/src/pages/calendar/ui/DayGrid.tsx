@@ -8,7 +8,14 @@ import {
   useSensors,
 } from '@dnd-kit/core';
 import { theme, Typography } from 'antd';
-import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
+import {
+  type MouseEvent,
+  type PointerEvent as ReactPointerEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import type { Schema } from '@/shared/api';
 import { shiftMarkLabels } from '@/shared/lib';
@@ -31,6 +38,7 @@ import {
   todayInSalon,
 } from '../model/time';
 import { RecordCard } from './RecordCard';
+import { useResize } from './use-resize';
 
 type RecordItem = Schema<'RecordOut'>;
 
@@ -53,6 +61,10 @@ interface DayGridProps {
   onOpen: (record: RecordItem) => void;
   onCreate: (target: MoveTarget) => void;
   onMove: (record: RecordItem, target: MoveTarget) => void;
+  /** Новое время записи после растягивания за край (минуты от полуночи того же дня). */
+  onResize: (record: RecordItem, interval: Interval) => void;
+  /** Можно ли растягивать запись (мастер — только свои). */
+  canResize: (record: RecordItem) => boolean;
   /** Можно ли тащить запись в эту колонку (мастер — только в свою). */
   canDrop: (record: RecordItem, column: Column) => boolean;
   /** Можно ли создать запись кликом в колонке (очередь — только администратору). */
@@ -265,6 +277,8 @@ function DayColumn({
   now,
   onOpen,
   onCreate,
+  onResize,
+  canResize,
   canCreateIn,
 }: DayColumnProps) {
   const { token } = theme.useToken();
@@ -346,11 +360,15 @@ function DayColumn({
         <DraggableCard
           key={p.item.id}
           record={p.item}
-          top={top(p.start)}
-          height={Math.max((p.end - p.start) * ppm, 22)}
+          span={{ start: p.start, end: p.end }}
+          origin={hours.start}
+          ppm={ppm}
+          step={step}
           left={`calc(${(p.lane / p.lanes) * 100}% + 2px)`}
           width={`calc(${100 / p.lanes}% - 4px)`}
           onOpen={onOpen}
+          resizable={canResize(p.item)}
+          onResize={onResize}
         />
       ))}
       {now !== null && now >= hours.start && now <= hours.end && (
@@ -373,19 +391,40 @@ function DayColumn({
 
 function DraggableCard({
   record,
-  top,
-  height,
+  span,
+  origin,
+  ppm,
+  step,
   left,
   width,
   onOpen,
+  resizable,
+  onResize,
 }: {
   record: RecordItem;
-  top: number;
-  height: number;
+  /** Интервал записи и начало видимой сетки — минуты от полуночи. */
+  span: Interval;
+  origin: number;
+  ppm: number;
+  step: Step;
   left: string;
   width: string;
   onOpen: (record: RecordItem) => void;
+  resizable: boolean;
+  onResize: (record: RecordItem, interval: Interval) => void;
 }) {
+  const { token } = theme.useToken();
+  const { preview, begin } = useResize({
+    interval: span,
+    pxPerMinute: ppm,
+    step,
+    onCommit: (next) => {
+      onResize(record, next);
+    },
+  });
+  const shown = preview ?? span;
+  const top = (shown.start - origin) * ppm;
+  const height = Math.max((shown.end - shown.start) * ppm, 22);
   const movable = isMovable(record);
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: record.id,
@@ -406,12 +445,40 @@ function DraggableCard({
         height,
         left,
         width,
-        zIndex: isDragging ? 10 : 2,
+        zIndex: isDragging || preview ? 10 : 2,
         transform: transform ? `translate(${transform.x}px, ${transform.y}px)` : undefined,
         cursor: movable ? (isDragging ? 'grabbing' : 'grab') : 'pointer',
         opacity: isDragging ? 0.85 : 1,
+        boxShadow: preview ? `0 0 0 2px ${token.colorPrimary}` : undefined,
+        borderRadius: token.borderRadius,
       }}
     >
+      {resizable && (
+        <>
+          <ResizeHandle edge="start" onPointerDown={begin('start')} />
+          <ResizeHandle edge="end" onPointerDown={begin('end')} />
+        </>
+      )}
+      {preview && (
+        <div
+          style={{
+            position: 'absolute',
+            top: -22,
+            left: 0,
+            zIndex: 1,
+            padding: '0 6px',
+            borderRadius: token.borderRadiusSM,
+            background: token.colorPrimary,
+            color: '#fff',
+            fontSize: token.fontSizeSM,
+            lineHeight: '20px',
+            whiteSpace: 'nowrap',
+            pointerEvents: 'none',
+          }}
+        >
+          {formatClock(preview.start)}–{formatClock(preview.end)} · {preview.end - preview.start} хв
+        </div>
+      )}
       <RecordCard
         record={record}
         size={height < 40 ? 'small' : height < 72 ? 'medium' : 'large'}
@@ -421,6 +488,32 @@ function DraggableCard({
         }}
       />
     </div>
+  );
+}
+
+/** Невидимая полоска у края карточки: тянуть — менять начало или конец записи. */
+function ResizeHandle({
+  edge,
+  onPointerDown,
+}: {
+  edge: 'start' | 'end';
+  onPointerDown: (e: ReactPointerEvent) => void;
+}) {
+  return (
+    <div
+      aria-hidden
+      onPointerDown={onPointerDown}
+      style={{
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        height: 6,
+        ...(edge === 'start' ? { top: -2 } : { bottom: -2 }),
+        zIndex: 2,
+        cursor: 'ns-resize',
+        touchAction: 'none',
+      }}
+    />
   );
 }
 

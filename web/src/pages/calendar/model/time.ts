@@ -60,9 +60,11 @@ export const parseClock = (value: string) => {
 export const formatClock = (minutes: number) =>
   `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
 
-/** День салона + минуты от полуночи → ISO для API. */
-export const toIso = (date: string, minutes: number) =>
-  dayjs.tz(`${date} ${formatClock(minutes)}`, SALON_TZ).toISOString();
+/** День салона + минуты от полуночи → ISO для API. 24:00 — полночь следующего дня. */
+export const toIso = (date: string, minutes: number): string =>
+  minutes >= 24 * 60
+    ? toIso(asDay(date).add(1, 'day').format('YYYY-MM-DD'), minutes - 24 * 60)
+    : dayjs.tz(`${date} ${formatClock(minutes)}`, SALON_TZ).toISOString();
 
 /** День, которому принадлежит момент (в поясе салона). */
 export const dayOf = (iso: string) => inSalonTz(iso).format('YYYY-MM-DD');

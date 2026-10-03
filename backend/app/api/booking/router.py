@@ -40,6 +40,7 @@ from app.notifications.outbox import REVIEW_CREATED, add_outbox_event
 from app.services import records as records_service
 from app.services import salon_settings
 from app.services import slots as slots_service
+from app.services.text import uk_sort_key
 from app.tenancy.deps import MasterSession, SalonIdBySlug, TenantSessionBySlug
 from app.timeutils import SALON_TZ_NAME, LocalDatetime, now_local, to_local
 
@@ -108,26 +109,47 @@ class ServiceOut(BaseModel):
     id: uuid.UUID
     name: str
     description: str | None
-    category: str
+    category_id: uuid.UUID
+    category_name: str
     color: str | None
     price: Decimal
     duration_minutes: int
 
-    model_config = {"from_attributes": True}
-
 
 @router.get("/services", response_model=list[ServiceOut])
-async def list_services(tenant_session: TenantSessionBySlug) -> list[Service]:
-    """Активные услуги, которые выполняет хотя бы один мастер."""
-    result = await tenant_session.scalars(
-        select(Service)
-        .where(
+async def list_services(tenant_session: TenantSessionBySlug) -> list[ServiceOut]:
+    """Активные услуги, которые выполняет хотя бы один мастер.
+
+    Порядок: по названию категории (украинский алфавит, «Інше» — последней),
+    внутри — по названию услуги.
+    """
+    services = await tenant_session.scalars(
+        select(Service).where(
             Service.status == ServiceStatus.ACTIVE,
             Service.id.in_(select(service_masters.c.service_id)),
         )
-        .order_by(Service.category, Service.name)
     )
-    return list(result)
+    ordered = sorted(
+        services,
+        key=lambda s: (
+            s.category.is_system,
+            uk_sort_key(s.category.name),
+            uk_sort_key(s.name),
+        ),
+    )
+    return [
+        ServiceOut(
+            id=s.id,
+            name=s.name,
+            description=s.description,
+            category_id=s.category_id,
+            category_name=s.category.name,
+            color=s.color,
+            price=s.price,
+            duration_minutes=s.duration_minutes,
+        )
+        for s in ordered
+    ]
 
 
 async def _get_service(tenant_session: AsyncSession, service_id: uuid.UUID) -> Service:

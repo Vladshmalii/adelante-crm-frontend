@@ -7,7 +7,7 @@ import { App, Button, Col, Empty, Row, Segmented, Space, Table, Typography } fro
 
 import { errorMessage, type Schema } from '@/shared/api';
 import { useViewer } from '@/shared/auth';
-import { formatMoney, serviceCategoryLabel } from '@/shared/lib';
+import { formatMoney } from '@/shared/lib';
 import { usePreferencesStore } from '@/shared/preferences';
 import { DateRangeFilter, QueryErrorAlert } from '@/shared/ui';
 
@@ -311,7 +311,7 @@ function ServicesBlock({ period }: { period: Period }) {
   const services = [...(data?.services ?? [])].sort((a, b) => b.count - a.count);
   const categories = (data?.categories ?? [])
     .filter((c) => c.count > 0)
-    .map((c) => ({ category: serviceCategoryLabel(c.category), count: c.count }));
+    .map((c) => ({ category: c.category.name, count: c.count }));
 
   return (
     <Row gutter={[16, 16]}>
@@ -329,7 +329,7 @@ function ServicesBlock({ period }: { period: Period }) {
               {
                 title: 'Категорія',
                 key: 'category',
-                render: (_, s) => serviceCategoryLabel(s.category),
+                render: (_, s) => s.category.name,
               },
               { title: 'Виконано', dataIndex: 'count', align: 'right' },
               ...(can.reports.viewMoney

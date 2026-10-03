@@ -4,10 +4,12 @@ import { Link } from '@tanstack/react-router';
 import { Alert, Button, Flex, Result } from 'antd';
 
 import { errorMessage } from '@/shared/api';
+import { useLogo } from '@/shared/theme';
 
 import { useForgotPassword } from '../api/password.mutations';
 
 export function ForgotPasswordPage({ email }: { email?: string }) {
+  const logo = useLogo();
   const forgot = useForgotPassword();
 
   if (forgot.isSuccess) {
@@ -30,7 +32,7 @@ export function ForgotPasswordPage({ email }: { email?: string }) {
   return (
     <Flex align="center" justify="center" style={{ minHeight: '100%' }}>
       <LoginForm<{ email: string }>
-        logo="/favicon.svg"
+        logo={logo}
         title="Відновлення пароля"
         subTitle="Надішлемо посилання для зміни пароля на вашу пошту"
         initialValues={{ email }}

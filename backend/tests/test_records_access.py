@@ -55,7 +55,7 @@ def w(new_salon: Salon) -> World:
             "name": "Стрижка",
             "price": 300,
             "durationMinutes": 30,
-            "category": "hair",
+            "categoryId": s.service_category("Волосся"),
             "masterIds": [master["id"], master2["id"]],
         },
     )
@@ -68,7 +68,7 @@ def w(new_salon: Salon) -> World:
             "name": "Укладка",
             "price": 500,
             "durationMinutes": 45,
-            "category": "styling",
+            "categoryId": s.service_category("Укладки"),
             "masterIds": [master["id"]],
         },
     )
@@ -300,11 +300,16 @@ def test_service_category_filter(w: World) -> None:
     rec = w.record(
         masterId=w.master["id"], serviceIds=[w.cut["id"], w.styling["id"]], startAt=w.at(17, days=6)
     )
-    styled = api.get("/records?serviceCategory=styling&perPage=500", token=w.adm, salon=s.id)
+    styling_id = w.styling["category"]["id"]
+    styled = api.get(
+        f"/records?serviceCategoryId={styling_id}&perPage=500", token=w.adm, salon=s.id
+    )
     assert rec["id"] in [r["id"] for r in styled]
-    assert all(any(x["category"] == "styling" for x in r["services"]) for r in styled)
+    assert all(any(x["category"]["id"] == styling_id for x in r["services"]) for r in styled)
+    assert rec["services"][1]["category"] == {"id": styling_id, "name": "Укладки"}
+    nails = s.service_category("Нігті")
     assert rec["id"] not in [
-        r["id"] for r in api.get("/records?serviceCategory=nails", token=w.adm, salon=s.id)
+        r["id"] for r in api.get(f"/records?serviceCategoryId={nails}", token=w.adm, salon=s.id)
     ]
 
 
