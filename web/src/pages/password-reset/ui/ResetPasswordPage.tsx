@@ -4,6 +4,7 @@ import { Link } from '@tanstack/react-router';
 import { Alert, Button, Flex, Result } from 'antd';
 
 import { errorMessage } from '@/shared/api';
+import { useLogo } from '@/shared/theme';
 
 import { useResetPassword } from '../api/password.mutations';
 
@@ -14,6 +15,7 @@ interface Values {
 
 /** Страница по ссылке из письма: `/reset-password?token=…`. */
 export function ResetPasswordPage({ token }: { token?: string }) {
+  const logo = useLogo();
   const reset = useResetPassword();
 
   if (!token) {
@@ -53,7 +55,7 @@ export function ResetPasswordPage({ token }: { token?: string }) {
   return (
     <Flex align="center" justify="center" style={{ minHeight: '100%' }}>
       <LoginForm<Values>
-        logo="/favicon.svg"
+        logo={logo}
         title="Новий пароль"
         subTitle="Мінімум 8 символів"
         submitter={{ searchConfig: { submitText: 'Зберегти пароль' } }}

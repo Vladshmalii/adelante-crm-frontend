@@ -7,7 +7,7 @@ import {
   ProFormTextArea,
 } from '@ant-design/pro-components';
 import { useQuery } from '@tanstack/react-query';
-import { App, AutoComplete } from 'antd';
+import { App } from 'antd';
 
 import { errorMessage, type Schema } from '@/shared/api';
 import { staffOptions, staffRefQueryOptions } from '@/shared/refs';
@@ -15,7 +15,7 @@ import { ColorInput } from '@/shared/ui';
 
 import { useCreateService, useUpdateService } from '../api/services.mutations';
 import { serviceCategoriesQueryOptions } from '../api/services.queries';
-import { categoryOptions, statusLabels } from '../model/labels';
+import { statusLabels } from '../model/labels';
 
 type Service = Schema<'app__api__admin__services__ServiceOut'>;
 type FormValues = Schema<'ServiceCreateIn'>;
@@ -48,14 +48,19 @@ export function ServiceFormModal({ open, onOpenChange, service }: ServiceFormMod
       modalProps={{ destroyOnHidden: true }}
       initialValues={
         service
-          ? { ...service, masterIds: service.masters?.map((m) => m.id) ?? [] }
-          : { category: 'other', durationMinutes: 60, status: 'active', masterIds: [] }
+          ? {
+              ...service,
+              categoryId: service.category.id,
+              masterIds: service.masters?.map((m) => m.id) ?? [],
+            }
+          : { durationMinutes: 60, status: 'active', masterIds: [] }
       }
       submitter={{ searchConfig: { submitText: 'Зберегти', resetText: 'Скасувати' } }}
       onFinish={async (values) => {
         try {
           const body = {
             ...values,
+            categoryId: values.categoryId ?? null,
             description: values.description?.trim() ? values.description : null,
           };
           if (service) await update.mutateAsync({ id: service.id, body });
@@ -75,20 +80,14 @@ export function ServiceFormModal({ open, onOpenChange, service }: ServiceFormMod
         placeholder="Наприклад: Стрижка жіноча"
         rules={[{ required: true, message: 'Вкажіть назву' }]}
       />
-      <ProForm.Item
-        name="category"
+      <ProFormSelect
+        name="categoryId"
         label="Категорія"
-        tooltip="Оберіть зі списку або введіть нову"
-        rules={[{ required: true, message: 'Вкажіть категорію' }]}
-      >
-        <AutoComplete
-          options={categoryOptions(categories.map((c) => c.category))}
-          showSearch={{
-            filterOption: (input, option) =>
-              (option?.label ?? '').toLowerCase().includes(input.toLowerCase()),
-          }}
-        />
-      </ProForm.Item>
+        placeholder={categories.find((c) => c.isSystem)?.name ?? 'Інше'}
+        tooltip="Без категорії послуга потрапляє в «Інше». Категорії — кнопка «Категорії» над списком"
+        fieldProps={{ showSearch: { optionFilterProp: 'label' } }}
+        options={categories.map((c) => ({ value: c.id, label: c.name }))}
+      />
       <ProFormSelect
         name="status"
         label="Статус"

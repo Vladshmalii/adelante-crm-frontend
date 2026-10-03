@@ -34,7 +34,6 @@ import {
   importanceLabels,
   inSalonTz,
   isValidPhone,
-  serviceCategoryLabel,
   sourceLabels,
   useDebouncedValue,
 } from '@/shared/lib';
@@ -49,7 +48,7 @@ import {
   slotsQueryOptions,
 } from '../api/calendar.queries';
 import { overlapsAny } from '../model/layout';
-import { durationMinutes, formatClock, minutesOfDay, toIso } from '../model/time';
+import { durationMinutes, minutesOfDay, toIso } from '../model/time';
 
 type RecordItem = Schema<'RecordOut'>;
 type Service = Schema<'app__api__admin__services__ServiceOut'>;
@@ -65,6 +64,7 @@ interface FormValues {
   masterId: string;
   date: Dayjs;
   time: Dayjs;
+  endTime?: Dayjs;
   serviceIds: string[];
   importance: Schema<'RecordImportance'>;
   source: Schema<'RecordSource'>;
@@ -89,6 +89,16 @@ interface RecordFormDrawerProps {
 
 const blank = (v: string | undefined) => (v?.trim() ? v.trim() : null);
 
+/** Минуты от полуночи ↔ значение TimePicker. */
+const clockOf = (t: Dayjs) => t.hour() * 60 + t.minute();
+const pickerTime = (minutes: number) =>
+  dayjs()
+    .hour(Math.floor(minutes / 60) % 24)
+    .minute(minutes % 60);
+/** Конец записи: 00:00 — это полночь в конце дня, а не его начало. */
+const endOf = (t: Dayjs) => clockOf(t) || 24 * 60;
+const DAY_END = 24 * 60;
+
 const phoneRule = (required: boolean) => ({
   validator: (_: unknown, value?: string) =>
     (!required && !value) || (value && isValidPhone(value))
@@ -98,7 +108,9 @@ const phoneRule = (required: boolean) => ({
 
 /**
  * «Новий запис» / «Редагувати запис» — широкая панель справа в три колонки (как в старом UI):
- * когда и у кого; что делаем; для кого. Цену и конец записи считает бекенд по услугам.
+ * когда и у кого; что делаем; для кого. Цену считает бекенд по услугам. Конец по умолчанию —
+ * начало плюс длительность услуг: пересчитывается при смене услуг, сдвигается вместе с началом,
+ * а вручную его можно поставить любым.
  */
 export function RecordFormDrawer(props: RecordFormDrawerProps) {
   // Форма создаётся заново на каждое открытие: initialValues antd берёт только при создании.
@@ -127,10 +139,12 @@ function RecordForm({
     if (state.mode === 'edit') {
       const r = state.record;
       const start = inSalonTz(r.startAt);
+      const end = inSalonTz(r.endAt);
       return {
         masterId: r.master?.id ?? QUEUE,
         date: dayjs(start.format('YYYY-MM-DD')),
         time: dayjs().hour(start.hour()).minute(start.minute()),
+        endTime: dayjs().hour(end.hour()).minute(end.minute()),
         serviceIds: r.services.map((s) => s.id),
         importance: r.importance,
         comment: r.comment ?? undefined,
@@ -159,7 +173,8 @@ function RecordForm({
 
   const submit = async (v: FormValues) => {
     const date = v.date.format('YYYY-MM-DD');
-    const startAt = toIso(date, v.time.hour() * 60 + v.time.minute());
+    const startAt = toIso(date, clockOf(v.time));
+    const endAt = v.endTime ? toIso(date, endOf(v.endTime)) : undefined;
     const masterId = v.masterId === QUEUE ? null : v.masterId;
     const visitor = v.forOther
       ? { visitorName: blank(v.visitorName), visitorPhone: blank(v.visitorPhone) }
@@ -171,6 +186,7 @@ function RecordForm({
           id: editing.id,
           body: {
             startAt,
+            endAt,
             serviceIds: v.serviceIds,
             importance: v.importance,
             comment: blank(v.comment),
@@ -186,6 +202,7 @@ function RecordForm({
           masterId: viewer.isMaster ? viewer.id : masterId,
           serviceIds: v.serviceIds,
           startAt,
+          endAt,
           importance: v.importance,
           source: v.source,
           comment: blank(v.comment),
@@ -252,6 +269,7 @@ function WhenBlock({
   const masterId = Form.useWatch('masterId', form) as string | undefined;
   const date = Form.useWatch('date', form) as Dayjs | undefined;
   const time = Form.useWatch('time', form) as Dayjs | undefined;
+  const endTime = Form.useWatch('endTime', form);
   const serviceIds = Form.useWatch('serviceIds', form) as string[] | undefined;
   const { data: services = [] } = useQuery(activeServicesQueryOptions());
   const [slots, setSlots] = useState<{ startAt: string; label: string }[] | null>(null);
@@ -264,13 +282,24 @@ function WhenBlock({
     enabled: !!day && !!realMaster,
   });
 
-  const duration =
-    services
-      .filter((s) => (serviceIds ?? []).includes(s.id))
-      .reduce((acc, s) => acc + s.durationMinutes, 0) || 30;
-  const start = time ? time.hour() * 60 + time.minute() : null;
+  const servicesMinutes = services
+    .filter((s) => (serviceIds ?? []).includes(s.id))
+    .reduce((acc, s) => acc + s.durationMinutes, 0);
+  const start = time ? clockOf(time) : null;
+  const end = endTime ? endOf(endTime) : null;
+  const duration = start !== null && end !== null && end > start ? end - start : null;
+
+  /**
+   * Начало сменилось — конец сдвигается вместе с ним. `duration` здесь ещё из прошлого рендера,
+   * то есть длительность до изменения.
+   */
+  const shiftEnd = (nextStart: number) => {
+    const length = duration ?? servicesMinutes;
+    if (length) form.setFieldValue('endTime', pickerTime(Math.min(nextStart + length, DAY_END)));
+  };
+
   const busy =
-    realMaster && start !== null
+    realMaster && start !== null && duration !== null
       ? overlapsAny(
           { start, end: start + duration },
           dayRecords
@@ -323,13 +352,60 @@ function WhenBlock({
             }}
           />
         </Form.Item>
-        <Form.Item name="time" label="Початок" rules={[{ required: true }]} style={{ width: 120 }}>
+        <Form.Item
+          name="time"
+          label="Початок"
+          rules={[{ required: true, message: 'Вкажіть початок' }]}
+          style={{ width: 100 }}
+        >
+          <TimePicker
+            format="HH:mm"
+            minuteStep={5}
+            allowClear={false}
+            needConfirm={false}
+            onChange={(value) => {
+              if (value) shiftEnd(clockOf(value));
+            }}
+          />
+        </Form.Item>
+        <Form.Item
+          name="endTime"
+          label="Кінець"
+          dependencies={['time']}
+          style={{ width: 100 }}
+          rules={[
+            { required: true, message: 'Вкажіть кінець' },
+            {
+              validator: (_, value?: Dayjs) =>
+                !value || start === null || endOf(value) > start
+                  ? Promise.resolve()
+                  : Promise.reject(new Error('Кінець пізніше за початок')),
+            },
+          ]}
+        >
           <TimePicker format="HH:mm" minuteStep={5} allowClear={false} needConfirm={false} />
         </Form.Item>
       </Space.Compact>
-      {start !== null && (
+      {duration !== null && (
         <Typography.Paragraph type="secondary" style={{ marginTop: -8 }}>
-          До {formatClock(start + duration)} · {duration} хв
+          {duration} хв
+          {servicesMinutes > 0 && servicesMinutes !== duration && (
+            <>
+              {' '}
+              · за послугами {servicesMinutes} хв{' '}
+              <Typography.Link
+                onClick={() => {
+                  if (start !== null)
+                    form.setFieldValue(
+                      'endTime',
+                      pickerTime(Math.min(start + servicesMinutes, DAY_END)),
+                    );
+                }}
+              >
+                повернути
+              </Typography.Link>
+            </>
+          )}
         </Typography.Paragraph>
       )}
       {busy && (
@@ -360,13 +436,12 @@ function WhenBlock({
                   key={s.startAt}
                   checked={start === minutesOfDay(s.startAt)}
                   onChange={() => {
+                    // Свободное окно подобрано под длительность услуг.
                     const m = minutesOfDay(s.startAt);
-                    form.setFieldValue(
-                      'time',
-                      dayjs()
-                        .hour(Math.floor(m / 60))
-                        .minute(m % 60),
-                    );
+                    form.setFieldsValue({
+                      time: pickerTime(m),
+                      endTime: pickerTime(Math.min(m + servicesMinutes, DAY_END)),
+                    });
                   }}
                 >
                   {s.label}
@@ -422,8 +497,12 @@ function ServicesBlock({ form }: { form: ReturnType<typeof Form.useForm<FormValu
   const serviceIds = Form.useWatch('serviceIds', form) as string[] | undefined;
   const chosen = services.filter((s) => (serviceIds ?? []).includes(s.id));
 
-  const groups = new Map<string, Service[]>();
-  for (const s of services) groups.set(s.category, [...(groups.get(s.category) ?? []), s]);
+  const groups = new Map<string, { name: string; list: Service[] }>();
+  for (const s of services) {
+    const group = groups.get(s.category.id) ?? { name: s.category.name, list: [] };
+    group.list.push(s);
+    groups.set(s.category.id, group);
+  }
 
   return (
     <>
@@ -435,11 +514,20 @@ function ServicesBlock({ form }: { form: ReturnType<typeof Form.useForm<FormValu
         <Select
           mode="multiple"
           placeholder="Що будемо робити?"
+          onChange={(ids: string[]) => {
+            // Состав услуг сменился — конец снова по их длительности.
+            const minutes = services
+              .filter((s) => ids.includes(s.id))
+              .reduce((acc, s) => acc + s.durationMinutes, 0);
+            const time = form.getFieldValue('time') as Dayjs | undefined;
+            if (time && minutes)
+              form.setFieldValue('endTime', pickerTime(Math.min(clockOf(time) + minutes, DAY_END)));
+          }}
           loading={isPending}
           showSearch={{ optionFilterProp: 'search' }}
-          options={[...groups.entries()].map(([category, list]) => ({
-            label: serviceCategoryLabel(category),
-            title: category,
+          options={[...groups.entries()].map(([id, { name, list }]) => ({
+            label: name,
+            title: id,
             options: list.map((s) => ({
               value: s.id,
               search: s.name,
@@ -464,7 +552,8 @@ function ServicesBlock({ form }: { form: ReturnType<typeof Form.useForm<FormValu
         </Col>
       </Row>
       <Typography.Paragraph type="secondary" style={{ marginTop: 12 }}>
-        Послуги виконує один майстер підряд; ціна й тривалість запису — сума послуг.
+        Послуги виконує один майстер підряд; ціна — сума послуг. Тривалість за замовчуванням — сума
+        послуг, кінець можна змінити вручну.
       </Typography.Paragraph>
     </>
   );

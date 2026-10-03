@@ -11,7 +11,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import DateTime, ForeignKey, Numeric, String, Uuid, func
+from sqlalchemy import DateTime, ForeignKey, Index, Numeric, String, Uuid, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import ShardBase, str_enum
@@ -48,6 +48,7 @@ class Product(ShardBase):
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(255))
     sku: Mapped[str] = mapped_column(String(64), unique=True)
+    barcode: Mapped[str | None] = mapped_column(String(64))
     category_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("inventory_categories.id"), index=True
     )
@@ -60,6 +61,10 @@ class Product(ShardBase):
     description: Mapped[str | None] = mapped_column(String(2000))
     is_active: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+# Штрихкод уникален в салоне без учёта регистра (включая неактивные товары)
+Index("uq_products_lower_barcode", func.lower(Product.barcode), unique=True)
 
 
 class StockMovement(ShardBase):

@@ -31,7 +31,7 @@ import {
   inventorySummaryQueryOptions,
   productsQueryOptions,
 } from '../api/inventory.queries';
-import { packageBreakdown, stockStatusLabels } from '../model/labels';
+import { packageBreakdown, productMargin, stockStatusLabels } from '../model/labels';
 import type { InventorySearch } from '../model/search';
 import { CategoriesModal } from './CategoriesModal';
 import { InventoryExportModal } from './InventoryExportModal';
@@ -45,7 +45,7 @@ type Sort = NonNullable<InventorySearch['sort']>;
 
 const route = getRouteApi('/_app/inventory');
 
-const SORTS: Sort[] = ['name', 'sku', 'quantity', 'createdAt'];
+const SORTS: Sort[] = ['name', 'sku', 'quantity', 'margin', 'createdAt'];
 const isSort = (key: unknown): key is Sort => SORTS.includes(key as Sort);
 
 /** Доля от общего числа позиций — для KPI «Закінчуються» и «Немає». */
@@ -90,7 +90,7 @@ export function InventoryPage() {
 
   const columns: ProColumns<Product>[] = [
     {
-      title: 'Назва / Артикул',
+      title: 'Назва / Артикул / Штрихкод',
       key: 'name',
       sorter: true,
       sortOrder: sortOrder('name'),
@@ -104,6 +104,7 @@ export function InventoryPage() {
             {p.name}
           </Typography.Link>
           <Typography.Text type="secondary">{p.sku}</Typography.Text>
+          {p.barcode && <Typography.Text type="secondary">{p.barcode}</Typography.Text>}
         </Space>
       ),
     },
@@ -151,6 +152,23 @@ export function InventoryPage() {
       key: 'salePrice',
       align: 'right',
       render: (_, p) => formatMoney(p.salePrice),
+    },
+    {
+      title: 'Маржа',
+      key: 'margin',
+      align: 'right',
+      sorter: true,
+      sortOrder: sortOrder('margin'),
+      tooltip: '(Ціна продажу − собівартість) / ціна продажу',
+      render: (_, p) => {
+        const margin = productMargin(p.costPrice, p.salePrice);
+        if (!margin) return '—';
+        return (
+          <Typography.Text type={margin.amount < 0 ? 'danger' : undefined}>
+            {formatMoney(margin.amount)} · {margin.percent}%
+          </Typography.Text>
+        );
+      },
     },
     {
       title: '',
@@ -263,7 +281,7 @@ export function InventoryPage() {
         }}
         toolbar={{
           search: {
-            placeholder: 'Назва або артикул',
+            placeholder: 'Назва, артикул або штрихкод',
             allowClear: true,
             defaultValue: search.query,
             onSearch: (query: string) => void setSearch({ query: query || undefined, page: 1 }),

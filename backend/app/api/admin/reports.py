@@ -24,6 +24,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.admin.services import CategoryRef
 from app.api.schemas import ApiModel, Envelope
 from app.api.security import AdminUser, SuperUser, require_admin
 from app.models.shard import (
@@ -34,7 +35,9 @@ from app.models.shard import (
     RecordStatus,
     Review,
     Service,
+    ServiceCategory,
 )
+from app.services.text import uk_sort_key
 from app.tenancy.deps import TenantSession
 from app.timeutils import LocalDatetime, day_bounds, to_local
 
@@ -481,13 +484,13 @@ async def staff_report(
 class ServiceRowOut(ApiModel):
     service_id: uuid.UUID
     name: str
-    category: str
+    category: CategoryRef
     count: int
     revenue: Decimal | None
 
 
 class CategoryRowOut(ApiModel):
-    category: str
+    category: CategoryRef
     count: int
     revenue: Decimal | None
 
@@ -532,23 +535,20 @@ async def _services(
                 names.setdefault(part.service_id, part.name)
 
     service_ids = set(names)
-    categories = (
-        dict(
-            (
-                await session.execute(
-                    select(Service.id, Service.category).where(Service.id.in_(service_ids))
-                )
-            ).all()
+    categories: dict[uuid.UUID, CategoryRef] = {}
+    if service_ids:
+        rows = await session.execute(
+            select(Service.id, ServiceCategory.id, ServiceCategory.name)
+            .join(ServiceCategory, ServiceCategory.id == Service.category_id)
+            .where(Service.id.in_(service_ids))
         )
-        if service_ids
-        else {}
-    )
+        categories = {sid: CategoryRef(id=cid, name=cname) for sid, cid, cname in rows.all()}
     count_by_id = {service_id: n for service_id, _, n in counts}
     services = [
         ServiceRowOut(
             service_id=service_id,
             name=names[service_id],
-            category=categories.get(service_id, "other"),
+            category=categories[service_id],
             count=count_by_id.get(service_id, 0),
             revenue=_money(revenue[service_id]) if show_money else None,
         )
@@ -556,20 +556,20 @@ async def _services(
     ]
     services.sort(key=lambda s: (-(s.revenue or 0), -s.count, s.name))
 
-    by_category: dict[str, list[ServiceRowOut]] = defaultdict(list)
+    by_category: dict[uuid.UUID, list[ServiceRowOut]] = defaultdict(list)
     for service in services:
-        by_category[service.category].append(service)
+        by_category[service.category.id].append(service)
     category_rows = [
         CategoryRowOut(
-            category=category,
+            category=rows[0].category,
             count=sum(s.count for s in rows),
             revenue=_money(sum((s.revenue or Decimal(0) for s in rows), Decimal(0)))
             if show_money
             else None,
         )
-        for category, rows in by_category.items()
+        for rows in by_category.values()
     ]
-    category_rows.sort(key=lambda c: (-(c.revenue or 0), -c.count, c.category))
+    category_rows.sort(key=lambda c: (-(c.revenue or 0), -c.count, uk_sort_key(c.category.name)))
     return ServicesOut(services=services, categories=category_rows)
 
 
@@ -642,7 +642,7 @@ async def export_reports(
     ws = wb.create_sheet("Послуги")
     ws.append(["Послуга", "Категорія", "Кількість"] + (["Виручка"] if money else []))
     for svc in (await _services(tenant_session, date_from, date_to, show_money=money)).services:
-        ws.append([svc.name, svc.category, svc.count] + ([_num(svc.revenue)] if money else []))
+        ws.append([svc.name, svc.category.name, svc.count] + ([_num(svc.revenue)] if money else []))
 
     buffer = io.BytesIO()
     wb.save(buffer)

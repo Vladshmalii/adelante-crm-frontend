@@ -2,11 +2,40 @@
 <html lang="uk">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link
+      rel="icon"
+      type="image/png"
+      href="/favicon-light.png"
+      media="(prefers-color-scheme: light)"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      href="/favicon-dark.png"
+      media="(prefers-color-scheme: dark)"
+    />
+    <link rel="apple-touch-icon" href="/logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Adelante CRM</title>
     <!-- Рантайм-конфиг: в docker-образе генерируется из env (см. docker/entrypoint.sh) -->
     <script src="/config.js"></script>
+    <!--
+      Тема до загрузки приложения — без белой вспышки. Дальше фон и color-scheme ведёт
+      ThemeSync (src/app/App.tsx) из токенов antd. По умолчанию — тёмная.
+    -->
+    <script>
+      (function () {
+        var mode = 'dark';
+        try {
+          var saved = JSON.parse(localStorage.getItem('adelante.preferences') || '{}');
+          if (saved.state && saved.state.themeMode) mode = saved.state.themeMode;
+        } catch (e) {}
+        var root = document.documentElement;
+        root.dataset.theme = mode;
+        root.style.colorScheme = mode;
+        root.style.backgroundColor = mode === 'dark' ? '#1a1a1a' : '#fafafa';
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

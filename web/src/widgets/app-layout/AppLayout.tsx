@@ -14,7 +14,7 @@ import { type ReactNode, useEffect } from 'react';
 import { canAccess, meQueryOptions, useViewer } from '@/shared/auth';
 import { usePreferencesStore } from '@/shared/preferences';
 import { useSessionStore } from '@/shared/session';
-import { siderContentTheme, siderToken } from '@/shared/theme';
+import { logoFor, siderContentTheme, siderToken } from '@/shared/theme';
 import { MiniCalendar } from '@/widgets/mini-calendar';
 import { NotificationsBell } from '@/widgets/notifications';
 
@@ -62,7 +62,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   return (
     <ProLayout
       title="Adelante CRM"
-      logo="/favicon.svg"
+      logo={logoFor(themeMode)}
       layout="mix"
       fixSiderbar
       route={{ path: '/', routes }}

@@ -17,6 +17,7 @@ from sqlalchemy import exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.admin.deps import CurrentAuthor, ensure_own_record
+from app.api.admin.services import CategoryRef
 from app.api.schemas import ApiModel, Envelope, PersonRef, page_meta
 from app.api.security import AdminUser, CurrentUser, forbidden, require_salon_access
 from app.config import get_settings
@@ -55,7 +56,7 @@ class RecordServiceOut(ApiModel):
     name: str
     price: Decimal
     duration_minutes: int
-    category: str | None = None
+    category: CategoryRef | None = None
     color: str | None = None
 
 
@@ -202,7 +203,11 @@ def _record_out(record: Record, refs: _Refs) -> RecordOut:
                 name=item.name,
                 price=item.price,
                 duration_minutes=item.duration_minutes,
-                category=current.category if current else None,
+                category=(
+                    CategoryRef(id=current.category.id, name=current.category.name)
+                    if current
+                    else None
+                ),
                 color=current.color if current else None,
             )
         )
@@ -272,7 +277,7 @@ async def list_records(
     source: RecordSource | None = None,
     payment_status: Annotated[PaymentStatus | None, Query(alias="paymentStatus")] = None,
     client_query: Annotated[str | None, Query(alias="clientQuery")] = None,
-    service_category: Annotated[str | None, Query(alias="serviceCategory")] = None,
+    service_category_id: Annotated[uuid.UUID | None, Query(alias="serviceCategoryId")] = None,
     page: int = 1,
     per_page: Annotated[int, Query(alias="perPage", le=500)] = 50,
 ) -> Envelope[list[RecordOut]]:
@@ -303,12 +308,15 @@ async def list_records(
     if client_query:
         pattern = f"%{client_query}%"
         query = query.where(Record.client_name.ilike(pattern) | Record.client_phone.ilike(pattern))
-    if service_category:
+    if service_category_id is not None:
         # Хотя бы одна услуга записи — из категории (категория — текущая у услуги)
         query = query.where(
             exists()
             .where(RecordService.record_id == Record.id)
-            .where(Service.id == RecordService.service_id, Service.category == service_category)
+            .where(
+                Service.id == RecordService.service_id,
+                Service.category_id == service_category_id,
+            )
         )
 
     total = await tenant_session.scalar(select(func.count()).select_from(query.subquery()))
@@ -337,6 +345,8 @@ class RecordCreateIn(ApiModel):
     # Услуги по порядку выполнения; длительность и цена — сумма
     service_ids: list[uuid.UUID] = Field(min_length=1)
     start_at: LocalDatetime
+    # Конец вручную (в тот же день); не задан — начало + сумма длительностей услуг
+    end_at: LocalDatetime | None = None
     source: RecordSource = RecordSource.ADMIN
     importance: RecordImportance = RecordImportance.STANDARD
     comment: str | None = None
@@ -386,6 +396,7 @@ async def create_record(
                 service_ids=body.service_ids,
                 client_id=client_id,
                 start_at=body.start_at,
+                end_at=body.end_at,
                 comment=body.comment,
                 importance=body.importance,
                 visitor_name=body.visitor_name,
@@ -404,6 +415,8 @@ async def create_record(
         raise HTTPException(422, "Послугу не знайдено або вона неактивна")
     except records_service.MasterOnLeave as exc:
         raise HTTPException(409, str(exc))
+    except records_service.InvalidEnd as exc:
+        raise HTTPException(422, str(exc))
 
     return Envelope(data=await _one_out(tenant_session, master_session, record))
 
@@ -458,6 +471,9 @@ async def get_record(
 
 class RecordPatchIn(ApiModel):
     start_at: LocalDatetime | None = None
+    # Конец вручную (растягивание карточки). Без него: при смене услуг — начало +
+    # сумма услуг, при переносе только startAt — длительность сохраняется
+    end_at: LocalDatetime | None = None
     # null — снять мастера (запись уходит в очередь «Без майстра»)
     master_id: uuid.UUID | None = None
     service_ids: list[uuid.UUID] | None = Field(default=None, min_length=1)
@@ -496,6 +512,7 @@ async def patch_record(
     changes: dict[str, list] = {}
     previous_master_id = record.master_id
     previous_start_at = record.start_at
+    previous_end_at = record.end_at
 
     if "master_id" in body.model_fields_set and body.master_id != record.master_id:
         if user.is_master:
@@ -532,6 +549,16 @@ async def patch_record(
                 [s.name for s in services],
             ]
             records_service.apply_services(record, services)
+
+    if body.end_at is not None:
+        try:
+            records_service.validate_end(record.start_at, body.end_at)
+        except records_service.InvalidEnd as exc:
+            raise HTTPException(422, str(exc))
+        if body.end_at != record.end_at:
+            record.end_at = body.end_at
+        if record.end_at != previous_end_at:
+            changes["endAt"] = [previous_end_at.isoformat(), record.end_at.isoformat()]
 
     if record.master_id is not None and ("master" in changes or "startAt" in changes):
         try:

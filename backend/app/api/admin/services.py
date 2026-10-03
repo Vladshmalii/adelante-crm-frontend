@@ -2,6 +2,10 @@
 
 Права: смотреть список и категории может любой сотрудник (мастер выбирает
 услуги при записи к себе), менять — только администратор.
+
+Категории — отдельная сущность (ServiceCategory); системная «Інше» не
+удаляется и не переименовывается, в неё попадают услуги без категории и
+услуги удалённых категорий.
 """
 
 import uuid
@@ -10,14 +14,22 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import Field
-from sqlalchemy import delete, func, insert, select
+from sqlalchemy import delete, func, insert, select, update
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.admin.deps import CurrentAuthor
 from app.api.schemas import ApiModel, Envelope, PersonRef
 from app.api.security import AdminUser, require_salon_access
 from app.models.master import Master, master_salons
-from app.models.shard import AuditAction, Service, ServiceStatus, service_masters
+from app.models.shard import (
+    AuditAction,
+    Service,
+    ServiceCategory,
+    ServiceStatus,
+    service_masters,
+)
 from app.services.audit import diff_fields, write_audit
+from app.services.text import uk_sort_key
 from app.tenancy.deps import MasterSession, SalonId, TenantSession
 
 router = APIRouter(
@@ -25,11 +37,19 @@ router = APIRouter(
 )
 
 
+SYSTEM_CATEGORY = "Інше"
+
+
+class CategoryRef(ApiModel):
+    id: uuid.UUID
+    name: str
+
+
 class ServiceOut(ApiModel):
     id: uuid.UUID
     name: str
     description: str | None
-    category: str
+    category: CategoryRef
     color: str | None
     price: Decimal
     duration_minutes: int
@@ -68,19 +88,45 @@ def _service_out(service: Service, masters: list[PersonRef]) -> ServiceOut:
     return out
 
 
+async def system_category(tenant_session: AsyncSession) -> ServiceCategory:
+    category = await tenant_session.scalar(
+        select(ServiceCategory).where(ServiceCategory.is_system.is_(True))
+    )
+    if category is None:
+        category = ServiceCategory(name=SYSTEM_CATEGORY, is_system=True)
+        tenant_session.add(category)
+        await tenant_session.flush()
+    return category
+
+
+async def _category_id(tenant_session: AsyncSession, category_id: uuid.UUID | None) -> uuid.UUID:
+    """Категория услуги; не указана — «Інше»."""
+    if category_id is None:
+        return (await system_category(tenant_session)).id
+    if await tenant_session.get(ServiceCategory, category_id) is None:
+        raise HTTPException(422, "Категорію не знайдено")
+    return category_id
+
+
+async def _with_category(tenant_session: AsyncSession, service: Service) -> Service:
+    await tenant_session.flush()
+    await tenant_session.refresh(service, attribute_names=["category"])
+    return service
+
+
 @router.get("", response_model=Envelope[list[ServiceOut]])
 async def list_services(
     tenant_session: TenantSession,
     master_session: MasterSession,
-    category: str | None = None,
+    category_id: Annotated[uuid.UUID | None, Query(alias="categoryId")] = None,
     service_status: Annotated[ServiceStatus | None, Query(alias="status")] = None,
     price_from: Annotated[Decimal | None, Query(alias="priceFrom")] = None,
     price_to: Annotated[Decimal | None, Query(alias="priceTo")] = None,
     query_text: Annotated[str | None, Query(alias="query")] = None,
 ) -> Envelope[list[ServiceOut]]:
     query = select(Service)
-    if category:
-        query = query.where(Service.category == category)
+    if category_id is not None:
+        query = query.where(Service.category_id == category_id)
     if service_status is not None:
         query = query.where(Service.status == service_status)
     else:
@@ -100,7 +146,8 @@ async def list_services(
 class ServiceCreateIn(ApiModel):
     name: str = Field(min_length=1, max_length=255)
     description: str | None = None
-    category: str = "other"
+    # Не указана — «Інше»
+    category_id: uuid.UUID | None = None
     color: str | None = None
     price: Decimal = Field(ge=0)
     duration_minutes: int = Field(default=60, gt=0)
@@ -137,7 +184,10 @@ async def create_service(
 ) -> Envelope[ServiceOut]:
     await _validate_masters(master_session, salon_id, body.master_ids)
 
-    service = Service(**body.model_dump(by_alias=False, exclude={"master_ids"}))
+    service = Service(
+        **body.model_dump(by_alias=False, exclude={"master_ids", "category_id"}),
+        category_id=await _category_id(tenant_session, body.category_id),
+    )
     tenant_session.add(service)
     await tenant_session.flush()
     for master_id in body.master_ids:
@@ -155,13 +205,15 @@ async def create_service(
         author_name=author.name,
     )
     masters = await _masters_map(tenant_session, master_session, [service.id])
+    await _with_category(tenant_session, service)
     return Envelope(data=_service_out(service, masters.get(service.id, [])))
 
 
 class ServicePatchIn(ApiModel):
     name: str | None = None
     description: str | None = None
-    category: str | None = None
+    # null — перенести в «Інше»
+    category_id: uuid.UUID | None = None
     color: str | None = None
     price: Decimal | None = Field(default=None, ge=0)
     duration_minutes: int | None = Field(default=None, gt=0)
@@ -185,6 +237,8 @@ async def patch_service(
 
     updates = body.model_dump(exclude_unset=True, by_alias=False)
     master_ids = updates.pop("master_ids", None)
+    if "category_id" in updates:
+        updates["category_id"] = await _category_id(tenant_session, updates["category_id"])
     changes = diff_fields(service, updates)
     for field, value in updates.items():
         setattr(service, field, value)
@@ -212,6 +266,7 @@ async def patch_service(
             details=changes,
         )
     masters = await _masters_map(tenant_session, master_session, [service.id])
+    await _with_category(tenant_session, service)
     return Envelope(data=_service_out(service, masters.get(service.id, [])))
 
 
@@ -241,17 +296,155 @@ async def archive_service(
     return Envelope(data=_service_out(service, masters.get(service.id, [])))
 
 
+# --- Категории ------------------------------------------------------------------
+
+
 class CategoryOut(ApiModel):
-    category: str
-    count: int
+    id: uuid.UUID
+    name: str
+    is_system: bool
+    # Неархивные услуги категории
+    services_count: int
+
+
+class CategoryIn(ApiModel):
+    name: str = Field(min_length=1, max_length=128)
+
+
+def _category_title(category: ServiceCategory) -> str:
+    return f"Категорія послуг «{category.name}»"
+
+
+async def _ensure_name_free(
+    tenant_session: AsyncSession, name: str, exclude_id: uuid.UUID | None = None
+) -> None:
+    query = select(ServiceCategory.id).where(func.lower(ServiceCategory.name) == name.lower())
+    if exclude_id is not None:
+        query = query.where(ServiceCategory.id != exclude_id)
+    if await tenant_session.scalar(query) is not None:
+        raise HTTPException(409, "Категорія з такою назвою вже існує")
+
+
+async def _counts(tenant_session: AsyncSession) -> dict[uuid.UUID, int]:
+    rows = await tenant_session.execute(
+        select(Service.category_id, func.count())
+        .where(Service.status != ServiceStatus.ARCHIVED)
+        .group_by(Service.category_id)
+    )
+    return {category_id: count for category_id, count in rows.all()}
+
+
+def _category_out(category: ServiceCategory, counts: dict[uuid.UUID, int]) -> CategoryOut:
+    return CategoryOut(
+        id=category.id,
+        name=category.name,
+        is_system=category.is_system,
+        services_count=counts.get(category.id, 0),
+    )
+
+
+def category_sort_key(category: ServiceCategory) -> tuple[bool, tuple[tuple[int, int], ...]]:
+    """По алфавиту (украинскому), системная «Інше» — последней."""
+    return category.is_system, uk_sort_key(category.name)
 
 
 @router.get("/categories", response_model=Envelope[list[CategoryOut]])
 async def list_categories(tenant_session: TenantSession) -> Envelope[list[CategoryOut]]:
-    rows = await tenant_session.execute(
-        select(Service.category, func.count())
-        .where(Service.status != ServiceStatus.ARCHIVED)
-        .group_by(Service.category)
-        .order_by(Service.category)
+    await system_category(tenant_session)
+    categories = sorted(
+        await tenant_session.scalars(select(ServiceCategory)), key=category_sort_key
     )
-    return Envelope(data=[CategoryOut(category=c, count=n) for c, n in rows])
+    counts = await _counts(tenant_session)
+    return Envelope(data=[_category_out(c, counts) for c in categories])
+
+
+@router.post(
+    "/categories", response_model=Envelope[CategoryOut], status_code=status.HTTP_201_CREATED
+)
+async def create_category(
+    body: CategoryIn,
+    _admin: AdminUser,
+    author: CurrentAuthor,
+    tenant_session: TenantSession,
+) -> Envelope[CategoryOut]:
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(422, "Назва категорії обов'язкова")
+    await _ensure_name_free(tenant_session, name)
+    category = ServiceCategory(name=name, is_system=False)
+    tenant_session.add(category)
+    await tenant_session.flush()
+    write_audit(
+        tenant_session,
+        entity="service",
+        entity_id=category.id,
+        entity_name=_category_title(category),
+        action=AuditAction.CREATED,
+        author_id=author.id,
+        author_name=author.name,
+    )
+    return Envelope(data=_category_out(category, {}))
+
+
+async def _editable(tenant_session: AsyncSession, category_id: uuid.UUID) -> ServiceCategory:
+    category = await tenant_session.get(ServiceCategory, category_id)
+    if category is None:
+        raise HTTPException(404, "Категорію не знайдено")
+    if category.is_system:
+        raise HTTPException(409, "Системну категорію не можна змінити")
+    return category
+
+
+@router.patch("/categories/{category_id}", response_model=Envelope[CategoryOut])
+async def rename_category(
+    category_id: uuid.UUID,
+    body: CategoryIn,
+    _admin: AdminUser,
+    author: CurrentAuthor,
+    tenant_session: TenantSession,
+) -> Envelope[CategoryOut]:
+    category = await _editable(tenant_session, category_id)
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(422, "Назва категорії обов'язкова")
+    await _ensure_name_free(tenant_session, name, exclude_id=category.id)
+    old = category.name
+    category.name = name
+    if old != name:
+        write_audit(
+            tenant_session,
+            entity="service",
+            entity_id=category.id,
+            entity_name=_category_title(category),
+            action=AuditAction.UPDATED,
+            author_id=author.id,
+            author_name=author.name,
+            details={"name": [old, name]},
+        )
+    return Envelope(data=_category_out(category, await _counts(tenant_session)))
+
+
+@router.delete("/categories/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_category(
+    category_id: uuid.UUID,
+    _admin: AdminUser,
+    author: CurrentAuthor,
+    tenant_session: TenantSession,
+) -> None:
+    """Удаление: все услуги категории (включая архивные) переходят в «Інше»."""
+    category = await _editable(tenant_session, category_id)
+    fallback = await system_category(tenant_session)
+    moved = await tenant_session.execute(
+        update(Service).where(Service.category_id == category.id).values(category_id=fallback.id)
+    )
+    await tenant_session.delete(category)
+    write_audit(
+        tenant_session,
+        entity="service",
+        entity_id=category.id,
+        entity_name=_category_title(category),
+        action=AuditAction.DELETED,
+        author_id=author.id,
+        author_name=author.name,
+        details={"services": [moved.rowcount, fallback.name]},  # type: ignore[attr-defined]
+    )

@@ -35,7 +35,7 @@ from app.models.shard.record import (
     RecordStatus,
 )
 from app.models.shard.review import Review
-from app.models.shard.service import Service, ServiceStatus, service_masters
+from app.models.shard.service import Service, ServiceCategory, ServiceStatus, service_masters
 from app.models.shard.setting import Setting
 from app.models.shard.staff import (
     ShiftKind,
@@ -77,6 +77,7 @@ __all__ = [
     "RecordStatus",
     "Review",
     "Service",
+    "ServiceCategory",
     "ServiceStatus",
     "Setting",
     "ShiftKind",

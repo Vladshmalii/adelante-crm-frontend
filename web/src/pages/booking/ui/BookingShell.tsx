@@ -2,7 +2,7 @@ import { CheckOutlined } from '@ant-design/icons';
 import { ConfigProvider, type ThemeConfig, Typography } from 'antd';
 import type { CSSProperties, ReactNode } from 'react';
 
-import { getTheme, lightPalette, withAlpha } from '@/shared/theme';
+import { getTheme, lightPalette, logoFor, withAlpha } from '@/shared/theme';
 
 /**
  * Вид сайта записи — как в старом UI и в палитре светлой темы (`shared/theme`): клиенту всегда
@@ -27,6 +27,14 @@ export function BookingShell({ children }: { children: ReactNode }) {
         }}
       >
         <div style={{ maxWidth: 760, margin: '0 auto', padding: '24px 16px 32px' }}>
+          {/* Логотип сети — на всех страницах сайта записи; сайт всегда светлый. */}
+          <img
+            src={logoFor('light')}
+            alt="Adelante"
+            width={72}
+            height={72}
+            style={{ display: 'block', margin: '0 auto 12px' }}
+          />
           {children}
           <Typography.Paragraph
             type="secondary"

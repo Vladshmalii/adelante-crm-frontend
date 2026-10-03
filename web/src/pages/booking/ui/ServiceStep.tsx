@@ -3,7 +3,7 @@ import { Empty, Input, Space, Spin, Tag, Typography } from 'antd';
 import { useState } from 'react';
 
 import type { Schema } from '@/shared/api';
-import { formatMoney, serviceCategoryLabel } from '@/shared/lib';
+import { formatMoney } from '@/shared/lib';
 import { QueryErrorAlert } from '@/shared/ui';
 
 import { servicesQueryOptions } from '../api/booking.api';
@@ -26,11 +26,11 @@ export function ServiceStep({ slug, selectedId, onSelect }: ServiceStepProps) {
 
   const filtered = data.filter(
     (s) =>
-      (!category || s.category === category) &&
+      (!category || s.category_id === category) &&
       (!query.trim() || s.name.toLowerCase().includes(query.trim().toLowerCase())),
   );
   const groups = groupServices(filtered);
-  const categories = groupServices(data).map(([c]) => c);
+  const categories = groupServices(data);
 
   return (
     <>
@@ -63,32 +63,32 @@ export function ServiceStep({ slug, selectedId, onSelect }: ServiceStepProps) {
               </Tag.CheckableTag>
               {categories.map((c) => (
                 <Tag.CheckableTag
-                  key={c}
-                  checked={category === c}
+                  key={c.id}
+                  checked={category === c.id}
                   onChange={() => {
-                    setCategory(c);
+                    setCategory(c.id);
                   }}
                   style={{ padding: '4px 14px', borderRadius: 999 }}
                 >
-                  {serviceCategoryLabel(c)}
+                  {c.name}
                 </Tag.CheckableTag>
               ))}
             </Space>
           )}
           {groups.length === 0 && <Empty description="Послуг не знайдено" />}
-          {groups.map(([c, list]) => (
-            <div key={c} style={{ marginBottom: 16 }}>
+          {groups.map((g) => (
+            <div key={g.id} style={{ marginBottom: 16 }}>
               {categories.length > 1 && (
                 <Typography.Text
                   type="secondary"
                   strong
                   style={{ display: 'block', marginBottom: 8, fontSize: 13 }}
                 >
-                  {serviceCategoryLabel(c)}
+                  {g.name}
                 </Typography.Text>
               )}
               <Space orientation="vertical" size={10} style={{ display: 'flex' }}>
-                {list.map((s) => (
+                {g.services.map((s) => (
                   <ChoiceCard
                     key={s.id}
                     selected={s.id === selectedId}

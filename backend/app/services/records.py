@@ -14,7 +14,7 @@
 
 import hashlib
 import uuid
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -37,7 +37,7 @@ from app.models.shard import (
 )
 from app.notifications.outbox import RECORD_CREATED, RECORD_UPDATED, add_outbox_event
 from app.services.audit import write_audit
-from app.timeutils import to_local
+from app.timeutils import SALON_TZ, to_local
 
 
 class RecordError(Exception):
@@ -58,6 +58,20 @@ class ClientInactive(RecordError):
 
 class SlotTaken(RecordError):
     """Слот занят — только для публичной записи; админка не блокируется."""
+
+
+class InvalidEnd(RecordError):
+    """Конец записи раньше начала или в другой день."""
+
+
+def validate_end(start_at: datetime, end_at: datetime) -> None:
+    """Конец позже начала и в тот же день по Киеву (ровно 00:00 следующего — можно)."""
+    if end_at <= start_at:
+        raise InvalidEnd("Кінець запису має бути пізніше за початок")
+    start, end = to_local(start_at), to_local(end_at)
+    next_midnight = datetime.combine(start.date() + timedelta(days=1), time.min, tzinfo=SALON_TZ)
+    if end.date() != start.date() and end != next_midnight:
+        raise InvalidEnd("Кінець запису має бути в той самий день, що й початок")
 
 
 class MasterOnLeave(RecordError):
@@ -96,6 +110,8 @@ class NewRecord(BaseModel):
     service_ids: list[uuid.UUID] = Field(min_length=1)
     client_id: uuid.UUID
     start_at: datetime
+    # Ручной конец (растягивание карточки); не задан — начало + сумма услуг
+    end_at: datetime | None = None
     comment: str | None = None
     importance: RecordImportance = RecordImportance.STANDARD
     visitor_name: str | None = None
@@ -291,6 +307,9 @@ async def create_record(
     services = await load_services(tenant_session, data.service_ids)
 
     end_at = data.start_at + total_duration(services)
+    if data.end_at is not None:
+        validate_end(data.start_at, data.end_at)
+        end_at = data.end_at
     if master is not None:
         await ensure_master_not_on_leave(tenant_session, master.id, data.start_at)
     if check_slot and master is not None:
@@ -316,6 +335,7 @@ async def create_record(
         created_by_name=data.created_by_name,
     )
     apply_services(record, services)
+    record.end_at = end_at
     tenant_session.add(record)
     await tenant_session.flush()
 

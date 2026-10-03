@@ -37,3 +37,23 @@ export function packageBreakdown(
   const rest = Math.round((total - packs * volume) * 1000) / 1000;
   return rest > 0 ? `${packs} шт + ${formatQuantity(rest, unit)}` : `${packs} шт`;
 }
+
+export interface Margin {
+  /** Продажа − себестоимость, ₴. */
+  amount: number;
+  /** (Продажа − себестоимость) / продажа, целые проценты. */
+  percent: number;
+}
+
+/** Маржа товара. `null` — нет одной из цен или цена продажи нулевая. */
+export function productMargin(
+  costPrice: string | number | null | undefined,
+  salePrice: string | number | null | undefined,
+): Margin | null {
+  if (costPrice == null || costPrice === '' || salePrice == null || salePrice === '') return null;
+  const cost = Number(costPrice);
+  const sale = Number(salePrice);
+  if (!(sale > 0) || Number.isNaN(cost)) return null;
+  const amount = Math.round((sale - cost) * 100) / 100;
+  return { amount, percent: Math.round((amount / sale) * 100) };
+}

@@ -5,7 +5,8 @@ import { buildIcs, formatDuration, groupServices, monthOf, slotsByPart } from '.
 const service = (id: string, category: string) => ({
   id,
   name: id,
-  category,
+  category_id: category,
+  category_name: category.toUpperCase(),
   color: null,
   description: null,
   price: '500.00',
@@ -21,9 +22,9 @@ describe('сайт записи', () => {
       service('b', 'nails'),
       service('c', 'hair'),
     ]);
-    expect(groups.map(([c, list]) => [c, list.map((s) => s.id)])).toEqual([
-      ['hair', ['a', 'c']],
-      ['nails', ['b']],
+    expect(groups.map((g) => [g.id, g.name, g.services.map((s) => s.id)])).toEqual([
+      ['hair', 'HAIR', ['a', 'c']],
+      ['nails', 'NAILS', ['b']],
     ]);
   });
 
