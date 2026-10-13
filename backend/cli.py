@@ -20,6 +20,7 @@ from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, select, text
 
 from app.api import security
+from app.api.booking.salons import SALONS_CACHE_KEY
 from app.config import get_settings
 from app.models.master import Administrator, Salon, SalonStatus
 from app.tenancy.registry import CONN_KEY, INVALIDATE_CHANNEL, SLUG_KEY, SalonConnInfo
@@ -84,6 +85,7 @@ def _invalidate_cache(salon: Salon) -> None:
         r = redis_sync.Redis.from_url(settings.redis_url, decode_responses=True)
         r.delete(CONN_KEY.format(salon_id=salon.id))
         r.delete(SLUG_KEY.format(slug=salon.slug))
+        r.delete(SALONS_CACHE_KEY)
         r.publish(INVALIDATE_CHANNEL, str(salon.id))
         r.close()
     except redis_sync.RedisError:
@@ -209,6 +211,10 @@ def _conn_info(salon: Salon) -> SalonConnInfo:
     )
 
 
+# Сегменты сайта записи, которые нельзя занимать slug'ом (`/booking/{slug}`)
+RESERVED_SLUGS = {"salons"}
+
+
 @salon_app.command("create")
 def salon_create(
     name: str = typer.Option(...),
@@ -224,6 +230,9 @@ def salon_create(
 ) -> None:
     """Создать шард-БД, применить миграции и зарегистрировать салон в реестре."""
     settings = get_settings()
+    if slug in RESERVED_SLUGS:
+        typer.secho(f"Slug {slug!r} зарезервирован под маршруты сайта записи", fg="red")
+        raise typer.Exit(code=1)
     db_name = db_name or f"salon_{slug}".replace("-", "_")
     db_user = db_user or db_name
 

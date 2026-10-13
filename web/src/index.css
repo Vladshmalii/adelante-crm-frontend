@@ -4,3 +4,9 @@ body,
   height: 100%;
   margin: 0;
 }
+
+/* Мини-календарь над меню — во всю ширину сайдбара (ProLayout даёт блоку margin-inline: 16px).
+   Селектор специфичнее, чем у CSS-in-JS ProLayout, который вставляется позже. */
+.ant-pro-layout .ant-pro-sider .ant-pro-sider-extra {
+  margin-inline: 0;
+}

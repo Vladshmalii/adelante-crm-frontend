@@ -204,7 +204,7 @@ export function CalendarPage() {
   const error = schedule.error ?? records.error ?? summary.error;
 
   return (
-    <div style={{ padding: '16px 24px' }}>
+    <div>
       {/* Шапка: навигация по датам, дата, вид, новая запись */}
       <Flex justify="space-between" align="center" wrap gap={12} style={{ marginBottom: 12 }}>
         <Space size="middle">

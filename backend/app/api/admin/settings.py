@@ -9,11 +9,12 @@ import uuid
 from datetime import date, datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import Field, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.admin.deps import CurrentAuthor
+from app.api.booking.salons import invalidate_salons_cache
 from app.api.schemas import ApiModel, Envelope
 from app.api.security import require_admin
 from app.models.master import Salon
@@ -90,6 +91,7 @@ def _clean(value: Any) -> Any:
 @router.patch("/salon", response_model=Envelope[SalonInfoOut])
 async def patch_salon_info(
     body: SalonInfoPatchIn,
+    request: Request,
     author: CurrentAuthor,
     salon_id: SalonId,
     master_session: MasterSession,
@@ -105,6 +107,9 @@ async def patch_salon_info(
         if updates["name"] != salon.name:
             changes["name"] = [salon.name, updates["name"]]
             salon.name = updates.pop("name")
+            # Название — в публичном списке салонов; master_session коммитится до ответа,
+            # гонку с повторным кэшированием старого имени закрывает короткий TTL
+            await invalidate_salons_cache(request.app.state.redis)
         else:
             updates.pop("name")
 

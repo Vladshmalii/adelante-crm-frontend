@@ -87,6 +87,26 @@ def test_catalog(w: World) -> None:
     assert api.get(f"/slots?service_id={w.cut['id']}&date={edge}", **w.booking)
 
 
+def test_salons_list(w: World) -> None:
+    import cli
+
+    api = w.s.api
+    pub = {"prefix": "/api/booking"}
+    assert {"slug": w.s.slug, "name": f"Салон {w.s.slug}"} in api.get("/salons", **pub)
+
+    # Переименование в настройках сбрасывает кэш списка
+    api.patch("/settings/salon", token=w.s.su, salon=w.s.id, json={"name": "Альфа"})
+    assert {"slug": w.s.slug, "name": "Альфа"} in api.get("/salons", **pub)
+
+    # Приостановленный салон пропадает из списка (salonctl сбрасывает кэш)
+    cli.salon_suspend(w.s.slug)
+    try:
+        assert w.s.slug not in {x["slug"] for x in api.get("/salons", **pub)}
+    finally:
+        cli.salon_resume(w.s.slug)
+    assert w.s.slug in {x["slug"] for x in api.get("/salons", **pub)}
+
+
 def test_any_master_booking(w: World) -> None:
     api = w.s.api
     day = _day()

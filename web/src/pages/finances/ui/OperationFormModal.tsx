@@ -1,6 +1,8 @@
 import {
   ModalForm,
+  ProForm,
   ProFormDateTimePicker,
+  ProFormDependency,
   ProFormDigit,
   ProFormSelect,
   ProFormText,
@@ -17,6 +19,7 @@ import { fromPickerDateTime, inSalonTz, toPickerDateTime } from '@/shared/lib';
 import { useCreateOperation, useUpdateOperation } from '../api/finances.mutations';
 import { cashRegistersQueryOptions, paymentMethodsQueryOptions } from '../api/finances.queries';
 import { operationStatusLabels, operationTypeLabels, tagOptions } from '../model/labels';
+import { ExpenseCategorySelect } from './ExpenseCategorySelect';
 
 type Operation = Schema<'OperationOut'>;
 
@@ -28,6 +31,7 @@ interface FormValues {
   description?: string;
   paymentMethodId?: string;
   cashRegisterId?: string;
+  targetCashRegisterId?: string;
   status?: Schema<'OperationStatus'>;
 }
 
@@ -61,6 +65,7 @@ export function OperationFormModal({ open, onOpenChange, operation }: OperationF
             description: operation.description ?? undefined,
             paymentMethodId: operation.paymentMethod?.id ?? undefined,
             cashRegisterId: operation.cashRegister?.id ?? undefined,
+            targetCashRegisterId: operation.targetCashRegister?.id ?? undefined,
           }
         : { type: 'income', date: toPickerDateTime(inSalonTz(new Date()).toISOString()) },
     // eslint-disable-next-line react-hooks/exhaustive-deps -- пересчёт только при открытии
@@ -83,10 +88,11 @@ export function OperationFormModal({ open, onOpenChange, operation }: OperationF
       submitter={{ searchConfig: { submitText: 'Зберегти', resetText: 'Скасувати' } }}
       onFinish={async (v) => {
         try {
+          const isTransfer = v.type === 'transfer';
           const common = {
             amount: v.amount,
             date: fromPickerDateTime(v.date),
-            category: blankToNull(v.category),
+            category: isTransfer ? null : blankToNull(v.category),
             description: blankToNull(v.description),
           };
           if (operation) {
@@ -95,8 +101,9 @@ export function OperationFormModal({ open, onOpenChange, operation }: OperationF
             await create.mutateAsync({
               ...common,
               type: v.type,
-              paymentMethodId: v.paymentMethodId ?? null,
+              paymentMethodId: isTransfer ? null : (v.paymentMethodId ?? null),
               cashRegisterId: v.cashRegisterId ?? null,
+              targetCashRegisterId: isTransfer ? (v.targetCashRegisterId ?? null) : null,
             });
           }
           message.success(isEdit ? 'Операцію оновлено' : 'Операцію створено');
@@ -127,21 +134,58 @@ export function OperationFormModal({ open, onOpenChange, operation }: OperationF
         fieldProps={{ format: 'DD.MM.YYYY HH:mm', style: { width: '100%' } }}
         rules={[{ required: true, message: 'Вкажіть дату' }]}
       />
-      <ProFormText name="category" label="Категорія" placeholder="Наприклад: Оренда" />
-      <ProFormSelect
-        name="cashRegisterId"
-        label="Каса"
-        disabled={isEdit}
-        options={(registers ?? []).map((r) => ({ value: r.id, label: r.name }))}
-      />
-      <ProFormSelect
-        name="paymentMethodId"
-        label="Метод оплати"
-        disabled={isEdit}
-        options={(methods ?? [])
-          .filter((m) => m.isActive)
-          .map((m) => ({ value: m.id, label: m.name }))}
-      />
+      <ProFormDependency name={['type']}>
+        {({ type }: { type?: FormValues['type'] }) => {
+          const registerOptions = (registers ?? [])
+            .filter((r) => isEdit || r.isActive)
+            .map((r) => ({ value: r.id, label: r.name }));
+          if (type === 'transfer') {
+            return (
+              <>
+                <ProFormSelect
+                  name="cashRegisterId"
+                  label="З каси"
+                  disabled={isEdit}
+                  options={registerOptions}
+                  rules={[{ required: true, message: 'Оберіть касу-відправника' }]}
+                />
+                <ProFormSelect
+                  name="targetCashRegisterId"
+                  label="До каси"
+                  disabled={isEdit}
+                  options={registerOptions}
+                  rules={[{ required: true, message: 'Оберіть касу-отримувача' }]}
+                />
+              </>
+            );
+          }
+          return (
+            <>
+              {type === 'expense' ? (
+                <ProForm.Item name="category" label="Категорія">
+                  <ExpenseCategorySelect />
+                </ProForm.Item>
+              ) : (
+                <ProFormText name="category" label="Категорія" />
+              )}
+              <ProFormSelect
+                name="cashRegisterId"
+                label="Каса"
+                disabled={isEdit}
+                options={registerOptions}
+              />
+              <ProFormSelect
+                name="paymentMethodId"
+                label="Метод оплати"
+                disabled={isEdit}
+                options={(methods ?? [])
+                  .filter((m) => m.isActive)
+                  .map((m) => ({ value: m.id, label: m.name }))}
+              />
+            </>
+          );
+        }}
+      </ProFormDependency>
       {isEdit && (
         <ProFormSelect
           name="status"

@@ -1,4 +1,4 @@
-"""Финансы: дашборд, операции, документы, чеки, способы оплаты, кассы.
+"""Финансы: дашборд, операции, документы, чеки, способы оплаты, кассы, категории расходов.
 
 Раздел — только суперюзер (ACCESS.md), кроме продажи без записи
 (POST /finances/receipts): её проводит и администратор, как оплату визита
@@ -14,7 +14,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from pydantic import Field
-from sqlalchemy import Select, case, func, select
+from sqlalchemy import Select, case, func, literal, select, union_all, update
 
 from app.api.admin.deps import CurrentAuthor
 from app.api.schemas import ApiModel, Envelope, PersonRef, page_meta
@@ -30,6 +30,7 @@ from app.models.shard import (
     DocumentContentType,
     DocumentStatus,
     DocumentType,
+    ExpenseCategory,
     FinanceDocument,
     FinanceOperation,
     OperationStatus,
@@ -45,6 +46,7 @@ from app.models.shard import (
 )
 from app.services import visits as visits_service
 from app.services.audit import diff_fields, write_audit
+from app.services.text import uk_sort_key
 from app.tenancy.deps import MasterSession, SalonId, TenantSession
 from app.timeutils import SALON_TZ_NAME, LocalDatetime, to_local
 
@@ -340,6 +342,8 @@ class OperationOut(ApiModel):
     status: OperationStatus
     payment_method: PersonRef | None
     cash_register: PersonRef | None
+    # transfer: cash_register — откуда, target_cash_register — куда
+    target_cash_register: PersonRef | None
     client_id: uuid.UUID | None
     record_id: uuid.UUID | None
     receipt_id: uuid.UUID | None
@@ -352,7 +356,9 @@ async def _refs(
     tenant_session, operations: list[FinanceOperation]
 ) -> tuple[dict[uuid.UUID, str], dict[uuid.UUID, str]]:
     method_ids = {o.payment_method_id for o in operations if o.payment_method_id}
-    register_ids = {o.cash_register_id for o in operations if o.cash_register_id}
+    register_ids = {o.cash_register_id for o in operations if o.cash_register_id} | {
+        o.target_cash_register_id for o in operations if o.target_cash_register_id
+    }
     methods, registers = {}, {}
     if method_ids:
         for m in await tenant_session.scalars(
@@ -386,6 +392,14 @@ def _operation_out(op: FinanceOperation, methods: dict, registers: dict) -> Oper
             if op.cash_register_id
             else None
         ),
+        target_cash_register=(
+            PersonRef(
+                id=str(op.target_cash_register_id),
+                name=registers.get(op.target_cash_register_id),
+            )
+            if op.target_cash_register_id
+            else None
+        ),
         client_id=op.client_id,
         record_id=op.record_id,
         receipt_id=op.receipt_id,
@@ -413,13 +427,21 @@ async def list_operations(
     if master_id is not None:
         query = query.where(FinanceOperation.record_id.in_(_master_records(master_id)))
     if location:
-        query = query.where(FinanceOperation.cash_register_id.in_(_location_registers(location)))
+        located = _location_registers(location)
+        query = query.where(
+            FinanceOperation.cash_register_id.in_(located)
+            | FinanceOperation.target_cash_register_id.in_(located)
+        )
     if op_type is not None:
         query = query.where(FinanceOperation.type == op_type)
     if category:
         query = query.where(FinanceOperation.category == category)
     if cash_register_id is not None:
-        query = query.where(FinanceOperation.cash_register_id == cash_register_id)
+        # Перевод виден в обеих кассах
+        query = query.where(
+            (FinanceOperation.cash_register_id == cash_register_id)
+            | (FinanceOperation.target_cash_register_id == cash_register_id)
+        )
     if payment_method_id is not None:
         query = query.where(FinanceOperation.payment_method_id == payment_method_id)
     if date_from is not None:
@@ -450,7 +472,21 @@ class OperationCreateIn(ApiModel):
     date: LocalDatetime
     payment_method_id: uuid.UUID | None = None
     cash_register_id: uuid.UUID | None = None
+    # Обязательна для transfer, для остальных типов запрещена
+    target_cash_register_id: uuid.UUID | None = None
     client_id: uuid.UUID | None = None
+
+
+async def _expense_category_name(tenant_session, name: str | None) -> str | None:
+    """Категория расхода — только из справочника; возвращает каноническое написание."""
+    if name is None or not name.strip():
+        return None
+    canonical = await tenant_session.scalar(
+        select(ExpenseCategory.name).where(func.lower(ExpenseCategory.name) == name.strip().lower())
+    )
+    if canonical is None:
+        raise HTTPException(422, f"Категорії витрат «{name.strip()}» немає в довіднику")
+    return canonical
 
 
 @router.post(
@@ -461,13 +497,20 @@ async def create_operation(
     author: CurrentAuthor,
     tenant_session: TenantSession,
 ) -> Envelope[OperationOut]:
+    if body.type == OperationType.TRANSFER:
+        if body.cash_register_id is None or body.target_cash_register_id is None:
+            raise HTTPException(422, "Для переказу вкажіть касу-відправника і касу-отримувача")
+        if body.cash_register_id == body.target_cash_register_id:
+            raise HTTPException(422, "Каса-відправник і каса-отримувач мають відрізнятися")
+        await _active_register(tenant_session, body.target_cash_register_id)
+    elif body.target_cash_register_id is not None:
+        raise HTTPException(422, "Каса-отримувач вказується лише для переказу")
     if body.cash_register_id is not None:
         await _active_register(tenant_session, body.cash_register_id)
-    op = FinanceOperation(
-        **body.model_dump(by_alias=False),
-        author_id=author.id,
-        author_name=author.name,
-    )
+    data = body.model_dump(by_alias=False)
+    if body.type == OperationType.EXPENSE:
+        data["category"] = await _expense_category_name(tenant_session, body.category)
+    op = FinanceOperation(**data, author_id=author.id, author_name=author.name)
     tenant_session.add(op)
     await tenant_session.flush()
     write_audit(
@@ -502,6 +545,8 @@ async def patch_operation(
     if op is None:
         raise HTTPException(404, "Операцію не знайдено")
     updates = body.model_dump(exclude_unset=True, by_alias=False)
+    if op.type == OperationType.EXPENSE and "category" in updates:
+        updates["category"] = await _expense_category_name(tenant_session, updates["category"])
     changes = diff_fields(op, updates)
     for field, value in updates.items():
         setattr(op, field, value)
@@ -1051,23 +1096,45 @@ class CashRegisterOut(ApiModel):
     is_active: bool
 
 
+def _register_movements():
+    """Движения по кассам (register_id, delta) из проведённых операций.
+
+    Приход +, расход −; перевод — минус у отправителя и плюс у получателя.
+    Перевод без получателя (старые данные) баланс не меняет.
+    """
+    completed = FinanceOperation.status == OperationStatus.COMPLETED
+    own = select(
+        FinanceOperation.cash_register_id.label("register_id"),
+        case(
+            (FinanceOperation.type == OperationType.INCOME, FinanceOperation.amount),
+            (FinanceOperation.type == OperationType.EXPENSE, -FinanceOperation.amount),
+            (
+                (FinanceOperation.type == OperationType.TRANSFER)
+                & FinanceOperation.target_cash_register_id.is_not(None),
+                -FinanceOperation.amount,
+            ),
+            else_=literal(Decimal(0)),
+        ).label("delta"),
+    ).where(completed, FinanceOperation.cash_register_id.is_not(None))
+    incoming = select(
+        FinanceOperation.target_cash_register_id.label("register_id"),
+        FinanceOperation.amount.label("delta"),
+    ).where(
+        completed,
+        FinanceOperation.type == OperationType.TRANSFER,
+        FinanceOperation.target_cash_register_id.is_not(None),
+    )
+    return union_all(own, incoming).subquery("movements")
+
+
 @router.get("/cash-registers", response_model=Envelope[list[CashRegisterOut]])
 async def list_cash_registers(
     tenant_session: TenantSession,
 ) -> Envelope[list[CashRegisterOut]]:
-    balance_expr = func.coalesce(
-        func.sum(
-            case(
-                (FinanceOperation.type == OperationType.INCOME, FinanceOperation.amount),
-                (FinanceOperation.type == OperationType.EXPENSE, -FinanceOperation.amount),
-                else_=0,
-            )
-        ).filter(FinanceOperation.status == OperationStatus.COMPLETED),
-        0,
-    )
+    movements = _register_movements()
     rows = await tenant_session.execute(
-        select(CashRegister, balance_expr)
-        .outerjoin(FinanceOperation, FinanceOperation.cash_register_id == CashRegister.id)
+        select(CashRegister, func.coalesce(func.sum(movements.c.delta), 0))
+        .outerjoin(movements, movements.c.register_id == CashRegister.id)
         .group_by(CashRegister.id)
         .order_by(CashRegister.name)
     )
@@ -1133,21 +1200,10 @@ class CashRegisterPatchIn(ApiModel):
 
 
 async def _register_balance(tenant_session, register_id: uuid.UUID) -> Decimal:
+    movements = _register_movements()
     balance = await tenant_session.scalar(
-        select(
-            func.coalesce(
-                func.sum(
-                    case(
-                        (FinanceOperation.type == OperationType.INCOME, FinanceOperation.amount),
-                        (FinanceOperation.type == OperationType.EXPENSE, -FinanceOperation.amount),
-                        else_=0,
-                    )
-                ),
-                0,
-            )
-        ).where(
-            FinanceOperation.cash_register_id == register_id,
-            FinanceOperation.status == OperationStatus.COMPLETED,
+        select(func.coalesce(func.sum(movements.c.delta), 0)).where(
+            movements.c.register_id == register_id
         )
     )
     return Decimal(balance or 0)
@@ -1194,6 +1250,135 @@ async def patch_cash_register(
     )
 
 
+# --- Категории расходов ------------------------------------------------------
+
+
+class ExpenseCategoryOut(ApiModel):
+    id: uuid.UUID
+    name: str
+
+
+class ExpenseCategoryIn(ApiModel):
+    name: str = Field(min_length=1, max_length=255)
+
+
+def _expense_category_title(category: ExpenseCategory) -> str:
+    return f"Категорія витрат «{category.name}»"
+
+
+async def _expense_category_name_free(
+    tenant_session, name: str, exclude_id: uuid.UUID | None = None
+) -> None:
+    query = select(ExpenseCategory.id).where(func.lower(ExpenseCategory.name) == name.lower())
+    if exclude_id is not None:
+        query = query.where(ExpenseCategory.id != exclude_id)
+    if await tenant_session.scalar(query) is not None:
+        raise HTTPException(409, "Категорія з такою назвою вже існує")
+
+
+def _clean_name(name: str) -> str:
+    name = name.strip()
+    if not name:
+        raise HTTPException(422, "Назва категорії обов'язкова")
+    return name
+
+
+@router.get("/expense-categories", response_model=Envelope[list[ExpenseCategoryOut]])
+async def list_expense_categories(
+    tenant_session: TenantSession,
+) -> Envelope[list[ExpenseCategoryOut]]:
+    categories = sorted(
+        await tenant_session.scalars(select(ExpenseCategory)), key=lambda c: uk_sort_key(c.name)
+    )
+    return Envelope(data=[ExpenseCategoryOut(id=c.id, name=c.name) for c in categories])
+
+
+@router.post(
+    "/expense-categories",
+    response_model=Envelope[ExpenseCategoryOut],
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_expense_category(
+    body: ExpenseCategoryIn,
+    author: CurrentAuthor,
+    tenant_session: TenantSession,
+) -> Envelope[ExpenseCategoryOut]:
+    name = _clean_name(body.name)
+    await _expense_category_name_free(tenant_session, name)
+    category = ExpenseCategory(name=name)
+    tenant_session.add(category)
+    await tenant_session.flush()
+    write_audit(
+        tenant_session,
+        entity="finance",
+        entity_id=category.id,
+        entity_name=_expense_category_title(category),
+        action=AuditAction.CREATED,
+        author_id=author.id,
+        author_name=author.name,
+    )
+    return Envelope(data=ExpenseCategoryOut(id=category.id, name=category.name))
+
+
+@router.patch("/expense-categories/{category_id}", response_model=Envelope[ExpenseCategoryOut])
+async def rename_expense_category(
+    category_id: uuid.UUID,
+    body: ExpenseCategoryIn,
+    author: CurrentAuthor,
+    tenant_session: TenantSession,
+) -> Envelope[ExpenseCategoryOut]:
+    """Переименование переписывает категорию в уже проведённых расходах."""
+    category = await tenant_session.get(ExpenseCategory, category_id)
+    if category is None:
+        raise HTTPException(404, "Категорію не знайдено")
+    name = _clean_name(body.name)
+    await _expense_category_name_free(tenant_session, name, exclude_id=category.id)
+    old = category.name
+    if old != name:
+        await tenant_session.execute(
+            update(FinanceOperation)
+            .where(
+                FinanceOperation.type == OperationType.EXPENSE,
+                FinanceOperation.category == old,
+            )
+            .values(category=name)
+        )
+        category.name = name
+        write_audit(
+            tenant_session,
+            entity="finance",
+            entity_id=category.id,
+            entity_name=_expense_category_title(category),
+            action=AuditAction.UPDATED,
+            author_id=author.id,
+            author_name=author.name,
+            details={"name": [old, name]},
+        )
+    return Envelope(data=ExpenseCategoryOut(id=category.id, name=category.name))
+
+
+@router.delete("/expense-categories/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_expense_category(
+    category_id: uuid.UUID,
+    author: CurrentAuthor,
+    tenant_session: TenantSession,
+) -> None:
+    """Удаление убирает категорию из списка; проведённые расходы сохраняют её название."""
+    category = await tenant_session.get(ExpenseCategory, category_id)
+    if category is None:
+        raise HTTPException(404, "Категорію не знайдено")
+    await tenant_session.delete(category)
+    write_audit(
+        tenant_session,
+        entity="finance",
+        entity_id=category.id,
+        entity_name=_expense_category_title(category),
+        action=AuditAction.DELETED,
+        author_id=author.id,
+        author_name=author.name,
+    )
+
+
 @router.get("/locations", response_model=Envelope[list[str]])
 async def list_locations(tenant_session: TenantSession) -> Envelope[list[str]]:
     """Локации активных касс — для фильтра «Локація»."""
@@ -1234,6 +1419,12 @@ async def export_operations(
     operations = list(await tenant_session.scalars(query.order_by(FinanceOperation.date)))
     methods, registers = await _refs(tenant_session, operations)
 
+    def _register_label(op: FinanceOperation, registers: dict) -> str | None:
+        source = registers.get(op.cash_register_id) if op.cash_register_id else None
+        if op.target_cash_register_id is None:
+            return source
+        return f"{source or '—'} → {registers.get(op.target_cash_register_id)}"
+
     wb = Workbook()
     ws = wb.active
     ws.title = "Операції"
@@ -1259,7 +1450,7 @@ async def export_operations(
                 op.category,
                 op.description,
                 methods.get(op.payment_method_id) if op.payment_method_id else None,
-                registers.get(op.cash_register_id) if op.cash_register_id else None,
+                _register_label(op, registers),
                 op.status.value,
                 op.author_name,
             ]

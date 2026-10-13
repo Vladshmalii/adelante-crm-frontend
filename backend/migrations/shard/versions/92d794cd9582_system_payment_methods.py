@@ -1,7 +1,7 @@
 """системные способы оплаты «Особовий рахунок» и «Кешбек»; чек без кассы
 
 Revision ID: 92d794cd9582
-Revises: b3d5f7a9c1e2
+Revises: c6e8a0b2d4f7
 Create Date: 2026-10-13 20:10:00
 
 Expand (backend/docs/loyalty-accounts.md, разделы 4.2 и 15):
@@ -23,7 +23,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "92d794cd9582"
-down_revision: str | Sequence[str] | None = "b3d5f7a9c1e2"
+down_revision: str | Sequence[str] | None = "c6e8a0b2d4f7"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
