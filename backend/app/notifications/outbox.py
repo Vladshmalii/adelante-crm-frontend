@@ -18,6 +18,10 @@ RECORD_UPDATED = "record.updated"
 RECORD_REMINDER = "record.reminder"
 REVIEW_CREATED = "review.created"
 SHIFT_CHANGED = "shift.changed"
+# Лояльность и счета клиента: воркер пишет в Master DB (workers.tasks.loyalty)
+LOYALTY_RECEIPT_PAID = "loyalty.receipt_paid"
+LOYALTY_RECEIPT_CANCELLED = "loyalty.receipt_cancelled"
+LOYALTY_EVENTS = (LOYALTY_RECEIPT_PAID, LOYALTY_RECEIPT_CANCELLED)
 
 
 def build_envelope(

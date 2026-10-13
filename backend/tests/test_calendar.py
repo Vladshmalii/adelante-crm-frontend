@@ -88,7 +88,9 @@ def test_payment_methods_for_admin(w: World) -> None:
     )
 
     listed = api.get("/payment-methods", token=w.adm, salon=s.id)
-    assert [m["id"] for m in listed] == [cash["id"], card["id"]]
+    # Системные «Особовий рахунок» и «Кешбек» — без кассы, в конце списка
+    assert [m["id"] for m in listed][:2] == [cash["id"], card["id"]]
+    assert [m["type"] for m in listed][2:] == ["account", "bonus"]
     assert set(listed[0]) == {"id", "name", "type"}
     api.get("/payment-methods", token=w.mst1, salon=s.id, expect=403)
 

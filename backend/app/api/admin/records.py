@@ -11,7 +11,7 @@ from decimal import Decimal
 from pathlib import Path as FsPath
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, UploadFile, status
 from pydantic import Field
 from sqlalchemy import exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -716,12 +716,18 @@ async def pay_record(
     salon_id: SalonId,
     master_session: MasterSession,
     tenant_session: TenantSession,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key", max_length=100)] = None,
 ) -> Envelope[RecordPaymentOut]:
-    """Оплата завершённого визита: чек с recordId на полную сумму (администратор)."""
+    """Оплата завершённого визита: чек с recordId на полную сумму (администратор).
+
+    Часть «Особовий рахунок» списывается со счёта клиента, при нехватке — в долг.
+    Повтор с тем же Idempotency-Key возвращает тот же чек.
+    """
     record = await _get_record(tenant_session, record_id, user)
     try:
         receipt = await visits_service.pay_record(
             tenant_session,
+            master_session,
             salon_id=salon_id,
             record=record,
             payments=[
@@ -730,6 +736,7 @@ async def pay_record(
             ],
             author_id=author.id,
             author_name=author.name,
+            idempotency_key=idempotency_key,
         )
     except visits_service.PaymentError as exc:
         raise HTTPException(409, str(exc))

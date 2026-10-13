@@ -25,6 +25,7 @@ from app.api.security import (
 )
 from app.models.master import Master, master_salons
 from app.models.shard import (
+    SYSTEM_METHOD_TYPES,
     CashRegister,
     PaymentMethod,
     PaymentMethodType,
@@ -59,12 +60,16 @@ async def list_payment_methods(
     """Способы оплаты для приёма оплаты визита (администратор).
 
     Только те, через которые оплата пройдёт: способ активен, у него есть
-    касса и она не выключена. Финансовые настройки — в /finances/payment-methods.
+    касса и она не выключена; системные «Особовий рахунок» и «Кешбек» — без
+    кассы. Финансовые настройки — в /finances/payment-methods.
     """
     methods = await tenant_session.scalars(
         select(PaymentMethod)
-        .join(CashRegister, CashRegister.id == PaymentMethod.cash_register_id)
-        .where(PaymentMethod.is_active.is_(True), CashRegister.is_active.is_(True))
+        .outerjoin(CashRegister, CashRegister.id == PaymentMethod.cash_register_id)
+        .where(
+            PaymentMethod.is_active.is_(True),
+            CashRegister.is_active.is_(True) | PaymentMethod.type.in_(SYSTEM_METHOD_TYPES),
+        )
         .order_by(PaymentMethod.sort_order, PaymentMethod.name)
     )
     return Envelope(data=[PaymentMethodRefOut.model_validate(m) for m in methods])

@@ -1,7 +1,8 @@
 """Финансы: дашборд, операции, документы, чеки, способы оплаты, кассы.
 
-Раздел целиком — только суперюзер (ACCESS.md). Оплату визита любой
-администратор проводит через POST /records/{id}/payment.
+Раздел — только суперюзер (ACCESS.md), кроме продажи без записи
+(POST /finances/receipts): её проводит и администратор, как оплату визита
+через POST /records/{id}/payment (loyalty-accounts.md, раздел 15).
 """
 
 import io
@@ -10,16 +11,17 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from pydantic import Field
 from sqlalchemy import Select, case, func, select
 
 from app.api.admin.deps import CurrentAuthor
 from app.api.schemas import ApiModel, Envelope, PersonRef, page_meta
-from app.api.security import require_superuser
+from app.api.security import require_admin, require_superuser
 from app.models.master import AccountKind, Client, ClientAccount
 from app.models.shard import (
+    SYSTEM_METHOD_TYPES,
     AuditAction,
     CashRegister,
     CommissionPayer,
@@ -71,6 +73,10 @@ def _operation_title(op: FinanceOperation) -> str:
 
 
 router = APIRouter(prefix="/finances", tags=["finances"], dependencies=[Depends(require_superuser)])
+# Продажа без записи — администратору (раздел 15 спецификации лояльности)
+sales_router = APIRouter(
+    prefix="/finances", tags=["finances"], dependencies=[Depends(require_admin)]
+)
 
 
 # --- Дашборд ----------------------------------------------------------------
@@ -668,7 +674,8 @@ class ReceiptOut(ApiModel):
     id: uuid.UUID
     number: str
     date: datetime
-    cash_register: PersonRef
+    # null — чек целиком оплачен со счёта клиента или кешбэком
+    cash_register: PersonRef | None
     client: PersonRef | None
     record_id: uuid.UUID | None
     amount: Decimal
@@ -679,7 +686,11 @@ class ReceiptOut(ApiModel):
 
 
 async def _receipt_out(tenant_session, receipt: Receipt) -> ReceiptOut:
-    register = await tenant_session.get(CashRegister, receipt.cash_register_id)
+    register = (
+        await tenant_session.get(CashRegister, receipt.cash_register_id)
+        if receipt.cash_register_id
+        else None
+    )
     payments = []
     for p in receipt.payments:
         method = await tenant_session.get(PaymentMethod, p.payment_method_id)
@@ -694,8 +705,10 @@ async def _receipt_out(tenant_session, receipt: Receipt) -> ReceiptOut:
         id=receipt.id,
         number=receipt.number,
         date=receipt.date,
-        cash_register=PersonRef(
-            id=str(receipt.cash_register_id), name=register.name if register else None
+        cash_register=(
+            PersonRef(id=str(receipt.cash_register_id), name=register.name if register else None)
+            if receipt.cash_register_id
+            else None
         ),
         client=(
             PersonRef(
@@ -766,14 +779,22 @@ class ReceiptCreateIn(ApiModel):
     date: LocalDatetime | None = None
 
 
-@router.post("/receipts", response_model=Envelope[ReceiptOut], status_code=status.HTTP_201_CREATED)
+@sales_router.post(
+    "/receipts", response_model=Envelope[ReceiptOut], status_code=status.HTTP_201_CREATED
+)
 async def create_receipt(
     body: ReceiptCreateIn,
     author: CurrentAuthor,
     salon_id: SalonId,
+    master_session: MasterSession,
     tenant_session: TenantSession,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key", max_length=100)] = None,
 ) -> Envelope[ReceiptOut]:
-    """Чек: ручная продажа или (с recordId) оплата визита. Операции — на каждую оплату."""
+    """Чек: продажа без записи или (с recordId) оплата визита. Операции — на каждую оплату.
+
+    Способы — как у оплаты визита, включая «Особовий рахунок» (нужен clientId).
+    Повтор с тем же Idempotency-Key возвращает тот же чек.
+    """
     payments = [
         visits_service.PaymentPart(payment_method_id=p.payment_method_id, amount=p.amount)
         for p in body.payments
@@ -785,6 +806,7 @@ async def create_receipt(
                 raise HTTPException(404, "Запис не знайдено")
             receipt = await visits_service.pay_record(
                 tenant_session,
+                master_session,
                 salon_id=salon_id,
                 record=record,
                 payments=payments,
@@ -792,10 +814,13 @@ async def create_receipt(
                 author_name=author.name,
                 date=body.date,
                 source=body.source,
+                idempotency_key=idempotency_key,
             )
         else:
-            receipt = await visits_service.create_receipt(
+            receipt = await visits_service.sell(
                 tenant_session,
+                master_session,
+                salon_id=salon_id,
                 payments=payments,
                 source=body.source,
                 date=body.date or datetime.now().astimezone(),
@@ -803,20 +828,10 @@ async def create_receipt(
                 author_name=author.name,
                 client_id=body.client_id,
                 client_name=body.client_name,
+                idempotency_key=idempotency_key,
             )
     except visits_service.PaymentError as exc:
         raise HTTPException(409 if body.record_id else 422, str(exc))
-
-    write_audit(
-        tenant_session,
-        entity="finance",
-        entity_id=receipt.id,
-        entity_name=f"Чек № {receipt.number}",
-        action=AuditAction.CREATED,
-        author_id=author.id,
-        author_name=author.name,
-        details={"amount": [None, str(receipt.amount)]},
-    )
     return Envelope(data=await _receipt_out(tenant_session, receipt))
 
 
@@ -841,6 +856,14 @@ async def cancel_receipt(
     for op in operations:
         op.status = OperationStatus.CANCELLED
     await visits_service.unpay_record_for_receipt(
+        tenant_session,
+        salon_id=salon_id,
+        receipt=receipt,
+        author_id=author.id,
+        author_name=author.name,
+    )
+    # Деньги со счёта клиента вернёт воркер — сторно в Master по событию
+    visits_service.emit_receipt_cancelled(
         tenant_session,
         salon_id=salon_id,
         receipt=receipt,
@@ -877,6 +900,8 @@ class PaymentMethodOut(ApiModel):
     allow_tips: bool
     sort_order: int
     is_active: bool
+    # «Особовий рахунок» и «Кешбек»: без кассы, не редактируются
+    is_system: bool
 
 
 @router.get("/payment-methods", response_model=Envelope[list[PaymentMethodOut]])
@@ -913,6 +938,8 @@ async def create_payment_method(
     author: CurrentAuthor,
     tenant_session: TenantSession,
 ) -> Envelope[PaymentMethodOut]:
+    if body.type in SYSTEM_METHOD_TYPES:
+        raise HTTPException(422, "Системний спосіб оплати вже є в салоні")
     if body.cash_register_id is not None:
         await _active_register(tenant_session, body.cash_register_id)
     method = PaymentMethod(**body.model_dump(by_alias=False))
@@ -954,7 +981,11 @@ async def patch_payment_method(
     method = await tenant_session.get(PaymentMethod, method_id)
     if method is None:
         raise HTTPException(404, "Спосіб оплати не знайдено")
+    if method.is_system:
+        raise HTTPException(409, "Системний спосіб оплати не редагується")
     updates = body.model_dump(exclude_unset=True, by_alias=False)
+    if updates.get("type") in SYSTEM_METHOD_TYPES:
+        raise HTTPException(422, "Системний спосіб оплати вже є в салоні")
     if updates.get("cash_register_id") and updates["cash_register_id"] != method.cash_register_id:
         await _active_register(tenant_session, updates["cash_register_id"])
     changes = diff_fields(method, updates)

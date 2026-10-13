@@ -1,8 +1,13 @@
 """Финансовый домен салона (страница finances).
 
-Завершение визита (POST /records/{id}/complete) автоматически создаёт
-Receipt с разбивкой по методам оплаты и FinanceOperation(income) на каждую
-часть. Балансы касс не хранятся — считаются по операциям.
+Оплата визита (POST /records/{id}/payment) создаёт Receipt с разбивкой по
+методам оплаты и FinanceOperation(income) на каждую часть. Балансы касс не
+хранятся — считаются по операциям своей кассы.
+
+Системные способы оплаты «Особовий рахунок» (account) и «Кешбек» (bonus) —
+по одному в салоне, без кассы: деньги по ним лежат на счетах клиента в
+Master DB, операции по ним пишутся с cash_register_id = NULL и в балансы
+касс не входят (backend/docs/loyalty-accounts.md, раздел 4.3).
 """
 
 import enum
@@ -10,7 +15,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import DateTime, ForeignKey, Index, Numeric, String, Uuid, func
+from sqlalchemy import DateTime, ForeignKey, Index, Numeric, String, Uuid, func, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import ShardBase, str_enum
@@ -21,9 +26,14 @@ class PaymentMethodType(enum.StrEnum):
     CARD = "card"
     ONLINE = "online"
     CERTIFICATE = "certificate"
-    BONUS = "bonus"
+    BONUS = "bonus"  # системный «Кешбек» — оплата с кешбек-рахунку карты
+    ACCOUNT = "account"  # системный «Особовий рахунок» — депозит или долг клиента
     TIPS = "tips"
     OTHER = "other"
+
+
+# Системные способы оплаты: по одному в салоне, без кассы, не редактируются
+SYSTEM_METHOD_TYPES = (PaymentMethodType.ACCOUNT, PaymentMethodType.BONUS)
 
 
 class CommissionType(enum.StrEnum):
@@ -95,6 +105,14 @@ class CashRegister(ShardBase):
 
 class PaymentMethod(ShardBase):
     __tablename__ = "payment_methods"
+    __table_args__ = (
+        Index(
+            "uq_payment_methods_system_type",
+            "type",
+            unique=True,
+            postgresql_where=text("type IN ('account', 'bonus')"),
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(128))
@@ -114,6 +132,10 @@ class PaymentMethod(ShardBase):
     allow_tips: Mapped[bool] = mapped_column(default=False)
     sort_order: Mapped[int] = mapped_column(default=0)
     is_active: Mapped[bool] = mapped_column(default=True)
+
+    @property
+    def is_system(self) -> bool:
+        return self.type in SYSTEM_METHOD_TYPES
 
 
 class FinanceDocument(ShardBase):
@@ -145,7 +167,8 @@ class Receipt(ShardBase):
     number: Mapped[str] = mapped_column(String(64), unique=True)
     date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
-    cash_register_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("cash_registers.id"))
+    # NULL — чек целиком оплачен способами без кассы (со счёта, кешбэком)
+    cash_register_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("cash_registers.id"))
     # Ссылки на Master DB (client) и на запись этого шарда
     client_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     client_name: Mapped[str | None] = mapped_column(String(255))

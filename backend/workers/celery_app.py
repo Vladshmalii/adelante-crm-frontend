@@ -14,6 +14,7 @@ celery = Celery(
         "workers.tasks.notify",
         "workers.tasks.integrity",
         "workers.tasks.mail",
+        "workers.tasks.loyalty",
     ],
 )
 

@@ -248,7 +248,9 @@ def test_parallel_operations_keep_balance_consistent(w: World) -> None:
     def worker(i: int) -> None:
         try:
             with db.master_session() as session:
-                ledger.topup(session, cid, Decimal(10), key=f"test-par:{cid}:{i}", meta=ledger.Meta())
+                ledger.topup(
+                    session, cid, Decimal(10), key=f"test-par:{cid}:{i}", meta=ledger.Meta()
+                )
                 session.commit()
         except BaseException as exc:  # noqa: BLE001 — собрать ошибки потоков
             errors.append(exc)

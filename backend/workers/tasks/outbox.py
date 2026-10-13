@@ -3,7 +3,7 @@
 Каждые 10 секунд обходит шарды по реестру, забирает неопубликованные события
 (FOR UPDATE SKIP LOCKED — параллельные прогоны не мешают друг другу) и
 диспатчит fan-out: уведомления администраторам и мастерам в Telegram +
-push в админку (WebSocket).
+push в админку (WebSocket); события лояльности — в Master DB (workers.tasks.loyalty).
 """
 
 import logging
@@ -14,6 +14,7 @@ from sqlalchemy import select
 
 from app.models.shard import OutboxEvent
 from app.notifications.outbox import (
+    LOYALTY_EVENTS,
     RECORD_CREATED,
     RECORD_UPDATED,
     REVIEW_CREATED,
@@ -21,7 +22,7 @@ from app.notifications.outbox import (
 )
 from workers import db
 from workers.celery_app import celery
-from workers.tasks import notify
+from workers.tasks import loyalty, notify
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +66,8 @@ def _publish_salon(salon_id: UUID) -> None:
             elif event.event_type == SHIFT_CHANGED:
                 notify.notify_shift_telegram.delay(envelope)
                 notify.notify_web.delay(envelope)
+            elif event.event_type in LOYALTY_EVENTS:
+                loyalty.process_event.delay(envelope)
             else:
                 logger.warning("Неизвестный тип события в outbox: %s", event.event_type)
             event.published_at = datetime.now(UTC)

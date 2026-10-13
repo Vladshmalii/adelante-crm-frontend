@@ -8,6 +8,7 @@ from app.api.admin.auth import router as auth_router
 from app.api.admin.calendar import router as calendar_router
 from app.api.admin.clients import router as clients_router
 from app.api.admin.finances import router as finances_router
+from app.api.admin.finances import sales_router as finances_sales_router
 from app.api.admin.inventory import router as inventory_router
 from app.api.admin.records import router as records_router
 from app.api.admin.reports import router as reports_router
@@ -30,6 +31,7 @@ router.include_router(services_router)
 router.include_router(reviews_router)
 router.include_router(audit_router)
 router.include_router(finances_router)
+router.include_router(finances_sales_router)
 router.include_router(inventory_router)
 router.include_router(reports_router)
 router.include_router(settings_router)
