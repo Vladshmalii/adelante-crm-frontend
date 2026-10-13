@@ -1,7 +1,13 @@
-import { EditOutlined, PlusOutlined } from '@ant-design/icons';
+import {
+  EditOutlined,
+  MinusCircleOutlined,
+  PlusOutlined,
+  SwapOutlined,
+  TagsOutlined,
+} from '@ant-design/icons';
 import { ProCard, type ProColumns, ProTable, StatisticCard } from '@ant-design/pro-components';
 import { useQuery } from '@tanstack/react-query';
-import { App, Button, Empty, Switch, Tag } from 'antd';
+import { App, Button, Empty, Space, Switch, Tag } from 'antd';
 import { useState } from 'react';
 
 import { errorMessage, type Schema } from '@/shared/api';
@@ -11,7 +17,9 @@ import { QueryErrorAlert } from '@/shared/ui';
 import { useUpdatePaymentMethod } from '../api/finances.mutations';
 import { cashRegistersQueryOptions, paymentMethodsQueryOptions } from '../api/finances.queries';
 import { commissionPayerLabels, methodTypeLabels } from '../model/labels';
+import { CashMovementModal, type CashMovementKind } from './CashMovementModal';
 import { CashRegisterFormModal } from './CashRegisterFormModal';
+import { ExpenseCategoriesModal } from './ExpenseCategoriesModal';
 import { PaymentMethodFormModal } from './PaymentMethodFormModal';
 
 type Method = Schema<'PaymentMethodOut'>;
@@ -28,6 +36,12 @@ export function MethodsTab() {
   const update = useUpdatePaymentMethod();
   const [form, setForm] = useState<{ method?: Method } | null>(null);
   const [registerOpen, setRegisterOpen] = useState(false);
+  const [categoriesOpen, setCategoriesOpen] = useState(false);
+  const [movement, setMovement] = useState<{
+    kind: CashMovementKind;
+    cashRegisterId: string;
+  } | null>(null);
+  const activeRegisters = registers.data?.filter((r) => r.isActive).length ?? 0;
 
   const registerName = (id: string | null) => registers.data?.find((r) => r.id === id)?.name ?? '—';
 
@@ -84,14 +98,24 @@ export function MethodsTab() {
         variant="outlined"
         style={{ marginBottom: 16 }}
         extra={
-          <Button
-            icon={<PlusOutlined />}
-            onClick={() => {
-              setRegisterOpen(true);
-            }}
-          >
-            Нова каса
-          </Button>
+          <Space>
+            <Button
+              icon={<TagsOutlined />}
+              onClick={() => {
+                setCategoriesOpen(true);
+              }}
+            >
+              Категорії витрат
+            </Button>
+            <Button
+              icon={<PlusOutlined />}
+              onClick={() => {
+                setRegisterOpen(true);
+              }}
+            >
+              Нова каса
+            </Button>
+          </Space>
         }
       >
         {registers.data?.length ? (
@@ -104,6 +128,32 @@ export function MethodsTab() {
                   value: formatMoney(r.balance),
                   description: r.location,
                 }}
+                footer={
+                  r.isActive && (
+                    <Space wrap>
+                      <Button
+                        size="small"
+                        icon={<MinusCircleOutlined />}
+                        onClick={() => {
+                          setMovement({ kind: 'expense', cashRegisterId: r.id });
+                        }}
+                      >
+                        Витрата
+                      </Button>
+                      <Button
+                        size="small"
+                        icon={<SwapOutlined />}
+                        disabled={activeRegisters < 2}
+                        title={activeRegisters < 2 ? 'Потрібна ще одна активна каса' : undefined}
+                        onClick={() => {
+                          setMovement({ kind: 'transfer', cashRegisterId: r.id });
+                        }}
+                      >
+                        Переказ
+                      </Button>
+                    </Space>
+                  )
+                }
               />
             ))}
           </StatisticCard.Group>
@@ -145,6 +195,18 @@ export function MethodsTab() {
         }}
       />
       <CashRegisterFormModal open={registerOpen} onOpenChange={setRegisterOpen} />
+      <CashMovementModal
+        movement={movement}
+        onClose={() => {
+          setMovement(null);
+        }}
+      />
+      <ExpenseCategoriesModal
+        open={categoriesOpen}
+        onClose={() => {
+          setCategoriesOpen(false);
+        }}
+      />
     </>
   );
 }

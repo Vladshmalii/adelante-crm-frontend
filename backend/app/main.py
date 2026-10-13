@@ -16,6 +16,7 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 
 from app.api.admin.router import router as admin_router
 from app.api.booking.router import router as booking_router
+from app.api.booking.salons import router as booking_salons_router
 from app.api.bot.router import router as bot_router
 from app.api.errors import ApiError
 from app.config import get_settings
@@ -86,6 +87,7 @@ app.add_middleware(
 
 app.include_router(admin_router)
 app.include_router(bot_router)
+app.include_router(booking_salons_router)
 app.include_router(booking_router)
 
 # Загрузки (фото визитов, аватары) — локальное хранилище

@@ -55,7 +55,14 @@ export function OperationsTab({ search, setSearch }: TabProps) {
     { title: 'Категорія', dataIndex: 'category' },
     { title: 'Опис', dataIndex: 'description', ellipsis: true },
     { title: 'Метод', key: 'method', render: (_, o) => o.paymentMethod?.name ?? '—' },
-    { title: 'Каса', key: 'register', render: (_, o) => o.cashRegister?.name ?? '—' },
+    {
+      title: 'Каса',
+      key: 'register',
+      render: (_, o) =>
+        o.targetCashRegister
+          ? `${o.cashRegister?.name ?? '—'} → ${o.targetCashRegister.name ?? '—'}`
+          : (o.cashRegister?.name ?? '—'),
+    },
     {
       title: 'Статус',
       key: 'status',

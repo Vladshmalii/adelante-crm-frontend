@@ -206,3 +206,133 @@ def test_finances_superuser_only(w: World) -> None:
         json={"name": "X"},
     )
     w.s.api.get("/finances/locations", token=adm, salon=w.s.id, expect=403)
+
+
+def _register(s: Salon, name: str) -> dict[str, Any]:
+    return s.api.post(
+        "/finances/cash-registers", token=s.su, salon=s.id, expect=201, json={"name": name}
+    )
+
+
+def _balances(s: Salon) -> dict[str, float]:
+    registers = s.api.get("/finances/cash-registers", token=s.su, salon=s.id)
+    return {r["id"]: float(r["balance"]) for r in registers}
+
+
+def test_transfer_between_registers(w: World) -> None:
+    api, s = w.s.api, w.s
+    src, dst = _register(s, "Сейф"), _register(s, "Рецепція")
+    op = lambda **body: {"amount": 100, "date": "2026-10-01T10:00:00", **body}
+    api.post(
+        "/finances/operations",
+        token=s.su,
+        salon=s.id,
+        expect=201,
+        json=op(type="income", amount=500, cashRegisterId=src["id"]),
+    )
+    transfer = api.post(
+        "/finances/operations",
+        token=s.su,
+        salon=s.id,
+        expect=201,
+        json=op(
+            type="transfer", amount=200, cashRegisterId=src["id"], targetCashRegisterId=dst["id"]
+        ),
+    )
+    assert transfer["targetCashRegister"]["name"] == "Рецепція"
+    balances = _balances(s)
+    assert (balances[src["id"]], balances[dst["id"]]) == (300, 200)
+
+    # Перевод виден в обеих кассах
+    for register in (src, dst):
+        ops = api.get(
+            f"/finances/operations?cashRegisterId={register['id']}&type=transfer",
+            token=s.su,
+            salon=s.id,
+        )
+        assert [o["id"] for o in ops] == [transfer["id"]]
+
+    # Отмена перевода возвращает балансы
+    api.patch(
+        f"/finances/operations/{transfer['id']}",
+        token=s.su,
+        salon=s.id,
+        json={"status": "cancelled"},
+    )
+    balances = _balances(s)
+    assert (balances[src["id"]], balances[dst["id"]]) == (500, 0)
+
+    for bad in (
+        op(type="transfer", cashRegisterId=src["id"]),
+        op(type="transfer", cashRegisterId=src["id"], targetCashRegisterId=src["id"]),
+        op(type="income", cashRegisterId=src["id"], targetCashRegisterId=dst["id"]),
+    ):
+        api.post("/finances/operations", token=s.su, salon=s.id, expect=422, json=bad)
+
+
+def test_expense_categories(w: World) -> None:
+    api, s = w.s.api, w.s
+    defaults = api.get("/finances/expense-categories", token=s.su, salon=s.id)
+    assert "Оренда" in [c["name"] for c in defaults]
+
+    created = api.post(
+        "/finances/expense-categories",
+        token=s.su,
+        salon=s.id,
+        expect=201,
+        json={"name": "  Квіти на рецепцію "},
+    )
+    assert created["name"] == "Квіти на рецепцію"
+    api.post(
+        "/finances/expense-categories",
+        token=s.su,
+        salon=s.id,
+        expect=409,
+        json={"name": "квіти на рецепцію"},
+    )
+
+    register = _register(s, "Витрати")
+    expense = api.post(
+        "/finances/operations",
+        token=s.su,
+        salon=s.id,
+        expect=201,
+        json={
+            "type": "expense",
+            "amount": 150,
+            "date": "2026-10-01T10:00:00",
+            "cashRegisterId": register["id"],
+            "category": "КВІТИ на рецепцію",
+        },
+    )
+    assert expense["category"] == "Квіти на рецепцію"
+    assert _balances(s)[register["id"]] == -150
+    api.post(
+        "/finances/operations",
+        token=s.su,
+        salon=s.id,
+        expect=422,
+        json={
+            "type": "expense",
+            "amount": 1,
+            "date": "2026-10-01T10:00:00",
+            "category": "Немає такої",
+        },
+    )
+
+    # Переименование переписывает категорию в проведённых расходах
+    api.patch(
+        f"/finances/expense-categories/{created['id']}",
+        token=s.su,
+        salon=s.id,
+        json={"name": "Квіти"},
+    )
+    ops = api.get(f"/finances/operations?cashRegisterId={register['id']}", token=s.su, salon=s.id)
+    assert [o["category"] for o in ops] == ["Квіти"]
+
+    # Удаление не трогает историю
+    api.delete(f"/finances/expense-categories/{created['id']}", token=s.su, salon=s.id, expect=204)
+    names = [c["name"] for c in api.get("/finances/expense-categories", token=s.su, salon=s.id)]
+    assert "Квіти" not in names
+    ops = api.get(f"/finances/operations?cashRegisterId={register['id']}", token=s.su, salon=s.id)
+    assert [o["category"] for o in ops] == ["Квіти"]

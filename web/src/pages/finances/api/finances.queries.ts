@@ -13,6 +13,7 @@ export const financesKeys = {
   receipts: (p: object) => [...financesKeys.all, 'receipts', p] as const,
   methods: () => [...financesKeys.all, 'methods'] as const,
   registers: () => [...financesKeys.all, 'registers'] as const,
+  expenseCategories: () => [...financesKeys.all, 'expense-categories'] as const,
 };
 
 export const dashboardQueryOptions = (dateFrom: string, dateTo: string) =>
@@ -91,4 +92,12 @@ export const cashRegistersQueryOptions = () =>
     queryKey: financesKeys.registers(),
     queryFn: async ({ signal }) =>
       unwrap(await api.GET('/api/admin/v1/finances/cash-registers', { signal })).data,
+  });
+
+/** Справочник категорий расходов (по алфавиту — порядок задаёт бекенд). */
+export const expenseCategoriesQueryOptions = () =>
+  queryOptions({
+    queryKey: financesKeys.expenseCategories(),
+    queryFn: async ({ signal }) =>
+      unwrap(await api.GET('/api/admin/v1/finances/expense-categories', { signal })).data,
   });

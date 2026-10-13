@@ -303,6 +303,48 @@ export interface paths {
         patch: operations["patch_document_api_admin_v1_finances_documents__document_id__patch"];
         trace?: never;
     };
+    "/api/admin/v1/finances/expense-categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Expense Categories */
+        get: operations["list_expense_categories_api_admin_v1_finances_expense_categories_get"];
+        put?: never;
+        /** Create Expense Category */
+        post: operations["create_expense_category_api_admin_v1_finances_expense_categories_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/finances/expense-categories/{category_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Expense Category
+         * @description Удаление убирает категорию из списка; проведённые расходы сохраняют её название.
+         */
+        delete: operations["delete_expense_category_api_admin_v1_finances_expense_categories__category_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Rename Expense Category
+         * @description Переименование переписывает категорию в уже проведённых расходах.
+         */
+        patch: operations["rename_expense_category_api_admin_v1_finances_expense_categories__category_id__patch"];
+        trace?: never;
+    };
     "/api/admin/v1/finances/export": {
         parameters: {
             query?: never;
@@ -2298,6 +2340,11 @@ export interface components {
             data: components["schemas"]["DocumentOut"];
             meta?: components["schemas"]["PageMeta"] | null;
         };
+        /** Envelope[ExpenseCategoryOut] */
+        Envelope_ExpenseCategoryOut_: {
+            data: components["schemas"]["ExpenseCategoryOut"];
+            meta?: components["schemas"]["PageMeta"] | null;
+        };
         /** Envelope[FillReportOut] */
         Envelope_FillReportOut_: {
             data: components["schemas"]["FillReportOut"];
@@ -2347,6 +2394,12 @@ export interface components {
         Envelope_list_DocumentOut__: {
             /** Data */
             data: components["schemas"]["DocumentOut"][];
+            meta?: components["schemas"]["PageMeta"] | null;
+        };
+        /** Envelope[list[ExpenseCategoryOut]] */
+        Envelope_list_ExpenseCategoryOut__: {
+            /** Data */
+            data: components["schemas"]["ExpenseCategoryOut"][];
             meta?: components["schemas"]["PageMeta"] | null;
         };
         /** Envelope[list[MasterScheduleOut]] */
@@ -2553,6 +2606,21 @@ export interface components {
         Envelope_UploadOut_: {
             data: components["schemas"]["UploadOut"];
             meta?: components["schemas"]["PageMeta"] | null;
+        };
+        /** ExpenseCategoryIn */
+        ExpenseCategoryIn: {
+            /** Name */
+            name: string;
+        };
+        /** ExpenseCategoryOut */
+        ExpenseCategoryOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
         };
         /** FillIn */
         FillIn: {
@@ -2908,6 +2976,8 @@ export interface components {
             description?: string | null;
             /** Paymentmethodid */
             paymentMethodId?: string | null;
+            /** Targetcashregisterid */
+            targetCashRegisterId?: string | null;
             type: components["schemas"]["OperationType"];
         };
         /** OperationOut */
@@ -2945,6 +3015,7 @@ export interface components {
             /** Recordid */
             recordId: string | null;
             status: components["schemas"]["OperationStatus"];
+            targetCashRegister: components["schemas"]["PersonRef"] | null;
             type: components["schemas"]["OperationType"];
         };
         /** OperationPatchIn */
@@ -5065,6 +5136,132 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_DocumentOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_expense_categories_api_admin_v1_finances_expense_categories_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_list_ExpenseCategoryOut__"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_expense_category_api_admin_v1_finances_expense_categories_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExpenseCategoryIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_ExpenseCategoryOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_expense_category_api_admin_v1_finances_expense_categories__category_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                category_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rename_expense_category_api_admin_v1_finances_expense_categories__category_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                category_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExpenseCategoryIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_ExpenseCategoryOut_"];
                 };
             };
             /** @description Validation Error */

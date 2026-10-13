@@ -93,6 +93,25 @@ class CashRegister(ShardBase):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class ExpenseCategory(ShardBase):
+    """Категория расходов (справочник для выпадающего списка «Витрата»).
+
+    В операции хранится снапшот названия (`FinanceOperation.category`), не FK:
+    дашборд группирует расходы по строке. Переименование категории переписывает
+    снапшот в операциях-расходах, удаление — нет (история остаётся как была).
+    Название уникально без учёта регистра.
+    """
+
+    __tablename__ = "expense_categories"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(255))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+Index("uq_expense_categories_lower_name", func.lower(ExpenseCategory.name), unique=True)
+
+
 class PaymentMethod(ShardBase):
     __tablename__ = "payment_methods"
 
@@ -188,7 +207,7 @@ class FinanceOperation(ShardBase):
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     type: Mapped[OperationType] = mapped_column(str_enum(OperationType, 16))
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
-    category: Mapped[str | None] = mapped_column(String(64))
+    category: Mapped[str | None] = mapped_column(String(255))
     description: Mapped[str | None] = mapped_column(String(2000))
     date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     status: Mapped[OperationStatus] = mapped_column(
@@ -198,6 +217,10 @@ class FinanceOperation(ShardBase):
 
     payment_method_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("payment_methods.id"))
     cash_register_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("cash_registers.id"))
+    # Только для transfer: касса-получатель (cash_register_id — касса-отправитель)
+    target_cash_register_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("cash_registers.id")
+    )
     client_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     record_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("records.id"))
     receipt_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("receipts.id"))

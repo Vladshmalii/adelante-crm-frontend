@@ -122,6 +122,43 @@ export function useCreateCashRegister() {
   });
 }
 
+export function useCreateExpenseCategory() {
+  const onSuccess = useInvalidateFinances();
+  return useMutation({
+    mutationFn: async (name: string) =>
+      unwrap(await api.POST('/api/admin/v1/finances/expense-categories', { body: { name } })).data,
+    onSuccess,
+  });
+}
+
+export function useRenameExpenseCategory() {
+  const onSuccess = useInvalidateFinances();
+  return useMutation({
+    mutationFn: async ({ id, name }: { id: string; name: string }) =>
+      unwrap(
+        await api.PATCH('/api/admin/v1/finances/expense-categories/{category_id}', {
+          params: idPath('category_id', id),
+          body: { name },
+        }),
+      ).data,
+    onSuccess,
+  });
+}
+
+export function useDeleteExpenseCategory() {
+  const onSuccess = useInvalidateFinances();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      unwrap(
+        await api.DELETE('/api/admin/v1/finances/expense-categories/{category_id}', {
+          params: idPath('category_id', id),
+        }),
+      );
+    },
+    onSuccess,
+  });
+}
+
 export function useExportFinances() {
   return useMutation({
     mutationFn: async ({
