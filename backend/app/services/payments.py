@@ -65,10 +65,12 @@ class Charges:
     bonus: Decimal = Decimal(0)
     card_id: uuid.UUID | None = None
     total: Decimal = Decimal(0)
+    # Строки записи, списываемые как бонусные услуги карты
+    bonus_lines: tuple[loyalty.BonusLine, ...] = ()
 
     @property
     def any(self) -> bool:
-        return self.account > 0 or self.bonus > 0
+        return self.account > 0 or self.bonus > 0 or bool(self.bonus_lines)
 
 
 @dataclass(frozen=True)
@@ -107,6 +109,19 @@ def charge(
     if charges.bonus > 0:
         _charge_cashback(
             session, salon_id=salon_id, receipt_id=receipt_id, charges=charges, meta=meta
+        )
+    if charges.bonus_lines:
+        if charges.card_id is None:
+            raise ledger.LedgerError(
+                "Бонусні послуги доступні лише з карткою, що діє в цьому салоні"
+            )
+        loyalty.use_bonuses(
+            session,
+            card_id=charges.card_id,
+            salon_id=salon_id,
+            receipt_id=receipt_id,
+            record_id=meta.record_id,
+            lines=list(charges.bonus_lines),
         )
     return ChargeResult(account_balance_before=balance_before)
 
@@ -170,11 +185,16 @@ def open_payments(
 def reverse_payments(
     session: Session, *, salon_id: uuid.UUID, receipt_id: uuid.UUID, meta: ledger.Meta
 ) -> int:
-    """Сторно всех списаний по чеку (компенсация, отмена чека, сверка). Идемпотентно."""
+    """Сторно всех списаний по чеку (компенсация, отмена чека, сверка). Идемпотентно.
+
+    Деньги и кешбэк возвращаются сторно, использованные бонусные услуги — в available.
+    Порядок блокировок как при оплате: money-счёт, кешбек, прогресс бонусов.
+    """
     txns = open_payments(session, salon_id=salon_id, receipt_id=receipt_id)
+    txns.sort(key=lambda t: t.idempotency_key.endswith(":bonus"))
     for txn in txns:
         ledger.reverse(session, txn, meta=meta)
-    return len(txns)
+    return len(txns) + loyalty.reverse_bonus_uses(session, salon_id, receipt_id)
 
 
 def hanging_payments(

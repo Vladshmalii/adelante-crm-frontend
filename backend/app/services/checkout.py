@@ -175,6 +175,45 @@ def _context(session: Session, client_id: uuid.UUID, salon_id: uuid.UUID) -> Con
     return ctx
 
 
+def _bonus_lines(record: Record) -> list[loyalty.BonusLine]:
+    return [
+        loyalty.BonusLine(record_service_id=s.id, service_id=s.service_id) for s in record.services
+    ]
+
+
+async def bonus_options(
+    master_session: AsyncSession,
+    ctx: Context,
+    salon_id: uuid.UUID,
+    record: Record,
+    selected: frozenset[uuid.UUID],
+) -> dict[uuid.UUID, str]:
+    """Строки записи, которые можно сделать бонусными: record_service_id → имя правила.
+
+    Отмеченные строки проверяются целиком (хватает ли available) — LoyaltyError, если нет.
+    """
+    card = ctx.card
+    if card is None:
+        if selected:
+            raise loyalty.LoyaltyError("Бонусні послуги доступні лише з карткою")
+        return {}
+    lines = _bonus_lines(record)
+
+    def build(session: Session) -> dict[uuid.UUID, str]:
+        if selected:
+            loyalty.assign_bonuses(
+                session,
+                card,
+                salon_id,
+                [line for line in lines if line.record_service_id in selected],
+                lock=False,
+            )
+        eligible = loyalty.eligible_bonus_lines(session, card, salon_id, lines)
+        return {line_id: rule.name for line_id, rule in eligible.items()}
+
+    return await master_session.run_sync(build)
+
+
 async def load_context(
     master_session: AsyncSession, client_id: uuid.UUID | None, salon_id: uuid.UUID
 ) -> Context:

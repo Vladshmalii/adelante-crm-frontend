@@ -7,8 +7,13 @@ from app.models.master.account import (
 )
 from app.models.master.client import Client, ClientCategory, ClientImportance
 from app.models.master.loyalty import (
+    BonusOperationKind,
     CardStatus,
     LevelBasis,
+    LoyaltyBonusOperation,
+    LoyaltyBonusProgress,
+    LoyaltyBonusRule,
+    LoyaltyBonusRuleService,
     LoyaltyCard,
     LoyaltyCardType,
     LoyaltyCardVisit,
@@ -27,6 +32,7 @@ __all__ = [
     "AccountKind",
     "AccountTransaction",
     "Administrator",
+    "BonusOperationKind",
     "CardStatus",
     "Client",
     "ClientAccount",
@@ -34,6 +40,10 @@ __all__ = [
     "ClientImportance",
     "Gender",
     "LevelBasis",
+    "LoyaltyBonusOperation",
+    "LoyaltyBonusProgress",
+    "LoyaltyBonusRule",
+    "LoyaltyBonusRuleService",
     "LoyaltyCard",
     "LoyaltyCardType",
     "LoyaltyCardVisit",

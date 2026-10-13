@@ -73,8 +73,12 @@ def receipt_cancelled(salon_id: uuid.UUID, payload: dict[str, Any]) -> None:
         author_name=payload.get("author_name"),
         comment=f"Скасовано чек № {payload.get('receipt_number') or receipt_id}",
     )
+    # Отдельные транзакции: у списаний и у факта визита разный порядок блокировок
+    # (счета → прогресс и карта → кешбек → прогресс); оба шага идемпотентны
     with db.master_session() as session:
         payments.reverse_payments(session, salon_id=salon_id, receipt_id=receipt_id, meta=meta)
+        session.commit()
+    with db.master_session() as session:
         loyalty.reverse_visit(session, salon_id, receipt_id, _uuid(payload.get("card_id")))
         session.commit()
 

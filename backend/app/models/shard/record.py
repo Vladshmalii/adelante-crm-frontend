@@ -160,6 +160,8 @@ class RecordService(ShardBase):
     name: Mapped[str] = mapped_column(String(255))
     price: Mapped[Decimal] = mapped_column(Numeric(12, 2))
     duration_minutes: Mapped[int]
+    # Строка списана как бонусная услуга карты лояльности (цена 0 в итоге)
+    is_bonus: Mapped[bool] = mapped_column(default=False, server_default="false")
 
     record: Mapped[Record] = relationship(back_populates="services")
 

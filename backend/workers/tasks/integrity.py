@@ -19,7 +19,7 @@ from sqlalchemy import select, update
 from app.models.master import Client, LoyaltyCardVisit, Master
 from app.models.shard import OutboxEvent, Receipt, ReceiptStatus, Record, service_masters
 from app.notifications.outbox import LOYALTY_RECEIPT_PAID
-from app.services import ledger, payments
+from app.services import ledger, loyalty, payments
 from workers import db
 from workers.celery_app import celery
 
@@ -92,7 +92,15 @@ def resend_missing_visits(salon_id: UUID, *, now: datetime | None = None) -> int
 def reconcile_payments(salon_id: UUID) -> int:
     """Сторно «висящих» списаний салона: чека нет в шарде или он отменён. Возвращает число чеков."""
     with db.master_session() as session:
-        hanging = payments.hanging_payments(session, salon_id)
+        hanging = {
+            receipt_id: txns[0].record_id
+            for receipt_id, txns in payments.hanging_payments(session, salon_id).items()
+        }
+        border = datetime.now(UTC) - payments.RECONCILE_GRACE
+        for receipt_id, record_id in loyalty.hanging_bonus_receipts(
+            session, salon_id, border
+        ).items():
+            hanging.setdefault(receipt_id, record_id)
     if not hanging:
         return 0
     with db.shard_session(salon_id) as shard:
@@ -117,7 +125,7 @@ def reconcile_payments(salon_id: UUID) -> int:
                 meta=ledger.Meta(
                     salon_id=salon_id,
                     receipt_id=receipt_id,
-                    record_id=hanging[receipt_id][0].record_id,
+                    record_id=hanging[receipt_id],
                     author_name="Нічна звірка",
                     comment=f"Сторно: {reason}",
                 ),

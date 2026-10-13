@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from app.api.schemas import ApiModel, Envelope
 from app.api.security import AdminUser, require_salon_access
 from app.models.shard import DiscountSource, PaymentStatus, Record, RecordStatus
-from app.services import checkout
+from app.services import checkout, loyalty
 from app.tenancy.deps import MasterSession, SalonId, TenantSession
 
 router = APIRouter(tags=["checkout"], dependencies=[Depends(require_salon_access)])
@@ -43,6 +43,9 @@ class CheckoutLineOut(ApiModel):
     price: Decimal
     is_bonus: bool
     amount: Decimal
+    # Можно отметить бесплатной: у карты есть доступная бонусная услуга правила
+    bonus_available: bool = False
+    bonus_rule_name: str | None = None
 
 
 class DiscountCandidateOut(ApiModel):
@@ -75,8 +78,12 @@ class CheckoutOut(ApiModel):
 
 
 def checkout_out(
-    client_id: uuid.UUID | None, ctx: checkout.Context, q: checkout.Quote
+    client_id: uuid.UUID | None,
+    ctx: checkout.Context,
+    q: checkout.Quote,
+    bonus: dict[uuid.UUID, str] | None = None,
 ) -> CheckoutOut:
+    bonus = bonus or {}
     card = ctx.card
     current = ctx.level.current if ctx.level else None
     return CheckoutOut(
@@ -100,6 +107,8 @@ def checkout_out(
                 price=line.price,
                 is_bonus=line.is_bonus,
                 amount=line.amount,
+                bonus_available=line.record_service_id in bonus,
+                bonus_rule_name=bonus.get(line.record_service_id),
             )
             for line in q.lines
         ],
@@ -137,16 +146,27 @@ async def record_checkout(
     salon_id: SalonId,
     master_session: MasterSession,
     tenant_session: TenantSession,
+    bonus_ids: Annotated[list[uuid.UUID] | None, Query(alias="bonusRecordServiceIds")] = None,
 ) -> Envelope[CheckoutOut]:
-    """Предпросмотр оплаты визита: карта и уровень, кандидаты скидки, итог, балансы."""
+    """Предпросмотр оплаты визита: карта и уровень, бонусные услуги, скидки, итог, балансы.
+
+    bonusRecordServiceIds — строки, отмеченные бесплатными: итог считается с ними.
+    """
     record = await tenant_session.get(Record, record_id)
     if record is None:
         raise HTTPException(404, "Запис не знайдено")
     if record.status != RecordStatus.COMPLETED or record.payment_status == PaymentStatus.PAID:
         raise HTTPException(409, "Оплатити можна лише завершений неоплачений візит")
+    selected = frozenset(bonus_ids or [])
+    if selected - {s.id for s in record.services}:
+        raise HTTPException(422, "Бонусна послуга не належить цьому запису")
     ctx = await checkout.load_context(master_session, record.client_id, salon_id)
-    q = ctx.quote(checkout.record_lines(record))
-    return Envelope(data=checkout_out(record.client_id, ctx, q))
+    try:
+        bonus = await checkout.bonus_options(master_session, ctx, salon_id, record, selected)
+    except loyalty.LoyaltyError as exc:
+        raise HTTPException(409, str(exc))
+    q = ctx.quote(checkout.record_lines(record, selected))
+    return Envelope(data=checkout_out(record.client_id, ctx, q, bonus))
 
 
 @router.get("/finances/receipts/checkout", response_model=Envelope[CheckoutOut])

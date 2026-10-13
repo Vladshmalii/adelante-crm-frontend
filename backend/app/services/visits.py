@@ -46,7 +46,7 @@ from app.notifications.outbox import (
     LOYALTY_RECEIPT_PAID,
     add_outbox_event,
 )
-from app.services import checkout
+from app.services import checkout, loyalty
 from app.services import payments as payments_service
 from app.services.audit import write_audit
 from app.services.ledger import money
@@ -298,17 +298,31 @@ async def pay_record(
 
     ctx = await checkout.load_context(master_session, record.client_id, salon_id)
     bonus_ids = frozenset(bonus_record_service_ids or [])
+    if bonus_ids - {s.id for s in record.services}:
+        raise PaymentError("Бонусна послуга не належить цьому запису")
+    if bonus_ids and ctx.card is None:
+        raise PaymentError("Бонусні послуги доступні лише з карткою, що діє в цьому салоні")
     q = ctx.quote(checkout.record_lines(record, bonus_ids))
     check_total(q, payments, expected_total)
     methods = await load_methods(tenant_session, payments)
     card_id = ctx.card.id if ctx.card else None
-    charges = replace(charges_for(payments, methods), card_id=card_id)
+    charges = replace(
+        charges_for(payments, methods),
+        card_id=card_id,
+        bonus_lines=tuple(
+            loyalty.BonusLine(record_service_id=s.id, service_id=s.service_id, is_bonus=True)
+            for s in record.services
+            if s.id in bonus_ids
+        ),
+    )
 
     async def write_shard(result: payments_service.ChargeResult) -> Receipt:
         record.discount_amount = q.discount
         record.discount_source = q.discount_source
         record.loyalty_card_id = card_id
         record.total_amount = q.total
+        for item in record.services:
+            item.is_bonus = item.id in bonus_ids
         receipt = await create_receipt(
             tenant_session,
             payments=payments,
@@ -584,6 +598,8 @@ async def unpay_record_for_receipt(
     record.discount_amount = Decimal(0)
     record.discount_source = DiscountSource.NONE
     record.loyalty_card_id = None
+    for item in record.services:
+        item.is_bonus = False
     emit_record_updated(
         tenant_session,
         salon_id=salon_id,

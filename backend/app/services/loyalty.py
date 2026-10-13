@@ -20,9 +20,13 @@ from sqlalchemy.orm import Session
 from app.models.master import (
     AccountKind,
     AccountTransaction,
+    BonusOperationKind,
     CardStatus,
     ClientAccount,
     LevelBasis,
+    LoyaltyBonusOperation,
+    LoyaltyBonusProgress,
+    LoyaltyBonusRule,
     LoyaltyCard,
     LoyaltyCardType,
     LoyaltyCardVisit,
@@ -303,6 +307,22 @@ def record_visit(
     card.paid_total = money(card.paid_total + visit.paid_amount)
     card.visits_count += 1 if visit.is_visit else 0
     _accrue_cashback(session, card, visit, payload)
+    progress_bonuses(
+        session,
+        card,
+        salon_id=salon_id,
+        receipt_id=receipt_id,
+        record_id=visit.record_id,
+        lines=[
+            BonusLine(
+                record_service_id=uuid.UUID(line["record_service_id"]),
+                service_id=uuid.UUID(line["service_id"]),
+                is_bonus=bool(line.get("is_bonus")),
+            )
+            for line in payload["lines"]
+            if line["kind"] == "service" and line.get("service_id")
+        ],
+    )
     session.flush()
     return visit
 
@@ -378,6 +398,7 @@ def reverse_visit(
                 comment="Сторно кешбеку: чек скасовано",
             ),
         )
+    reverse_bonus_progress(session, salon_id, receipt_id)
     session.flush()
     return visit
 
@@ -435,3 +456,250 @@ def burn_expired(session: Session, card: LoyaltyCard, *, now: datetime) -> Decim
         meta=ledger.Meta(comment=f"Кешбек згорів: минуло {ttl} дн."),
     )
     return amount
+
+
+# --- Бонусные услуги (раздел 6, шаги 2, 4, 5, 6; журнал — раздел 15, п. 6) --------
+
+
+@dataclass(frozen=True)
+class BonusLine:
+    """Строка записи для бонусных правил."""
+
+    record_service_id: uuid.UUID
+    service_id: uuid.UUID
+    is_bonus: bool = False
+
+
+def active_rules(card: LoyaltyCard) -> list[LoyaltyBonusRule]:
+    return [r for r in card.card_type.bonus_rules if r.is_active]
+
+
+def progress_rows(
+    session: Session, card_id: uuid.UUID, *, lock: bool = False
+) -> dict[uuid.UUID, LoyaltyBonusProgress]:
+    query = select(LoyaltyBonusProgress).where(LoyaltyBonusProgress.card_id == card_id)
+    if lock:
+        query = query.with_for_update().execution_options(populate_existing=True)
+    return {p.rule_id: p for p in session.scalars(query.order_by(LoyaltyBonusProgress.rule_id))}
+
+
+def _progress_row(session: Session, card_id: uuid.UUID, rule_id: uuid.UUID) -> LoyaltyBonusProgress:
+    """Строка прогресса под FOR UPDATE; создаётся, если её нет."""
+    session.execute(
+        insert(LoyaltyBonusProgress)
+        .values(id=uuid.uuid4(), card_id=card_id, rule_id=rule_id)
+        .on_conflict_do_nothing(index_elements=["card_id", "rule_id"])
+    )
+    row = session.scalar(
+        select(LoyaltyBonusProgress)
+        .where(LoyaltyBonusProgress.card_id == card_id, LoyaltyBonusProgress.rule_id == rule_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    assert row is not None
+    return row
+
+
+def eligible_bonus_lines(
+    session: Session, card: LoyaltyCard, salon_id: uuid.UUID, lines: list[BonusLine]
+) -> dict[uuid.UUID, LoyaltyBonusRule]:
+    """Строки, которые можно сделать бесплатными: есть правило с available > 0 (предпросмотр)."""
+    rows = progress_rows(session, card.id)
+    result = {}
+    for line in lines:
+        rule = next(
+            (
+                r
+                for r in active_rules(card)
+                if r.matches(salon_id, line.service_id)
+                and r.id in rows
+                and rows[r.id].available > 0
+            ),
+            None,
+        )
+        if rule is not None:
+            result[line.record_service_id] = rule
+    return result
+
+
+def assign_bonuses(
+    session: Session,
+    card: LoyaltyCard,
+    salon_id: uuid.UUID,
+    lines: list[BonusLine],
+    *,
+    lock: bool,
+) -> dict[uuid.UUID, LoyaltyBonusRule]:
+    """Правило для каждой отмеченной строки с учётом available (две строки — два бонуса)."""
+    rows = progress_rows(session, card.id, lock=lock)
+    left = {rule_id: row.available for rule_id, row in rows.items()}
+    result: dict[uuid.UUID, LoyaltyBonusRule] = {}
+    for line in lines:
+        rule = next(
+            (
+                r
+                for r in active_rules(card)
+                if r.matches(salon_id, line.service_id) and left.get(r.id, 0) > 0
+            ),
+            None,
+        )
+        if rule is None:
+            raise LoyaltyError("Для цієї послуги немає доступної бонусної послуги")
+        left[rule.id] -= 1
+        result[line.record_service_id] = rule
+    return result
+
+
+def use_bonuses(
+    session: Session,
+    *,
+    card_id: uuid.UUID,
+    salon_id: uuid.UUID,
+    receipt_id: uuid.UUID,
+    record_id: uuid.UUID | None,
+    lines: list[BonusLine],
+) -> None:
+    """Списание бонусных услуг при оплате (Master, шаг 4.2). Идемпотентно по строке чека."""
+    card = session.get(LoyaltyCard, card_id)
+    if card is None or card.status != CardStatus.ACTIVE:
+        raise LoyaltyError("Бонусні послуги доступні лише з активною карткою")
+    existing = {
+        op.record_service_id
+        for op in session.scalars(
+            select(LoyaltyBonusOperation).where(
+                LoyaltyBonusOperation.salon_id == salon_id,
+                LoyaltyBonusOperation.receipt_id == receipt_id,
+                LoyaltyBonusOperation.kind == BonusOperationKind.USE,
+            )
+        )
+    }
+    todo = [line for line in lines if line.record_service_id not in existing]
+    if not todo:
+        return
+    for line_id, rule in assign_bonuses(session, card, salon_id, todo, lock=True).items():
+        row = _progress_row(session, card.id, rule.id)
+        row.available -= 1
+        row.used_total += 1
+        session.add(
+            LoyaltyBonusOperation(
+                kind=BonusOperationKind.USE,
+                card_id=card.id,
+                rule_id=rule.id,
+                salon_id=salon_id,
+                receipt_id=receipt_id,
+                record_id=record_id,
+                record_service_id=line_id,
+            )
+        )
+    session.flush()
+
+
+def _open_operations(
+    session: Session, salon_id: uuid.UUID, receipt_id: uuid.UUID, kind: BonusOperationKind
+) -> list[LoyaltyBonusOperation]:
+    return list(
+        session.scalars(
+            select(LoyaltyBonusOperation)
+            .where(
+                LoyaltyBonusOperation.salon_id == salon_id,
+                LoyaltyBonusOperation.receipt_id == receipt_id,
+                LoyaltyBonusOperation.kind == kind,
+                LoyaltyBonusOperation.reversed_at.is_(None),
+            )
+            .order_by(LoyaltyBonusOperation.rule_id)
+            .with_for_update()
+        )
+    )
+
+
+def reverse_bonus_uses(session: Session, salon_id: uuid.UUID, receipt_id: uuid.UUID) -> int:
+    """Использованная бонусная услуга возвращается в available (сбой шарда, отмена, сверка)."""
+    ops = _open_operations(session, salon_id, receipt_id, BonusOperationKind.USE)
+    for op in ops:
+        row = _progress_row(session, op.card_id, op.rule_id)
+        row.available += 1
+        row.used_total -= 1
+        op.reversed_at = datetime.now(UTC)
+    session.flush()
+    return len(ops)
+
+
+def progress_bonuses(
+    session: Session,
+    card: LoyaltyCard,
+    *,
+    salon_id: uuid.UUID,
+    receipt_id: uuid.UUID,
+    record_id: uuid.UUID | None,
+    lines: list[BonusLine],
+) -> None:
+    """Шаг 5.6: правило с услугой в чеке (не бонусной) — progress + 1; на N−1 — бонус."""
+    paid_services = {line.service_id for line in lines if not line.is_bonus}
+    for rule in active_rules(card):
+        if not any(rule.matches(salon_id, sid) for sid in paid_services):
+            continue
+        done = session.scalar(
+            select(LoyaltyBonusOperation.id).where(
+                LoyaltyBonusOperation.salon_id == salon_id,
+                LoyaltyBonusOperation.receipt_id == receipt_id,
+                LoyaltyBonusOperation.rule_id == rule.id,
+                LoyaltyBonusOperation.kind == BonusOperationKind.PROGRESS,
+            )
+        )
+        if done is not None:
+            continue
+        row = _progress_row(session, card.id, rule.id)
+        row.progress += 1
+        accrued = row.progress >= rule.every_n - 1
+        if accrued:
+            row.progress -= rule.every_n - 1
+            row.available += 1
+            row.accrued_total += 1
+        session.add(
+            LoyaltyBonusOperation(
+                kind=BonusOperationKind.PROGRESS,
+                card_id=card.id,
+                rule_id=rule.id,
+                salon_id=salon_id,
+                receipt_id=receipt_id,
+                record_id=record_id,
+                accrued=accrued,
+            )
+        )
+    session.flush()
+
+
+def reverse_bonus_progress(session: Session, salon_id: uuid.UUID, receipt_id: uuid.UUID) -> int:
+    """Откат накопления чека — одна «единица» прогресса назад (раздел 6, шаг 6).
+
+    progress − 1; если он ушёл в минус, а бонус ещё не использован — available − 1 и
+    accrued_total − 1, прогресс возвращается на N−2. Бонус уже использован — прогресс
+    остаётся в минусе и гасится следующими визитами.
+    """
+    ops = _open_operations(session, salon_id, receipt_id, BonusOperationKind.PROGRESS)
+    for op in ops:
+        rule = session.get(LoyaltyBonusRule, op.rule_id)
+        row = _progress_row(session, op.card_id, op.rule_id)
+        row.progress -= 1
+        if row.progress < 0 and row.available > 0 and rule is not None:
+            row.available -= 1
+            row.accrued_total -= 1
+            row.progress += rule.every_n - 1
+        op.reversed_at = datetime.now(UTC)
+    session.flush()
+    return len(ops)
+
+
+def hanging_bonus_receipts(
+    session: Session, salon_id: uuid.UUID, border: datetime
+) -> dict[uuid.UUID, uuid.UUID | None]:
+    """Чеки салона с несторнированным списанием бонусов старше border: receipt → record."""
+    rows = session.execute(
+        select(LoyaltyBonusOperation.receipt_id, LoyaltyBonusOperation.record_id).where(
+            LoyaltyBonusOperation.salon_id == salon_id,
+            LoyaltyBonusOperation.kind == BonusOperationKind.USE,
+            LoyaltyBonusOperation.reversed_at.is_(None),
+            LoyaltyBonusOperation.created_at < border,
+        )
+    ).tuples()
+    return dict(rows.all())

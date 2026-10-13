@@ -10,9 +10,9 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from pydantic import Field, model_validator
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.admin.accounts import TransactionOut, list_transactions, transactions_out
@@ -29,6 +29,10 @@ from app.models.master import (
     CardStatus,
     Client,
     LevelBasis,
+    LoyaltyBonusOperation,
+    LoyaltyBonusProgress,
+    LoyaltyBonusRule,
+    LoyaltyBonusRuleService,
     LoyaltyCard,
     LoyaltyCardType,
     LoyaltyCardVisit,
@@ -36,6 +40,7 @@ from app.models.master import (
     Salon,
     TransactionType,
 )
+from app.models.shard import Service
 from app.services import ledger, loyalty
 from app.tenancy.deps import MasterSession, SalonId, TenantSession
 from app.timeutils import LocalDatetime
@@ -247,6 +252,17 @@ class NextLevelRef(ApiModel):
     remaining: Decimal
 
 
+class BonusProgressOut(ApiModel):
+    rule_id: uuid.UUID
+    name: str
+    every_n: int
+    is_active: bool
+    progress: int
+    available: int
+    accrued_total: int
+    used_total: int
+
+
 class LoyaltyCardOut(ApiModel):
     id: uuid.UUID
     number: str
@@ -259,8 +275,10 @@ class LoyaltyCardOut(ApiModel):
     cashback_balance: Decimal
     max_discount_percent: Decimal
     max_discount_fixed: Decimal
+    # «Нараховано бонусних послуг» и «доступно»; прогресс по правилам — в «Детальніше»
     bonus_accrued: int = 0
     bonus_available: int = 0
+    bonus_progress: list[BonusProgressOut] = Field(default_factory=list)
     sold_total: Decimal
     paid_total: Decimal
     visits_count: int
@@ -288,6 +306,21 @@ async def cards_out(
             account = loyalty.cashback_account(session, card.id)
             state = loyalty.level_state(card)
             t = card.card_type
+            rows = loyalty.progress_rows(session, card.id)
+            progress = [
+                BonusProgressOut(
+                    rule_id=rule.id,
+                    name=rule.name,
+                    every_n=rule.every_n,
+                    is_active=rule.is_active,
+                    progress=rows[rule.id].progress if rule.id in rows else 0,
+                    available=rows[rule.id].available if rule.id in rows else 0,
+                    accrued_total=rows[rule.id].accrued_total if rule.id in rows else 0,
+                    used_total=rows[rule.id].used_total if rule.id in rows else 0,
+                )
+                for rule in t.bonus_rules
+                if rule.is_active or rule.id in rows
+            ]
             result.append(
                 LoyaltyCardOut(
                     id=card.id,
@@ -303,6 +336,9 @@ async def cards_out(
                     max_discount_fixed=state.current.discount_fixed
                     if state.current
                     else Decimal(0),
+                    bonus_accrued=sum(p.accrued_total for p in progress),
+                    bonus_available=sum(p.available for p in progress),
+                    bonus_progress=progress,
                     sold_total=card.sold_total,
                     paid_total=card.paid_total,
                     visits_count=card.visits_count,
@@ -583,3 +619,169 @@ async def adjust_cashback(
     except (ledger.LedgerError, loyalty.LoyaltyError) as exc:
         raise HTTPException(409, str(exc))
     return Envelope(data=(await transactions_out(master_session, [txn]))[0])
+
+
+# --- Бонусные правила (суперюзер; список — и администратору) ----------------------
+
+
+class RuleServiceRef(ApiModel):
+    salon_id: uuid.UUID
+    service_id: uuid.UUID
+
+
+class BonusRuleOut(ApiModel):
+    id: uuid.UUID
+    card_type_id: uuid.UUID
+    name: str
+    every_n: int
+    is_active: bool
+    services: list[RuleServiceRef]
+
+
+class BonusRuleIn(ApiModel):
+    name: str = Field(min_length=1, max_length=255)
+    # Каждый N-й визит с услугой бесплатный: N ≥ 2
+    every_n: int = Field(ge=2, le=1000)
+    is_active: bool = True
+    # Эквивалентные услуги в каждом салоне типа карты — у салонов свои каталоги
+    services: list[RuleServiceRef] = Field(min_length=1)
+
+
+class BonusRulePatchIn(ApiModel):
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    every_n: int | None = Field(default=None, ge=2, le=1000)
+    is_active: bool | None = None
+    services: list[RuleServiceRef] | None = Field(default=None, min_length=1)
+
+
+def rule_out(rule: LoyaltyBonusRule) -> BonusRuleOut:
+    return BonusRuleOut(
+        id=rule.id,
+        card_type_id=rule.card_type_id,
+        name=rule.name,
+        every_n=rule.every_n,
+        is_active=rule.is_active,
+        services=[
+            RuleServiceRef(salon_id=s.salon_id, service_id=s.service_id) for s in rule.services
+        ],
+    )
+
+
+async def _check_rule_services(
+    request: Request, card_type: LoyaltyCardType, services: list[RuleServiceRef]
+) -> list[LoyaltyBonusRuleService]:
+    """Салон — из типа карты; услуга существует в шарде салона (EXISTS, cross-DB)."""
+    type_salons = {s.id for s in card_type.salons}
+    pairs = {(s.salon_id, s.service_id) for s in services}
+    registry = request.app.state.engine_registry
+    for salon_id in {salon for salon, _ in pairs}:
+        if salon_id not in type_salons:
+            raise HTTPException(422, "Салон не входить у тип картки")
+        wanted = {service for salon, service in pairs if salon == salon_id}
+        factory = await registry.get_sessionmaker(salon_id)
+        async with factory() as shard:
+            found = set(await shard.scalars(select(Service.id).where(Service.id.in_(wanted))))
+        if wanted - found:
+            raise HTTPException(422, "Послугу не знайдено в салоні")
+    return [LoyaltyBonusRuleService(salon_id=salon, service_id=service) for salon, service in pairs]
+
+
+async def _get_rule(
+    master_session: AsyncSession, type_id: uuid.UUID, rule_id: uuid.UUID
+) -> LoyaltyBonusRule:
+    rule = await master_session.get(LoyaltyBonusRule, rule_id)
+    if rule is None or rule.card_type_id != type_id:
+        raise HTTPException(404, "Бонусне правило не знайдено")
+    return rule
+
+
+@router.get(
+    "/loyalty/card-types/{type_id}/bonus-rules", response_model=Envelope[list[BonusRuleOut]]
+)
+async def list_bonus_rules(
+    type_id: uuid.UUID, _admin: AdminUser, master_session: MasterSession
+) -> Envelope[list[BonusRuleOut]]:
+    await _get_card_type(master_session, type_id)
+    rules = await master_session.scalars(
+        select(LoyaltyBonusRule)
+        .where(LoyaltyBonusRule.card_type_id == type_id)
+        .order_by(LoyaltyBonusRule.created_at)
+    )
+    return Envelope(data=[rule_out(r) for r in rules])
+
+
+@router.post(
+    "/loyalty/card-types/{type_id}/bonus-rules",
+    response_model=Envelope[BonusRuleOut],
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_bonus_rule(
+    type_id: uuid.UUID,
+    body: BonusRuleIn,
+    request: Request,
+    _superuser: SuperUser,
+    master_session: MasterSession,
+) -> Envelope[BonusRuleOut]:
+    card_type = await _get_card_type(master_session, type_id)
+    rule = LoyaltyBonusRule(
+        card_type_id=card_type.id,
+        name=body.name,
+        every_n=body.every_n,
+        is_active=body.is_active,
+    )
+    rule.services = await _check_rule_services(request, card_type, body.services)
+    master_session.add(rule)
+    await master_session.flush()
+    await master_session.refresh(rule)
+    return Envelope(data=rule_out(rule))
+
+
+@router.patch(
+    "/loyalty/card-types/{type_id}/bonus-rules/{rule_id}", response_model=Envelope[BonusRuleOut]
+)
+async def patch_bonus_rule(
+    type_id: uuid.UUID,
+    rule_id: uuid.UUID,
+    body: BonusRulePatchIn,
+    request: Request,
+    _superuser: SuperUser,
+    master_session: MasterSession,
+) -> Envelope[BonusRuleOut]:
+    """Новый N действует со следующих визитов; накопленное не пересчитывается."""
+    card_type = await _get_card_type(master_session, type_id)
+    rule = await _get_rule(master_session, type_id, rule_id)
+    updates = body.model_dump(exclude_unset=True, by_alias=False, exclude={"services"})
+    for field, value in updates.items():
+        if value is None:
+            raise HTTPException(422, f"Поле {field} не можна очистити")
+        setattr(rule, field, value)
+    if body.services is not None:
+        services = await _check_rule_services(request, card_type, body.services)
+        rule.services = []
+        await master_session.flush()
+        rule.services = services
+    await master_session.flush()
+    await master_session.refresh(rule)
+    return Envelope(data=rule_out(rule))
+
+
+@router.delete(
+    "/loyalty/card-types/{type_id}/bonus-rules/{rule_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+async def delete_bonus_rule(
+    type_id: uuid.UUID,
+    rule_id: uuid.UUID,
+    _superuser: SuperUser,
+    master_session: MasterSession,
+) -> None:
+    """Удалить можно только неиспользованное правило; по использованному — isActive=false."""
+    rule = await _get_rule(master_session, type_id, rule_id)
+    used = await master_session.scalar(
+        select(LoyaltyBonusOperation.id).where(LoyaltyBonusOperation.rule_id == rule.id).limit(1)
+    )
+    if used is not None:
+        raise HTTPException(409, "За правилом уже є накопичення — вимкніть його замість видалення")
+    await master_session.execute(
+        delete(LoyaltyBonusProgress).where(LoyaltyBonusProgress.rule_id == rule.id)
+    )
+    await master_session.delete(rule)
