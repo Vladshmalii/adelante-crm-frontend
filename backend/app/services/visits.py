@@ -14,6 +14,7 @@ Master (списания со счетов клиента), потом шард,
 """
 
 import uuid
+from dataclasses import replace
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
@@ -164,9 +165,11 @@ def charges_for(
     for part in payments:
         method_type = methods[part.payment_method_id].type
         by_type[method_type] = by_type.get(method_type, Decimal(0)) + part.amount
-    if by_type.get(PaymentMethodType.BONUS):
-        raise PaymentError("Оплата кешбеком доступна лише з карткою лояльності")
-    return payments_service.Charges(account=by_type.get(PaymentMethodType.ACCOUNT, Decimal(0)))
+    return payments_service.Charges(
+        account=by_type.get(PaymentMethodType.ACCOUNT, Decimal(0)),
+        bonus=by_type.get(PaymentMethodType.BONUS, Decimal(0)),
+        total=sum((p.amount for p in payments), Decimal(0)),
+    )
 
 
 async def create_receipt(
@@ -284,8 +287,8 @@ async def pay_record(
     if paid != record.total_amount:
         raise PaymentError(f"Сума оплати {paid} не збігається з сумою запису {record.total_amount}")
     methods = await load_methods(tenant_session, payments)
-    charges = charges_for(payments, methods)
     card_id = await applicable_card_id(master_session, record.client_id, salon_id)
+    charges = replace(charges_for(payments, methods), card_id=card_id)
 
     async def write_shard(result: payments_service.ChargeResult) -> Receipt:
         receipt = await create_receipt(
@@ -391,6 +394,7 @@ async def sell(
     elif charges.any:
         raise PaymentError("Для оплати з рахунку оберіть клієнта")
     card_id = await applicable_card_id(master_session, client_id, salon_id) if client_id else None
+    charges = replace(charges, card_id=card_id)
 
     async def write_shard(result: payments_service.ChargeResult) -> Receipt:
         receipt = await create_receipt(

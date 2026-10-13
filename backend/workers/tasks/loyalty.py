@@ -7,10 +7,12 @@
 
 import logging
 import uuid
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import select
 
+from app.models.master import CardStatus, LoyaltyCard, LoyaltyCardType
 from app.models.shard import Receipt, ReceiptStatus
 from app.notifications.outbox import LOYALTY_RECEIPT_CANCELLED, LOYALTY_RECEIPT_PAID
 from app.services import ledger, loyalty, payments
@@ -75,3 +77,31 @@ def receipt_cancelled(salon_id: uuid.UUID, payload: dict[str, Any]) -> None:
         payments.reverse_payments(session, salon_id=salon_id, receipt_id=receipt_id, meta=meta)
         loyalty.reverse_visit(session, salon_id, receipt_id, _uuid(payload.get("card_id")))
         session.commit()
+
+
+@celery.task
+def burn_expired_cashback() -> int:
+    """Сгорание кешбэка по сроку типа карты (cashback_ttl_days), FIFO. Возвращает число карт."""
+    now = datetime.now(UTC)
+    with db.master_session() as session:
+        card_ids = list(
+            session.scalars(
+                select(LoyaltyCard.id)
+                .join(LoyaltyCardType, LoyaltyCardType.id == LoyaltyCard.card_type_id)
+                .where(
+                    LoyaltyCard.status == CardStatus.ACTIVE,
+                    LoyaltyCardType.cashback_ttl_days.is_not(None),
+                )
+            )
+        )
+    burnt = 0
+    for card_id in card_ids:
+        try:
+            with db.master_session() as session:
+                card = session.get(LoyaltyCard, card_id)
+                if card is not None and loyalty.burn_expired(session, card, now=now) > 0:
+                    burnt += 1
+                session.commit()
+        except Exception:
+            logger.exception("burn_expired_cashback: сбой на карте %s", card_id)
+    return burnt

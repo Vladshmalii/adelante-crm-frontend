@@ -8,7 +8,7 @@ import secrets
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.models.master import (
     AccountKind,
+    AccountTransaction,
     CardStatus,
     ClientAccount,
     LevelBasis,
@@ -34,7 +35,7 @@ from app.services.ledger import money
 NUMBER_LENGTH = 16
 
 
-class LoyaltyError(Exception):
+class LoyaltyError(ledger.LedgerError):
     pass
 
 
@@ -79,6 +80,12 @@ def lock_cashback_account(session: Session, card_id: uuid.UUID) -> ClientAccount
     if account is None:
         raise LoyaltyError("Кешбек-рахунок картки не знайдено")
     return ledger.lock_account(session, account.id)
+
+
+def cashback_limit(card_type: LoyaltyCardType, total: Decimal, balance: Decimal) -> Decimal:
+    """Максимум кешбэка к оплате в чеке: ≤ баланса и ≤ cashback_max_payment_percent × итог."""
+    by_percent = money(total * card_type.cashback_max_payment_percent / 100)
+    return max(min(balance, by_percent), Decimal(0))
 
 
 # --- Уровень -----------------------------------------------------------------------
@@ -295,8 +302,39 @@ def record_visit(
     card.sold_total = money(card.sold_total + visit.sold_amount)
     card.paid_total = money(card.paid_total + visit.paid_amount)
     card.visits_count += 1 if visit.is_visit else 0
+    _accrue_cashback(session, card, visit, payload)
     session.flush()
     return visit
+
+
+def accrual_key(salon_id: uuid.UUID, receipt_id: uuid.UUID) -> str:
+    return f"accrual:{salon_id}:{receipt_id}"
+
+
+def _accrue_cashback(
+    session: Session, card: LoyaltyCard, visit: LoyaltyCardVisit, payload: dict[str, Any]
+) -> None:
+    """accrual = база кешбэка × cashback_percent (по типу карты на момент обработки)."""
+    amount = money(visit.cashback_base * card.card_type.cashback_percent / 100)
+    if amount <= 0:
+        return
+    account = lock_cashback_account(session, card.id)
+    ledger.post(
+        session,
+        account,
+        type=TransactionType.ACCRUAL,
+        amount=amount,
+        key=accrual_key(visit.salon_id, visit.receipt_id),
+        meta=ledger.Meta(
+            salon_id=visit.salon_id,
+            receipt_id=visit.receipt_id,
+            record_id=visit.record_id,
+            comment=(
+                f"Кешбек {card.card_type.cashback_percent.normalize():f}% "
+                f"з чека № {payload.get('receipt_number') or visit.receipt_id}"
+            ),
+        ),
+    )
 
 
 def find_visit(
@@ -326,5 +364,74 @@ def reverse_visit(
     card.sold_total = money(card.sold_total - visit.sold_amount)
     card.paid_total = money(card.paid_total - visit.paid_amount)
     card.visits_count -= 1 if visit.is_visit else 0
+    # Сторно начисленного кешбэка. Если он уже потрачен, баланс уйдёт в минус —
+    # это допустимо только через сторно; новые начисления его погасят (раздел 6, шаг 6)
+    accrual = ledger.find_by_key(session, accrual_key(salon_id, receipt_id))
+    if accrual is not None:
+        ledger.reverse(
+            session,
+            accrual,
+            meta=ledger.Meta(
+                salon_id=salon_id,
+                receipt_id=receipt_id,
+                record_id=visit.record_id,
+                comment="Сторно кешбеку: чек скасовано",
+            ),
+        )
     session.flush()
     return visit
+
+
+# --- Сгорание кешбэка по сроку (Celery beat раз в сутки) ----------------------------
+
+
+def expired_cashback(
+    txns: list[tuple[uuid.UUID, Decimal, datetime, uuid.UUID | None]],
+    balance: Decimal,
+    border: datetime,
+) -> Decimal:
+    """Сколько кешбэка сгорает по FIFO: поступления старше border минус все списания.
+
+    txns — (id, amount, created_at, reverses_id) по счёту. Пара «операция + её
+    сторно» взаимно гасится и не участвует: возвращённый при отмене чека кешбэк
+    сохраняет возраст исходного начисления. Остальные списания (оплаты, прошлые
+    сгорания, корректировки в минус) гасят самые старые поступления первыми,
+    поэтому сгорает остаток старых поступлений, но не больше положительного баланса.
+    """
+    reversed_ids = {r for _, _, _, r in txns if r is not None}
+    live = [(a, at) for i, a, at, r in txns if r is None and i not in reversed_ids]
+    old_inflow = sum((a for a, at in live if a > 0 and at < border), Decimal(0))
+    outflow = sum((-a for a, _ in live if a < 0), Decimal(0))
+    return money(max(min(old_inflow - outflow, balance), Decimal(0)))
+
+
+def burn_expired(session: Session, card: LoyaltyCard, *, now: datetime) -> Decimal:
+    """Сжечь просроченный кешбэк карты; ключ по дате — повтор в тот же день ничего не делает."""
+    ttl = card.card_type.cashback_ttl_days
+    if not ttl:
+        return Decimal(0)
+    account = lock_cashback_account(session, card.id)
+    if account.balance <= 0:
+        return Decimal(0)
+    txns = list(
+        session.execute(
+            select(
+                AccountTransaction.id,
+                AccountTransaction.amount,
+                AccountTransaction.created_at,
+                AccountTransaction.reverses_id,
+            ).where(AccountTransaction.account_id == account.id)
+        ).tuples()
+    )
+    amount = expired_cashback(txns, account.balance, now - timedelta(days=ttl))
+    if amount <= 0:
+        return Decimal(0)
+    ledger.post(
+        session,
+        account,
+        type=TransactionType.BURN,
+        amount=-amount,
+        key=f"burn:ttl:{account.id}:{now.date().isoformat()}",
+        meta=ledger.Meta(comment=f"Кешбек згорів: минуло {ttl} дн."),
+    )
+    return amount

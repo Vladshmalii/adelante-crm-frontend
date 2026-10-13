@@ -225,9 +225,11 @@ def test_delete_card_burns_cashback_and_new_card_starts_from_zero(w: World, eage
     deleted = api.delete(f"/loyalty-cards/{card['id']}", token=w.admin_token, salon=s.id)
     assert deleted["status"] == "deleted" and money(deleted["cashbackBalance"]) == 0
     history = api.get(f"/loyalty-cards/{card['id']}/transactions", token=s.su, salon=s.id)
+    # Кешбэк 5 % за визит 1500 = 75 плюс подарок 75 — сгорает всё
     assert [(t["type"], money(t["amount"])) for t in history] == [
-        ("burn", money(-75)),
+        ("burn", money(-150)),
         ("adjustment", money(75)),
+        ("accrual", money(75)),
     ]
     api.delete(f"/loyalty-cards/{card['id']}", token=w.admin_token, salon=s.id, expect=409)
     # Счётчики остаются на удалённой карте для истории

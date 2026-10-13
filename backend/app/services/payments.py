@@ -23,9 +23,9 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
-from app.models.master import AccountTransaction, TransactionType
+from app.models.master import AccountTransaction, LoyaltyCard, TransactionType
 from app.models.shard import Receipt
-from app.services import ledger
+from app.services import ledger, loyalty
 
 # Пространство имён UUIDv5 для receipt_id из Idempotency-Key
 RECEIPT_NAMESPACE = uuid.UUID("4f1d6a0e-6b1e-4c39-9a51-7c0b3e2f8d11")
@@ -61,10 +61,14 @@ class Charges:
     """Части чека, оплачиваемые со счетов клиента в Master DB."""
 
     account: Decimal = Decimal(0)
+    # Кешбэк карты: card_id — карта, действующая в салоне; total — итог чека для лимита
+    bonus: Decimal = Decimal(0)
+    card_id: uuid.UUID | None = None
+    total: Decimal = Decimal(0)
 
     @property
     def any(self) -> bool:
-        return self.account > 0
+        return self.account > 0 or self.bonus > 0
 
 
 @dataclass(frozen=True)
@@ -82,13 +86,12 @@ def charge(
     charges: Charges,
     meta: ledger.Meta,
 ) -> ChargeResult:
+    """Списания в одной транзакции Master. Порядок блокировок: money-счёт, затем кешбек."""
     balance_before = None
     if charges.account > 0:
         account = ledger.lock_money_account(session, client_id)
         key = payment_key(salon_id, receipt_id, "account")
-        existing = ledger.find_by_key(session, key)
-        if existing is not None and ledger.is_reversed(session, existing.id):
-            raise ledger.LedgerError("Попередню спробу оплати скасовано — повторіть оплату")
+        existing = _existing_payment(session, key)
         # Повтор после сбоя: баланс до оплаты — тот, что был до первой попытки
         balance_before = (
             existing.balance_after - existing.amount if existing is not None else account.balance
@@ -101,7 +104,48 @@ def charge(
             key=key,
             meta=meta,
         )
+    if charges.bonus > 0:
+        _charge_cashback(
+            session, salon_id=salon_id, receipt_id=receipt_id, charges=charges, meta=meta
+        )
     return ChargeResult(account_balance_before=balance_before)
+
+
+def _existing_payment(session: Session, key: str) -> AccountTransaction | None:
+    existing = ledger.find_by_key(session, key)
+    if existing is not None and ledger.is_reversed(session, existing.id):
+        raise ledger.LedgerError("Попередню спробу оплати скасовано — повторіть оплату")
+    return existing
+
+
+def _charge_cashback(
+    session: Session,
+    *,
+    salon_id: uuid.UUID,
+    receipt_id: uuid.UUID,
+    charges: Charges,
+    meta: ledger.Meta,
+) -> None:
+    """Оплата кешбэком: не больше баланса и лимита типа карты; в минус кешбэк не уходит."""
+    if charges.card_id is None:
+        raise ledger.LedgerError("Кешбек доступний лише з карткою, що діє в цьому салоні")
+    card = session.get(LoyaltyCard, charges.card_id)
+    if card is None:
+        raise ledger.LedgerError("Картку не знайдено")
+    account = loyalty.lock_cashback_account(session, card.id)
+    key = payment_key(salon_id, receipt_id, "bonus")
+    if _existing_payment(session, key) is None:
+        limit = loyalty.cashback_limit(card.card_type, charges.total, account.balance)
+        if charges.bonus > limit:
+            raise ledger.LedgerError(f"Кешбеком можна оплатити не більше {limit} ₴")
+    ledger.post(
+        session,
+        account,
+        type=TransactionType.PAYMENT,
+        amount=-charges.bonus,
+        key=key,
+        meta=meta,
+    )
 
 
 def open_payments(

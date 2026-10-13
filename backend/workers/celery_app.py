@@ -36,6 +36,10 @@ celery.conf.beat_schedule = {
         "task": "workers.tasks.reminders.scan_upcoming_records",
         "schedule": 60.0,
     },
+    "burn-expired-cashback": {
+        "task": "workers.tasks.loyalty.burn_expired_cashback",
+        "schedule": crontab(hour=3, minute=30),
+    },
     "integrity-check": {
         "task": "workers.tasks.integrity.integrity_check",
         "schedule": crontab(hour=4, minute=0),
