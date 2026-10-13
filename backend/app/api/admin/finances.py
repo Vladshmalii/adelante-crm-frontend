@@ -18,6 +18,7 @@ from sqlalchemy import Select, case, func, select
 from app.api.admin.deps import CurrentAuthor
 from app.api.schemas import ApiModel, Envelope, PersonRef, page_meta
 from app.api.security import require_superuser
+from app.models.master import AccountKind, Client, ClientAccount
 from app.models.shard import (
     AuditAction,
     CashRegister,
@@ -41,7 +42,7 @@ from app.models.shard import (
 )
 from app.services import visits as visits_service
 from app.services.audit import diff_fields, write_audit
-from app.tenancy.deps import SalonId, TenantSession
+from app.tenancy.deps import MasterSession, SalonId, TenantSession
 from app.timeutils import SALON_TZ_NAME, LocalDatetime, to_local
 
 # Фильтры «по співробітнику» (мастер записи) и «по локації» (локация кассы).
@@ -236,6 +237,86 @@ async def dashboard(
             ],
             top_services=[TopService(name=n, revenue=r, count=c) for n, r, c in top],
         )
+    )
+
+
+# --- Залишки на рахунках клієнтів ------------------------------------------
+
+
+class ClientBalanceItem(ApiModel):
+    client_id: uuid.UUID
+    name: str
+    phone: str
+    is_active: bool
+    balance: Decimal
+
+
+class ClientBalancesOut(ApiModel):
+    total_deposits: Decimal
+    total_debts: Decimal
+    depositors_count: int
+    debtors_count: int
+    items: list[ClientBalanceItem]
+
+
+@router.get("/client-balances", response_model=Envelope[ClientBalancesOut])
+async def client_balances(
+    master_session: MasterSession,
+    kind: Annotated[str | None, Query(pattern="^(debt|deposit)$")] = None,
+    page: int = 1,
+    per_page: Annotated[int, Query(alias="perPage", le=200)] = 50,
+) -> Envelope[ClientBalancesOut]:
+    """Особові рахунки по всей сети: суммы депозитов и долгов, список ненулевых балансов.
+
+    Удалённые клиенты тоже входят: счёт при удалении клиента сохраняется.
+    """
+    money = ClientAccount.kind == AccountKind.MONEY
+    deposits, debts, depositors, debtors = (
+        await master_session.execute(
+            select(
+                func.coalesce(func.sum(ClientAccount.balance).filter(ClientAccount.balance > 0), 0),
+                func.coalesce(
+                    func.sum(-ClientAccount.balance).filter(ClientAccount.balance < 0), 0
+                ),
+                func.count().filter(ClientAccount.balance > 0),
+                func.count().filter(ClientAccount.balance < 0),
+            ).where(money)
+        )
+    ).one()
+
+    query = (
+        select(Client, ClientAccount.balance)
+        .join(ClientAccount, ClientAccount.client_id == Client.id)
+        .where(money, ClientAccount.balance != 0)
+    )
+    if kind == "debt":
+        query = query.where(ClientAccount.balance < 0)
+    elif kind == "deposit":
+        query = query.where(ClientAccount.balance > 0)
+    total = await master_session.scalar(select(func.count()).select_from(query.subquery()))
+    rows = await master_session.execute(
+        query.order_by(func.abs(ClientAccount.balance).desc(), Client.first_name)
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+    )
+    return Envelope(
+        data=ClientBalancesOut(
+            total_deposits=deposits,
+            total_debts=debts,
+            depositors_count=depositors,
+            debtors_count=debtors,
+            items=[
+                ClientBalanceItem(
+                    client_id=c.id,
+                    name=c.full_name,
+                    phone=c.phone,
+                    is_active=c.is_active,
+                    balance=balance,
+                )
+                for c, balance in rows.tuples()
+            ],
+        ),
+        meta=page_meta(page, per_page, total or 0),
     )
 
 

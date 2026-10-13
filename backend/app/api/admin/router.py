@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter
 
+from app.api.admin.accounts import router as accounts_router
 from app.api.admin.audit import router as audit_router
 from app.api.admin.auth import router as auth_router
 from app.api.admin.calendar import router as calendar_router
@@ -24,6 +25,7 @@ router.include_router(calendar_router)
 router.include_router(records_router)
 router.include_router(staff_router)
 router.include_router(clients_router)
+router.include_router(accounts_router)
 router.include_router(services_router)
 router.include_router(reviews_router)
 router.include_router(audit_router)
