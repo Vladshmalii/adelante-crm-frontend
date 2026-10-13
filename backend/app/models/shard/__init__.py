@@ -27,6 +27,7 @@ from app.models.shard.inventory import (
 )
 from app.models.shard.outbox import OutboxEvent
 from app.models.shard.record import (
+    DiscountSource,
     PaymentStatus,
     Record,
     RecordImportance,
@@ -52,6 +53,7 @@ __all__ = [
     "CashRegister",
     "CommissionPayer",
     "CommissionType",
+    "DiscountSource",
     "DocumentContentType",
     "DocumentStatus",
     "DocumentType",

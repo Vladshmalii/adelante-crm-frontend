@@ -32,6 +32,15 @@ class PaymentStatus(enum.StrEnum):
     PAID = "paid"
 
 
+class DiscountSource(enum.StrEnum):
+    """Источник применённой скидки: одна, наибольшая в гривнах (loyalty-accounts.md, раздел 6)."""
+
+    NONE = "none"
+    CLIENT = "client"  # личная скидка клиента (Client.discount_percent)
+    CARD_PERCENT = "card_percent"  # % уровня карты
+    CARD_FIXED = "card_fixed"  # фиксированная скидка уровня карты
+
+
 class RecordImportance(enum.StrEnum):
     STANDARD = "standard"
     IMPORTANT = "important"
@@ -86,9 +95,18 @@ class Record(ShardBase):
     )
 
     # Снапшот цены на момент записи: price — базовая цена услуги,
-    # total_amount — итог со скидками (при создании равны)
+    # total_amount — итог со скидками (при создании равны; при оплате —
+    # price − бонусные услуги − скидка, при отмене чека — снова price)
     price: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal(0))
     total_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal(0))
+    # Снапшот скидки визита и карты лояльности (Master DB) на момент оплаты
+    discount_amount: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), default=Decimal(0), server_default="0"
+    )
+    discount_source: Mapped[DiscountSource] = mapped_column(
+        str_enum(DiscountSource, 16), default=DiscountSource.NONE, server_default="none"
+    )
+    loyalty_card_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
 
     # Денормализованный снапшот из Master DB на момент создания
     client_name: Mapped[str] = mapped_column(String(255))

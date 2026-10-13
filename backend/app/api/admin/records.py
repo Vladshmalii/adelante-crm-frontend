@@ -25,6 +25,7 @@ from app.models.master import Client
 from app.models.shard import (
     AuditAction,
     AuditLog,
+    DiscountSource,
     PaymentStatus,
     Record,
     RecordImportance,
@@ -88,6 +89,9 @@ class RecordOut(ApiModel):
     services: list[RecordServiceOut]
     price: Decimal
     total_amount: Decimal
+    # Снапшот скидки на момент оплаты: источник — client / card_percent / card_fixed / none
+    discount_amount: Decimal
+    discount_source: DiscountSource
     visitor_name: str | None
     visitor_phone: str | None
     comment: str | None
@@ -234,6 +238,8 @@ def _record_out(record: Record, refs: _Refs) -> RecordOut:
         services=services,
         price=record.price,
         total_amount=record.total_amount,
+        discount_amount=record.discount_amount,
+        discount_source=record.discount_source,
         visitor_name=record.visitor_name,
         visitor_phone=record.visitor_phone,
         comment=record.comment,
@@ -692,8 +698,13 @@ class PaymentIn(ApiModel):
 
 
 class RecordPaymentIn(ApiModel):
-    # Сумма оплат должна равняться сумме записи: частичной оплаты нет
-    payments: list[PaymentIn] = Field(min_length=1)
+    # Сумма оплат = итог к оплате (сервер считает скидку и бонусные услуги): частичной
+    # оплаты нет, недоплата — частью «Особовий рахунок». Итог 0 — частей может не быть
+    payments: list[PaymentIn] = Field(default_factory=list)
+    # Строки записи (record_services.id), которые списываются как бонусные услуги
+    bonus_record_service_ids: list[uuid.UUID] = Field(default_factory=list)
+    # Итог из GET /records/{id}/checkout: при расхождении — 409, предпросмотр устарел
+    expected_total: Decimal | None = None
 
 
 class ReceiptRef(ApiModel):
@@ -737,6 +748,8 @@ async def pay_record(
             author_id=author.id,
             author_name=author.name,
             idempotency_key=idempotency_key,
+            bonus_record_service_ids=body.bonus_record_service_ids,
+            expected_total=body.expected_total,
         )
     except visits_service.PaymentError as exc:
         raise HTTPException(409, str(exc))

@@ -19,6 +19,7 @@ from sqlalchemy import DateTime, ForeignKey, Index, Numeric, String, Uuid, func,
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import ShardBase, str_enum
+from app.models.shard.record import DiscountSource
 
 
 class PaymentMethodType(enum.StrEnum):
@@ -177,6 +178,15 @@ class Receipt(ShardBase):
     # Снапшот: карта лояльности клиента, действовавшая в салоне при оплате (Master DB)
     loyalty_card_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
 
+    # Снапшот скидки: subtotal — «Продано» (до бонусных услуг и скидки; null у старых
+    # чеков — равно amount), amount — итог к оплате
+    subtotal: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    discount_amount: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), default=Decimal(0), server_default="0"
+    )
+    discount_source: Mapped[DiscountSource] = mapped_column(
+        str_enum(DiscountSource, 16), default=DiscountSource.NONE, server_default="none"
+    )
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
     status: Mapped[ReceiptStatus] = mapped_column(
         str_enum(ReceiptStatus, 16), default=ReceiptStatus.PAID

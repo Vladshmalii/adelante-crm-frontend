@@ -26,6 +26,7 @@ from app.models.shard import (
     CashRegister,
     CommissionPayer,
     CommissionType,
+    DiscountSource,
     DocumentContentType,
     DocumentStatus,
     DocumentType,
@@ -678,6 +679,11 @@ class ReceiptOut(ApiModel):
     cash_register: PersonRef | None
     client: PersonRef | None
     record_id: uuid.UUID | None
+    # «Продано» до бонусных услуг и скидки; amount — итог к оплате
+    subtotal: Decimal
+    discount_amount: Decimal
+    discount_source: DiscountSource
+    loyalty_card_id: uuid.UUID | None
     amount: Decimal
     payments: list[ReceiptPaymentOut]
     status: ReceiptStatus
@@ -719,6 +725,10 @@ async def _receipt_out(tenant_session, receipt: Receipt) -> ReceiptOut:
             else None
         ),
         record_id=receipt.record_id,
+        subtotal=receipt.subtotal if receipt.subtotal is not None else receipt.amount,
+        discount_amount=receipt.discount_amount,
+        discount_source=receipt.discount_source,
+        loyalty_card_id=receipt.loyalty_card_id,
         amount=receipt.amount,
         payments=payments,
         status=receipt.status,
@@ -774,9 +784,16 @@ class ReceiptCreateIn(ApiModel):
     # Чек оплаты визита: запись должна быть завершена и не оплачена, сумма
     # оплат — равна сумме записи; клиент берётся из записи
     record_id: uuid.UUID | None = None
-    payments: list[ReceiptPaymentIn] = Field(min_length=1)
+    payments: list[ReceiptPaymentIn] = Field(default_factory=list)
     source: ReceiptSource = ReceiptSource.WEB
     date: LocalDatetime | None = None
+    # Продажа: «Продано» до скидки — сервер применит наибольшую скидку клиента/карты,
+    # части оплаты = итог. Без subtotal — сумма чека = сумма частей, без скидки
+    subtotal: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2)
+    # Итог из предпросмотра (GET /finances/receipts/checkout или /records/{id}/checkout)
+    expected_total: Decimal | None = None
+    # Только для оплаты визита (recordId)
+    bonus_record_service_ids: list[uuid.UUID] = Field(default_factory=list)
 
 
 @sales_router.post(
@@ -815,8 +832,12 @@ async def create_receipt(
                 date=body.date,
                 source=body.source,
                 idempotency_key=idempotency_key,
+                bonus_record_service_ids=body.bonus_record_service_ids,
+                expected_total=body.expected_total,
             )
         else:
+            if not body.payments and not body.subtotal:
+                raise HTTPException(422, "Порожній чек")
             receipt = await visits_service.sell(
                 tenant_session,
                 master_session,
@@ -829,7 +850,11 @@ async def create_receipt(
                 client_id=body.client_id,
                 client_name=body.client_name,
                 idempotency_key=idempotency_key,
+                subtotal=body.subtotal,
+                expected_total=body.expected_total,
             )
+    except visits_service.StaleCheckout as exc:
+        raise HTTPException(409, str(exc))
     except visits_service.PaymentError as exc:
         raise HTTPException(409 if body.record_id else 422, str(exc))
     return Envelope(data=await _receipt_out(tenant_session, receipt))

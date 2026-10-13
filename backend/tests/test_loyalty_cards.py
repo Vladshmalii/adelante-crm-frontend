@@ -38,7 +38,7 @@ def w(new_salon: Salon) -> World:
             "salonIds": [s.id],
             "levelBasis": "sold_amount",
             "levels": [
-                {"threshold": 0, "discountPercent": 3},
+                {"threshold": 0, "name": "Старт"},
                 {"threshold": 1000, "discountPercent": 5, "discountFixed": 100, "name": "Срібло"},
                 {"threshold": 5000, "discountPercent": 10, "name": "Золото"},
             ],
@@ -68,7 +68,7 @@ def _cards(w: World, client_id: str, status: str = "active", salon: str | None =
 def test_card_type_settings(w: World) -> None:
     api, s = w.s.api, w.s
     t = w.card_type
-    assert [lv["name"] for lv in t["levels"]] == [None, "Срібло", "Золото"]
+    assert [lv["name"] for lv in t["levels"]] == ["Старт", "Срібло", "Золото"]
     assert t["salons"] == [{"id": s.id, "name": f"Салон {s.slug}"}]
     assert money(t["cashbackMaxPaymentPercent"]) == 100 and t["cashbackTtlDays"] is None
     # Администратор видит типы (для выдачи), но не меняет
@@ -141,7 +141,7 @@ def test_issue_card(w: World) -> None:
     assert card["appliesHere"] and card["cardType"]["name"] == "Мережа Adelante"
     assert money(card["cashbackBalance"]) == 0 and card["visitsCount"] == 0
     assert money(card["level"]["threshold"]) == 0
-    assert money(card["maxDiscountPercent"]) == 3
+    assert money(card["maxDiscountPercent"]) == 0 and card["level"]["name"] == "Старт"
     assert money(card["nextLevel"]["remaining"]) == 1000
 
     _issue(w, cid, expect=409)  # одна активная карта на клиента

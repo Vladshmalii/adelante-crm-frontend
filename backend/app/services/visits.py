@@ -17,7 +17,6 @@ import uuid
 from dataclasses import replace
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
 
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -28,6 +27,7 @@ from app.models.shard import (
     SYSTEM_METHOD_TYPES,
     AuditAction,
     CashRegister,
+    DiscountSource,
     FinanceOperation,
     OperationType,
     PaymentMethod,
@@ -46,9 +46,10 @@ from app.notifications.outbox import (
     LOYALTY_RECEIPT_PAID,
     add_outbox_event,
 )
-from app.services import loyalty as loyalty_service
+from app.services import checkout
 from app.services import payments as payments_service
 from app.services.audit import write_audit
+from app.services.ledger import money
 from app.services.records import emit_record_updated, record_title
 
 
@@ -58,6 +59,10 @@ class CompletionError(Exception):
 
 class PaymentError(Exception):
     pass
+
+
+class StaleCheckout(PaymentError):
+    """expectedTotal не совпал с итогом сервера — предпросмотр устарел."""
 
 
 class PaymentPart(BaseModel):
@@ -186,6 +191,7 @@ async def create_receipt(
     receipt_id: uuid.UUID | None = None,
     methods: dict[uuid.UUID, PaymentMethod] | None = None,
     loyalty_card_id: uuid.UUID | None = None,
+    quote: "checkout.Quote | None" = None,
 ) -> Receipt:
     """Чек + разбивка по способам оплаты + приходные операции по каждой оплате.
 
@@ -213,6 +219,9 @@ async def create_receipt(
         client_name=client_name,
         record_id=record.id if record else None,
         loyalty_card_id=loyalty_card_id,
+        subtotal=quote.sold if quote else None,
+        discount_amount=quote.discount if quote else Decimal(0),
+        discount_source=quote.discount_source if quote else DiscountSource.NONE,
         amount=sum((p.amount for p in payments), Decimal(0)),
         status=ReceiptStatus.PAID,
         source=source,
@@ -265,10 +274,13 @@ async def pay_record(
     date: datetime | None = None,
     source: ReceiptSource = ReceiptSource.WEB,
     idempotency_key: str | None = None,
+    bonus_record_service_ids: list[uuid.UUID] | None = None,
+    expected_total: Decimal | None = None,
 ) -> Receipt:
-    """Оплата визита. Части account списываются в Master до записи чека (раздел 6, шаг 4).
+    """Оплата визита (раздел 6). Итог считает сервер: бонусные услуги, наибольшая скидка.
 
-    Коммитит обе сессии сама. Повтор с тем же Idempotency-Key возвращает тот же чек.
+    Части account/bonus списываются в Master до записи чека. Коммитит обе сессии
+    сама. Повтор с тем же Idempotency-Key возвращает тот же чек.
     """
     receipt_id = payments_service.receipt_id_for(salon_id, idempotency_key)
     existing = await payments_service.lock_receipt(tenant_session, receipt_id)
@@ -283,14 +295,20 @@ async def pay_record(
         raise PaymentError("Оплатити можна лише завершений візит")
     if record.payment_status == PaymentStatus.PAID:
         raise PaymentError("Запис уже оплачено")
-    paid = sum((p.amount for p in payments), Decimal(0))
-    if paid != record.total_amount:
-        raise PaymentError(f"Сума оплати {paid} не збігається з сумою запису {record.total_amount}")
+
+    ctx = await checkout.load_context(master_session, record.client_id, salon_id)
+    bonus_ids = frozenset(bonus_record_service_ids or [])
+    q = ctx.quote(checkout.record_lines(record, bonus_ids))
+    check_total(q, payments, expected_total)
     methods = await load_methods(tenant_session, payments)
-    card_id = await applicable_card_id(master_session, record.client_id, salon_id)
+    card_id = ctx.card.id if ctx.card else None
     charges = replace(charges_for(payments, methods), card_id=card_id)
 
     async def write_shard(result: payments_service.ChargeResult) -> Receipt:
+        record.discount_amount = q.discount
+        record.discount_source = q.discount_source
+        record.loyalty_card_id = card_id
+        record.total_amount = q.total
         receipt = await create_receipt(
             tenant_session,
             payments=payments,
@@ -304,6 +322,7 @@ async def pay_record(
             receipt_id=receipt_id,
             methods=methods,
             loyalty_card_id=card_id,
+            quote=q,
         )
         emit_receipt_paid(
             tenant_session,
@@ -311,17 +330,7 @@ async def pay_record(
             receipt=receipt,
             methods=methods,
             result=result,
-            lines=[
-                {
-                    "kind": "service",
-                    "record_service_id": str(s.id),
-                    "service_id": str(s.service_id),
-                    "name": s.name,
-                    "amount": str(s.price),
-                    "is_bonus": False,
-                }
-                for s in record.services
-            ],
+            quote=q,
         )
         record.payment_status = PaymentStatus.PAID
         emit_record_updated(
@@ -343,6 +352,11 @@ async def pay_record(
             details={
                 "paymentStatus": [PaymentStatus.UNPAID.value, PaymentStatus.PAID.value],
                 "receipt": [None, receipt.number],
+                **(
+                    {"discount": [None, f"{q.discount} ({q.discount_source.value})"]}
+                    if q.discount > 0
+                    else {}
+                ),
             },
         )
         write_receipt_audit(tenant_session, receipt, author_id=author_id, author_name=author_name)
@@ -365,6 +379,20 @@ async def pay_record(
         raise PaymentError(str(exc))
 
 
+def check_total(
+    q: checkout.Quote, payments: list[PaymentPart], expected_total: Decimal | None
+) -> None:
+    """Сумма частей = итог; expectedTotal — защита от устаревшего предпросмотра (409)."""
+    if expected_total is not None and money(expected_total) != q.total:
+        raise StaleCheckout(
+            f"Сума до сплати змінилася: {q.total} ₴ замість {money(expected_total)} ₴ — "
+            "оновіть дані оплати"
+        )
+    paid = sum((p.amount for p in payments), Decimal(0))
+    if paid != q.total:
+        raise PaymentError(f"Сума оплати {paid} не збігається з сумою до сплати {q.total}")
+
+
 async def sell(
     tenant_session: AsyncSession,
     master_session: AsyncSession,
@@ -378,23 +406,34 @@ async def sell(
     date: datetime,
     source: ReceiptSource = ReceiptSource.WEB,
     idempotency_key: str | None = None,
+    subtotal: Decimal | None = None,
+    expected_total: Decimal | None = None,
 ) -> Receipt:
-    """Чек без записи (продажа товаров) — те же способы оплаты, что у визита. Коммитит сам."""
+    """Чек без записи (продажа товаров) — те же способы оплаты и скидки, что у визита.
+
+    subtotal — «Продано»: скидка считается от него, части оплаты = итог. Без
+    subtotal — как раньше: сумма чека = сумма частей, без скидки. Коммитит сам.
+    """
     receipt_id = payments_service.receipt_id_for(salon_id, idempotency_key)
     existing = await payments_service.lock_receipt(tenant_session, receipt_id)
     if existing is not None:
         return existing
-    methods = await load_methods(tenant_session, payments)
-    charges = charges_for(payments, methods)
     if client_id is not None:
         client = await master_session.get(Client, client_id)
         if client is None or not client.is_active:
             raise PaymentError("Клієнта не знайдено")
         client_name = client_name or client.full_name
-    elif charges.any:
+    ctx = await checkout.load_context(master_session, client_id, salon_id)
+    if subtotal is None:
+        q = checkout.quote(checkout.sale_lines(sum((p.amount for p in payments), Decimal(0))))
+    else:
+        q = ctx.quote(checkout.sale_lines(subtotal))
+    check_total(q, payments, expected_total)
+    methods = await load_methods(tenant_session, payments)
+    card_id = ctx.card.id if ctx.card else None
+    charges = replace(charges_for(payments, methods), card_id=card_id)
+    if client_id is None and charges.any:
         raise PaymentError("Для оплати з рахунку оберіть клієнта")
-    card_id = await applicable_card_id(master_session, client_id, salon_id) if client_id else None
-    charges = replace(charges, card_id=card_id)
 
     async def write_shard(result: payments_service.ChargeResult) -> Receipt:
         receipt = await create_receipt(
@@ -409,15 +448,15 @@ async def sell(
             receipt_id=receipt_id,
             methods=methods,
             loyalty_card_id=card_id,
+            quote=q,
         )
-        # Чек без записи — одна строка «товар» на всю сумму (раздел 15)
         emit_receipt_paid(
             tenant_session,
             salon_id=salon_id,
             receipt=receipt,
             methods=methods,
             result=result,
-            lines=[{"kind": "product", "name": "Товари", "amount": str(receipt.amount)}],
+            quote=q,
         )
         write_receipt_audit(tenant_session, receipt, author_id=author_id, author_name=author_name)
         return receipt
@@ -439,16 +478,6 @@ async def sell(
         raise PaymentError(str(exc))
 
 
-async def applicable_card_id(
-    master_session: AsyncSession, client_id: uuid.UUID, salon_id: uuid.UUID
-) -> uuid.UUID | None:
-    """Активная карта клиента, действующая в этом салоне (Master DB), — снапшот в чек."""
-    card = await master_session.run_sync(
-        lambda s: loyalty_service.applicable_card(s, client_id, salon_id)
-    )
-    return card.id if card is not None else None
-
-
 def emit_receipt_paid(
     tenant_session: AsyncSession,
     *,
@@ -456,7 +485,7 @@ def emit_receipt_paid(
     receipt: Receipt,
     methods: dict[uuid.UUID, PaymentMethod],
     result: payments_service.ChargeResult,
-    lines: list[dict[str, Any]],
+    quote: checkout.Quote,
 ) -> None:
     """loyalty.receipt_paid — только для чека с картой: воркер пишет факт визита и начисления."""
     if receipt.loyalty_card_id is None:
@@ -466,7 +495,6 @@ def emit_receipt_paid(
         method_type = methods[p.payment_method_id].type
         key = method_type.value if method_type in SYSTEM_METHOD_TYPES else "other"
         parts[key] = parts.get(key, Decimal(0)) + p.amount
-    sold = sum((Decimal(line["amount"]) for line in lines), Decimal(0))
     add_outbox_event(
         tenant_session,
         event_type=LOYALTY_RECEIPT_PAID,
@@ -478,8 +506,8 @@ def emit_receipt_paid(
             "client_id": str(receipt.client_id),
             "card_id": str(receipt.loyalty_card_id),
             "happened_at": receipt.date.isoformat(),
-            "sold": str(sold),
-            "discount": "0",
+            "sold": str(quote.sold),
+            "discount": str(quote.discount),
             "total": str(receipt.amount),
             "parts": {k: str(v) for k, v in parts.items()},
             "account_balance_before": (
@@ -487,7 +515,7 @@ def emit_receipt_paid(
                 if result.account_balance_before is not None
                 else None
             ),
-            "lines": lines,
+            "lines": [line.payload() for line in quote.lines],
         },
     )
 
@@ -552,6 +580,10 @@ async def unpay_record_for_receipt(
         return
     old = record.payment_status
     record.payment_status = PaymentStatus.UNPAID
+    record.total_amount = record.price
+    record.discount_amount = Decimal(0)
+    record.discount_source = DiscountSource.NONE
+    record.loyalty_card_id = None
     emit_record_updated(
         tenant_session,
         salon_id=salon_id,
