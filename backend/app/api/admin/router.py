@@ -10,6 +10,7 @@ from app.api.admin.clients import router as clients_router
 from app.api.admin.finances import router as finances_router
 from app.api.admin.finances import sales_router as finances_sales_router
 from app.api.admin.inventory import router as inventory_router
+from app.api.admin.loyalty import router as loyalty_router
 from app.api.admin.records import router as records_router
 from app.api.admin.reports import router as reports_router
 from app.api.admin.reviews import router as reviews_router
@@ -27,6 +28,7 @@ router.include_router(records_router)
 router.include_router(staff_router)
 router.include_router(clients_router)
 router.include_router(accounts_router)
+router.include_router(loyalty_router)
 router.include_router(services_router)
 router.include_router(reviews_router)
 router.include_router(audit_router)

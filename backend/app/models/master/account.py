@@ -48,6 +48,10 @@ class ClientAccount(MasterBase):
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     client_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("clients.id"), index=True)
     kind: Mapped[AccountKind] = mapped_column(str_enum(AccountKind, 16))
+    # Для cashback — карта, к которой привязан счёт (один счёт на карту)
+    loyalty_card_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("loyalty_cards.id"), unique=True
+    )
     balance: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal(0), server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

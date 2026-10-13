@@ -9,8 +9,11 @@ import logging
 import uuid
 from typing import Any
 
-from app.notifications.outbox import LOYALTY_RECEIPT_CANCELLED
-from app.services import ledger, payments
+from sqlalchemy import select
+
+from app.models.shard import Receipt, ReceiptStatus
+from app.notifications.outbox import LOYALTY_RECEIPT_CANCELLED, LOYALTY_RECEIPT_PAID
+from app.services import ledger, loyalty, payments
 from workers import db
 from workers.celery_app import celery
 
@@ -31,14 +34,34 @@ def process_event(envelope: dict[str, Any]) -> None:
     event_type = envelope["event_type"]
     salon_id = uuid.UUID(envelope["salon_id"])
     payload = envelope["payload"]
-    if event_type == LOYALTY_RECEIPT_CANCELLED:
+    if event_type == LOYALTY_RECEIPT_PAID:
+        receipt_paid(salon_id, payload)
+    elif event_type == LOYALTY_RECEIPT_CANCELLED:
         receipt_cancelled(salon_id, payload)
     else:
         logger.warning("Неизвестное событие лояльности: %s", event_type)
 
 
+def receipt_paid(salon_id: uuid.UUID, payload: dict[str, Any]) -> None:
+    """Оплаченный чек с картой (раздел 6, шаг 5): факт визита и счётчики карты.
+
+    Если карта к этому времени удалена или больше не действует в салоне — ничего.
+    Чек мог быть отменён раньше, чем событие оплаты дошло (ретрай), — тогда тоже ничего.
+    """
+    receipt_id = uuid.UUID(payload["receipt_id"])
+
+    def receipt_alive() -> bool:
+        with db.shard_session(salon_id) as shard:
+            status = shard.scalar(select(Receipt.status).where(Receipt.id == receipt_id))
+        return status is not None and status != ReceiptStatus.CANCELLED
+
+    with db.master_session() as session:
+        loyalty.record_visit(session, salon_id, payload, receipt_alive=receipt_alive)
+        session.commit()
+
+
 def receipt_cancelled(salon_id: uuid.UUID, payload: dict[str, Any]) -> None:
-    """Отмена чека: деньги со счёта клиента возвращаются сторно списаний."""
+    """Отмена чека: сторно списаний со счетов, откат факта визита и счётчиков карты."""
     receipt_id = uuid.UUID(payload["receipt_id"])
     meta = ledger.Meta(
         salon_id=salon_id,
@@ -50,4 +73,5 @@ def receipt_cancelled(salon_id: uuid.UUID, payload: dict[str, Any]) -> None:
     )
     with db.master_session() as session:
         payments.reverse_payments(session, salon_id=salon_id, receipt_id=receipt_id, meta=meta)
+        loyalty.reverse_visit(session, salon_id, receipt_id, _uuid(payload.get("card_id")))
         session.commit()

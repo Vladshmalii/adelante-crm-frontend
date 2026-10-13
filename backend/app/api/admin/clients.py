@@ -21,7 +21,15 @@ from app.api.admin.deps import CurrentAuthor, ensure_own_client, own_client_ids
 from app.api.schemas import ApiModel, Envelope, page_meta
 from app.api.security import AdminUser, CurrentUser, SuperUser, require_salon_access
 from app.models.base import Gender
-from app.models.master import AccountKind, Client, ClientAccount, ClientCategory, ClientImportance
+from app.models.master import (
+    AccountKind,
+    CardStatus,
+    Client,
+    ClientAccount,
+    ClientCategory,
+    ClientImportance,
+    LoyaltyCard,
+)
 from app.models.shard import AuditAction, Record, RecordService, RecordStatus
 from app.services.audit import diff_fields, write_audit
 from app.tenancy.deps import MasterSession, TenantSession
@@ -65,6 +73,8 @@ class ClientOut(ApiModel):
     segment: str = "new"
     # Особовий рахунок (общий для сети): > 0 — депозит, < 0 — долг
     account_balance: Decimal = Decimal(0)
+    # Номер активной карты лояльности
+    loyalty_card_number: str | None = None
 
 
 class Aggregates(dict):
@@ -98,23 +108,47 @@ def _segment(visits: int, last: datetime | None) -> str:
     return "repeat" if visits > 1 else "new"
 
 
-async def _balances(master_session, client_ids: list[uuid.UUID]) -> dict[uuid.UUID, Decimal]:
+class Loyalty(dict):
+    """client_id → (баланс особового рахунку, номер активной карты)."""
+
+
+async def _loyalty(master_session, client_ids: list[uuid.UUID]) -> Loyalty:
+    result = Loyalty()
     if not client_ids:
-        return {}
-    rows = await master_session.execute(
-        select(ClientAccount.client_id, ClientAccount.balance).where(
-            ClientAccount.kind == AccountKind.MONEY, ClientAccount.client_id.in_(client_ids)
+        return result
+    balances = dict(
+        (
+            await master_session.execute(
+                select(ClientAccount.client_id, ClientAccount.balance).where(
+                    ClientAccount.kind == AccountKind.MONEY, ClientAccount.client_id.in_(client_ids)
+                )
+            )
         )
+        .tuples()
+        .all()
     )
-    return dict(rows.tuples().all())
+    numbers = dict(
+        (
+            await master_session.execute(
+                select(LoyaltyCard.client_id, LoyaltyCard.number).where(
+                    LoyaltyCard.status == CardStatus.ACTIVE, LoyaltyCard.client_id.in_(client_ids)
+                )
+            )
+        )
+        .tuples()
+        .all()
+    )
+    for cid in set(balances) | set(numbers):
+        result[cid] = (balances.get(cid, Decimal(0)), numbers.get(cid))
+    return result
 
 
-def _client_out(
-    client: Client, agg: Aggregates, balances: dict[uuid.UUID, Decimal] | None = None
-) -> ClientOut:
+def _client_out(client: Client, agg: Aggregates, loyalty: Loyalty | None = None) -> ClientOut:
     visits, spent, first, last = agg.get(client.id, (0, Decimal(0), None, None))
     out = ClientOut.model_validate(client)
-    out.account_balance = (balances or {}).get(client.id, Decimal(0))
+    out.account_balance, out.loyalty_card_number = (loyalty or {}).get(
+        client.id, (Decimal(0), None)
+    )
     out.telegram_linked = client.telegram_user_id is not None
     out.total_visits = visits
     out.total_spent = spent
@@ -155,6 +189,7 @@ async def list_clients(
             | Client.last_name.ilike(pattern)
             | Client.phone.ilike(pattern)
             | Client.card_number.ilike(pattern)
+            | Client.id.in_(select(LoyaltyCard.client_id).where(LoyaltyCard.number.ilike(pattern)))
         )
     if balance is not None:
         money_accounts = select(ClientAccount.client_id).where(
@@ -165,8 +200,8 @@ async def list_clients(
 
     clients = list(await master_session.scalars(query))
     agg = await _aggregates(tenant_session, [c.id for c in clients])
-    balances = await _balances(master_session, [c.id for c in clients])
-    items = [_client_out(c, agg, balances) for c in clients]
+    loyalty = await _loyalty(master_session, [c.id for c in clients])
+    items = [_client_out(c, agg, loyalty) for c in clients]
     if segment:
         items = [i for i in items if i.segment == segment]
 
@@ -385,7 +420,7 @@ async def get_client(
     await ensure_own_client(tenant_session, user, client_id)
     client = await _get_client(master_session, client_id)
     agg = await _aggregates(tenant_session, [client.id])
-    return Envelope(data=_client_out(client, agg, await _balances(master_session, [client.id])))
+    return Envelope(data=_client_out(client, agg, await _loyalty(master_session, [client.id])))
 
 
 class ClientPatchIn(ApiModel):
@@ -434,7 +469,7 @@ async def patch_client(
             details=changes,
         )
     agg = await _aggregates(tenant_session, [client.id])
-    return Envelope(data=_client_out(client, agg, await _balances(master_session, [client.id])))
+    return Envelope(data=_client_out(client, agg, await _loyalty(master_session, [client.id])))
 
 
 @router.delete("/{client_id}", status_code=status.HTTP_204_NO_CONTENT)

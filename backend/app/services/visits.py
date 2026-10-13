@@ -16,6 +16,7 @@ Master (списания со счетов клиента), потом шард,
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Any
 
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -23,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.master import Client
 from app.models.shard import (
+    SYSTEM_METHOD_TYPES,
     AuditAction,
     CashRegister,
     FinanceOperation,
@@ -38,7 +40,12 @@ from app.models.shard import (
     RecordPhoto,
     RecordStatus,
 )
-from app.notifications.outbox import LOYALTY_RECEIPT_CANCELLED, add_outbox_event
+from app.notifications.outbox import (
+    LOYALTY_RECEIPT_CANCELLED,
+    LOYALTY_RECEIPT_PAID,
+    add_outbox_event,
+)
+from app.services import loyalty as loyalty_service
 from app.services import payments as payments_service
 from app.services.audit import write_audit
 from app.services.records import emit_record_updated, record_title
@@ -175,6 +182,7 @@ async def create_receipt(
     record: Record | None = None,
     receipt_id: uuid.UUID | None = None,
     methods: dict[uuid.UUID, PaymentMethod] | None = None,
+    loyalty_card_id: uuid.UUID | None = None,
 ) -> Receipt:
     """Чек + разбивка по способам оплаты + приходные операции по каждой оплате.
 
@@ -201,6 +209,7 @@ async def create_receipt(
         client_id=client_id,
         client_name=client_name,
         record_id=record.id if record else None,
+        loyalty_card_id=loyalty_card_id,
         amount=sum((p.amount for p in payments), Decimal(0)),
         status=ReceiptStatus.PAID,
         source=source,
@@ -276,8 +285,9 @@ async def pay_record(
         raise PaymentError(f"Сума оплати {paid} не збігається з сумою запису {record.total_amount}")
     methods = await load_methods(tenant_session, payments)
     charges = charges_for(payments, methods)
+    card_id = await applicable_card_id(master_session, record.client_id, salon_id)
 
-    async def write_shard(_: payments_service.ChargeResult) -> Receipt:
+    async def write_shard(result: payments_service.ChargeResult) -> Receipt:
         receipt = await create_receipt(
             tenant_session,
             payments=payments,
@@ -290,6 +300,25 @@ async def pay_record(
             record=record,
             receipt_id=receipt_id,
             methods=methods,
+            loyalty_card_id=card_id,
+        )
+        emit_receipt_paid(
+            tenant_session,
+            salon_id=salon_id,
+            receipt=receipt,
+            methods=methods,
+            result=result,
+            lines=[
+                {
+                    "kind": "service",
+                    "record_service_id": str(s.id),
+                    "service_id": str(s.service_id),
+                    "name": s.name,
+                    "amount": str(s.price),
+                    "is_bonus": False,
+                }
+                for s in record.services
+            ],
         )
         record.payment_status = PaymentStatus.PAID
         emit_record_updated(
@@ -361,8 +390,9 @@ async def sell(
         client_name = client_name or client.full_name
     elif charges.any:
         raise PaymentError("Для оплати з рахунку оберіть клієнта")
+    card_id = await applicable_card_id(master_session, client_id, salon_id) if client_id else None
 
-    async def write_shard(_: payments_service.ChargeResult) -> Receipt:
+    async def write_shard(result: payments_service.ChargeResult) -> Receipt:
         receipt = await create_receipt(
             tenant_session,
             payments=payments,
@@ -374,6 +404,16 @@ async def sell(
             client_name=client_name,
             receipt_id=receipt_id,
             methods=methods,
+            loyalty_card_id=card_id,
+        )
+        # Чек без записи — одна строка «товар» на всю сумму (раздел 15)
+        emit_receipt_paid(
+            tenant_session,
+            salon_id=salon_id,
+            receipt=receipt,
+            methods=methods,
+            result=result,
+            lines=[{"kind": "product", "name": "Товари", "amount": str(receipt.amount)}],
         )
         write_receipt_audit(tenant_session, receipt, author_id=author_id, author_name=author_name)
         return receipt
@@ -393,6 +433,59 @@ async def sell(
         )
     except payments_service.PaymentError as exc:
         raise PaymentError(str(exc))
+
+
+async def applicable_card_id(
+    master_session: AsyncSession, client_id: uuid.UUID, salon_id: uuid.UUID
+) -> uuid.UUID | None:
+    """Активная карта клиента, действующая в этом салоне (Master DB), — снапшот в чек."""
+    card = await master_session.run_sync(
+        lambda s: loyalty_service.applicable_card(s, client_id, salon_id)
+    )
+    return card.id if card is not None else None
+
+
+def emit_receipt_paid(
+    tenant_session: AsyncSession,
+    *,
+    salon_id: uuid.UUID,
+    receipt: Receipt,
+    methods: dict[uuid.UUID, PaymentMethod],
+    result: payments_service.ChargeResult,
+    lines: list[dict[str, Any]],
+) -> None:
+    """loyalty.receipt_paid — только для чека с картой: воркер пишет факт визита и начисления."""
+    if receipt.loyalty_card_id is None:
+        return
+    parts: dict[str, Decimal] = {}
+    for p in receipt.payments:
+        method_type = methods[p.payment_method_id].type
+        key = method_type.value if method_type in SYSTEM_METHOD_TYPES else "other"
+        parts[key] = parts.get(key, Decimal(0)) + p.amount
+    sold = sum((Decimal(line["amount"]) for line in lines), Decimal(0))
+    add_outbox_event(
+        tenant_session,
+        event_type=LOYALTY_RECEIPT_PAID,
+        salon_id=salon_id,
+        payload={
+            "receipt_id": str(receipt.id),
+            "receipt_number": receipt.number,
+            "record_id": str(receipt.record_id) if receipt.record_id else None,
+            "client_id": str(receipt.client_id),
+            "card_id": str(receipt.loyalty_card_id),
+            "happened_at": receipt.date.isoformat(),
+            "sold": str(sold),
+            "discount": "0",
+            "total": str(receipt.amount),
+            "parts": {k: str(v) for k, v in parts.items()},
+            "account_balance_before": (
+                str(result.account_balance_before)
+                if result.account_balance_before is not None
+                else None
+            ),
+            "lines": lines,
+        },
+    )
 
 
 def write_receipt_audit(
@@ -432,6 +525,7 @@ def emit_receipt_cancelled(
             "receipt_number": receipt.number,
             "record_id": str(receipt.record_id) if receipt.record_id else None,
             "client_id": str(receipt.client_id) if receipt.client_id else None,
+            "card_id": str(receipt.loyalty_card_id) if receipt.loyalty_card_id else None,
             "author_id": str(author_id) if author_id else None,
             "author_name": author_name,
         },

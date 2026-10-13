@@ -6,15 +6,19 @@
 2. Списания со счетов клиента (Master) без живого чека в шарде: процесс упал
    между записью в Master и коммитом шарда, или событие отмены чека потерялось.
    Такие списания сторнируются (loyalty-accounts.md, раздел 3).
+3. Оплаченные чеки с картой без факта визита в Master: событие
+   loyalty.receipt_paid переотправляется (published_at сбрасывается).
 """
 
 import logging
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 
-from app.models.master import Client, Master
-from app.models.shard import Receipt, ReceiptStatus, Record, service_masters
+from app.models.master import Client, LoyaltyCardVisit, Master
+from app.models.shard import OutboxEvent, Receipt, ReceiptStatus, Record, service_masters
+from app.notifications.outbox import LOYALTY_RECEIPT_PAID
 from app.services import ledger, payments
 from workers import db
 from workers.celery_app import celery
@@ -33,6 +37,56 @@ def integrity_check() -> None:
             reconcile_payments(salon_id)
         except Exception:
             logger.exception("reconcile_payments: сбой на салоне %s", salon_id)
+        try:
+            resend_missing_visits(salon_id)
+        except Exception:
+            logger.exception("resend_missing_visits: сбой на салоне %s", salon_id)
+
+
+# Сколько дней назад смотреть чеки с картой без факта визита
+VISIT_RESEND_WINDOW = timedelta(days=30)
+
+
+def resend_missing_visits(salon_id: UUID, *, now: datetime | None = None) -> int:
+    """Переотправить loyalty.receipt_paid для оплаченных чеков с картой без факта визита."""
+    now = now or datetime.now(UTC)
+    with db.shard_session(salon_id) as shard:
+        receipt_ids = set(
+            shard.scalars(
+                select(Receipt.id).where(
+                    Receipt.loyalty_card_id.is_not(None),
+                    Receipt.status != ReceiptStatus.CANCELLED,
+                    Receipt.created_at < now - payments.RECONCILE_GRACE,
+                    Receipt.created_at >= now - VISIT_RESEND_WINDOW,
+                )
+            )
+        )
+    if not receipt_ids:
+        return 0
+    with db.master_session() as session:
+        known = set(
+            session.scalars(
+                select(LoyaltyCardVisit.receipt_id).where(
+                    LoyaltyCardVisit.salon_id == salon_id,
+                    LoyaltyCardVisit.receipt_id.in_(receipt_ids),
+                )
+            )
+        )
+    missing = [str(r) for r in receipt_ids - known]
+    if not missing:
+        return 0
+    logger.warning("Салон %s: чеки с карткою без факту візиту: %s", salon_id, missing)
+    with db.shard_session(salon_id) as shard:
+        shard.execute(
+            update(OutboxEvent)
+            .where(
+                OutboxEvent.event_type == LOYALTY_RECEIPT_PAID,
+                OutboxEvent.payload["payload"]["receipt_id"].astext.in_(missing),
+            )
+            .values(published_at=None)
+        )
+        shard.commit()
+    return len(missing)
 
 
 def reconcile_payments(salon_id: UUID) -> int:

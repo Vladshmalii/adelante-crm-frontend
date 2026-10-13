@@ -174,6 +174,8 @@ class Receipt(ShardBase):
     client_name: Mapped[str | None] = mapped_column(String(255))
     record_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("records.id"))
     document_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("finance_documents.id"))
+    # Снапшот: карта лояльности клиента, действовавшая в салоне при оплате (Master DB)
+    loyalty_card_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
 
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
     status: Mapped[ReceiptStatus] = mapped_column(
