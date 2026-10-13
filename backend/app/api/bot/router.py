@@ -20,6 +20,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
 from app.api.security import verify_bot_api_key
 from app.config import Settings, get_settings
@@ -276,7 +277,7 @@ async def client_loyalty(tg_user_id: int, master_session: MasterSession) -> Clie
     if client is None:
         raise HTTPException(404, "Клієнта не знайдено")
 
-    def build(session) -> ClientLoyaltyOut:  # type: ignore[no-untyped-def]
+    def build(session: Session) -> ClientLoyaltyOut:
         account = ledger.find_money_account(session, client.id)
         card = loyalty.active_card(session, client.id)
         info = None

@@ -215,7 +215,8 @@ def hanging_payments(
             AccountTransaction.id.not_in(reversed_ids),
         )
     ):
-        result.setdefault(txn.receipt_id, []).append(txn)
+        if txn.receipt_id is not None:
+            result.setdefault(txn.receipt_id, []).append(txn)
     return result
 
 

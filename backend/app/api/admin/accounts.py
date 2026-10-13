@@ -152,9 +152,9 @@ async def money_balance(master_session: AsyncSession, client_id: uuid.UUID) -> D
 
 
 async def staff_name(master_session: AsyncSession, staff_id: uuid.UUID) -> str:
-    person = await master_session.get(Master, staff_id) or await master_session.get(
-        Administrator, staff_id
-    )
+    person: Master | Administrator | None = await master_session.get(Master, staff_id)
+    if person is None:
+        person = await master_session.get(Administrator, staff_id)
     if person is None:
         raise HTTPException(422, "Співробітника не знайдено")
     return person.full_name

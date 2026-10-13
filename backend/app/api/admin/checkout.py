@@ -108,7 +108,9 @@ def checkout_out(
                 is_bonus=line.is_bonus,
                 amount=line.amount,
                 bonus_available=line.record_service_id in bonus,
-                bonus_rule_name=bonus.get(line.record_service_id),
+                bonus_rule_name=(
+                    bonus.get(line.record_service_id) if line.record_service_id else None
+                ),
             )
             for line in q.lines
         ],

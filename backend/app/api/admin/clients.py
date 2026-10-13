@@ -107,7 +107,7 @@ def _segment(visits: int, last: datetime | None) -> str:
     return "repeat" if visits > 1 else "new"
 
 
-class Loyalty(dict):
+class Loyalty(dict[uuid.UUID, tuple[Decimal, str | None]]):
     """client_id → (баланс особового рахунку, номер активной карты)."""
 
 
@@ -145,7 +145,7 @@ async def _loyalty(master_session, client_ids: list[uuid.UUID]) -> Loyalty:
 def _client_out(client: Client, agg: Aggregates, loyalty: Loyalty | None = None) -> ClientOut:
     visits, spent, first, last = agg.get(client.id, (0, Decimal(0), None, None))
     out = ClientOut.model_validate(client)
-    out.account_balance, out.loyalty_card_number = (loyalty or {}).get(
+    out.account_balance, out.loyalty_card_number = (loyalty or Loyalty()).get(
         client.id, (Decimal(0), None)
     )
     out.telegram_linked = client.telegram_user_id is not None

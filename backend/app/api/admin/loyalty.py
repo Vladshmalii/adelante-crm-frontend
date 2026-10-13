@@ -8,12 +8,13 @@
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Self
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from pydantic import Field, model_validator
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from app.api.admin.accounts import TransactionOut, list_transactions, transactions_out
 from app.api.admin.deps import CurrentAuthor, ensure_own_client
@@ -26,6 +27,7 @@ from app.api.security import (
     require_salon_access,
 )
 from app.models.master import (
+    AccountTransaction,
     CardStatus,
     Client,
     LevelBasis,
@@ -86,7 +88,7 @@ class CardTypeOut(ApiModel):
 
 class CardTypeFields(ApiModel):
     @model_validator(mode="after")
-    def _levels(self):  # type: ignore[no-untyped-def]
+    def _levels(self) -> Self:
         levels = getattr(self, "levels", None)
         if levels:
             thresholds = [lv.threshold for lv in levels]
@@ -294,7 +296,7 @@ class LoyaltyCardOut(ApiModel):
 async def cards_out(
     master_session: AsyncSession, cards: list[LoyaltyCard], salon_id: uuid.UUID
 ) -> list[LoyaltyCardOut]:
-    def build(session) -> list[LoyaltyCardOut]:  # type: ignore[no-untyped-def]
+    def build(session: Session) -> list[LoyaltyCardOut]:
         salon_ids = {c.issued_salon_id for c in cards if c.issued_salon_id}
         salons = dict(
             session.execute(select(Salon.id, Salon.name).where(Salon.id.in_(salon_ids)))
@@ -610,7 +612,7 @@ async def adjust_cashback(
     )
     key = f"adjustment:card:{card_id}:{idempotency_key or uuid.uuid4()}"
 
-    def operation(session):  # type: ignore[no-untyped-def]
+    def operation(session: Session) -> AccountTransaction:
         account = loyalty.lock_cashback_account(session, card.id)
         return ledger.adjust(session, account, body.amount, key=key, meta=meta)
 
