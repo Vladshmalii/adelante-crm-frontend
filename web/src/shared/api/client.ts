@@ -48,7 +48,8 @@ const authMiddleware: Middleware = {
 
     const { accessToken, salonId } = useSessionStore.getState();
     if (accessToken) request.headers.set('Authorization', `Bearer ${accessToken}`);
-    if (salonId) request.headers.set('X-Salon-Id', salonId);
+    // Явно переданный салон не перетираем: настройки сети читают каталоги других салонов
+    if (salonId && !request.headers.has('X-Salon-Id')) request.headers.set('X-Salon-Id', salonId);
     retryable.set(id, request.clone());
     return request;
   },

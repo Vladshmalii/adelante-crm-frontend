@@ -90,6 +90,14 @@ export const permissions = (v: Viewer) => ({
     /** Виручка и середній чек; администратору бекенд отдаёт их как null. */
     viewMoney: v.isSuperuser,
   },
+  loyalty: {
+    /** Пополнение и возврат депозита, оплата со счёта и кешбэком, выдача и удаление карты. */
+    manage: v.isAdmin,
+    /** Ручная корректировка особового рахунку и кешбэка. */
+    adjust: v.isSuperuser,
+    /** Типы карт, уровни и бонусные правила (Налаштування → Лояльність). */
+    settings: v.isSuperuser,
+  },
 });
 
 export type Permissions = ReturnType<typeof permissions>;

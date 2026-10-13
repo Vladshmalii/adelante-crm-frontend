@@ -77,7 +77,7 @@ export function ReceiptsTab({ search, setSearch }: TabProps) {
         </Space>
       ),
     },
-    { title: 'Каса', key: 'register', render: (_, r) => r.cashRegister.name ?? '—' },
+    { title: 'Каса', key: 'register', render: (_, r) => r.cashRegister?.name ?? 'Без каси' },
     {
       title: 'Статус',
       key: 'status',

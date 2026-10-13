@@ -8,6 +8,7 @@ import { DateRangeFilter } from '@/shared/ui';
 
 import { useExportFinances } from '../api/finances.mutations';
 import { type FinancesSearch, type FinanceTab, period, periodToApi } from '../model/search';
+import { ClientBalancesTab } from './ClientBalancesTab';
 import { DashboardTab } from './DashboardTab';
 import { DocumentsTab } from './DocumentsTab';
 import { MethodsTab } from './MethodsTab';
@@ -22,6 +23,7 @@ const TABS: { key: FinanceTab; tab: string }[] = [
   { key: 'documents', tab: 'Документи' },
   { key: 'receipts', tab: 'Чеки' },
   { key: 'methods', tab: 'Методи оплат і каси' },
+  { key: 'balances', tab: 'Рахунки клієнтів' },
 ];
 
 export function FinancesPage() {
@@ -46,7 +48,9 @@ export function FinancesPage() {
         void navigate({ search: { tab: tab as FinanceTab, from: search.from, to: search.to } })
       }
       extra={
-        search.tab !== 'methods' && (
+        // Залишки на рахунках — на сейчас, без периода
+        search.tab !== 'methods' &&
+        search.tab !== 'balances' && (
           <Space>
             <DateRangeFilter
               from={from}
@@ -76,6 +80,7 @@ export function FinancesPage() {
       {search.tab === 'documents' && <DocumentsTab {...props} />}
       {search.tab === 'receipts' && <ReceiptsTab {...props} />}
       {search.tab === 'methods' && <MethodsTab />}
+      {search.tab === 'balances' && <ClientBalancesTab />}
     </PageContainer>
   );
 }

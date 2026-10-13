@@ -15,6 +15,9 @@ function useInvalidateFinances() {
     Promise.all([
       queryClient.invalidateQueries({ queryKey: financesKeys.all }),
       queryClient.invalidateQueries({ queryKey: ['records'] }),
+      // Чек со счёта / кешбэком и отмена чека меняют счета и карты клиента
+      queryClient.invalidateQueries({ queryKey: ['loyalty'] }),
+      queryClient.invalidateQueries({ queryKey: ['clients'] }),
     ]);
 }
 
@@ -68,11 +71,17 @@ export function useUpdateDocument() {
   });
 }
 
+/** Чек: продажа или оплата визита. Ключ идемпотентности — на одно открытие формы. */
 export function useCreateReceipt() {
   const onSuccess = useInvalidateFinances();
   return useMutation({
-    mutationFn: async (body: Schema<'ReceiptCreateIn'>) =>
-      unwrap(await api.POST('/api/admin/v1/finances/receipts', { body })).data,
+    mutationFn: async ({ key, body }: { key: string; body: Schema<'ReceiptCreateIn'> }) =>
+      unwrap(
+        await api.POST('/api/admin/v1/finances/receipts', {
+          headers: { 'Idempotency-Key': key },
+          body,
+        }),
+      ).data,
     onSuccess,
   });
 }

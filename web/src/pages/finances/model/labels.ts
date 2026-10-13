@@ -55,7 +55,8 @@ export const methodTypeLabels: Record<Schema<'PaymentMethodType'>, string> = {
   card: 'Картка',
   online: 'Онлайн',
   certificate: 'Сертифікат',
-  bonus: 'Бонуси',
+  bonus: 'Кешбек',
+  account: 'Особовий рахунок',
   tips: 'Чайові',
   other: 'Інше',
 };

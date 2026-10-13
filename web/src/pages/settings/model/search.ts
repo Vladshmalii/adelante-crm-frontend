@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const settingsSearchSchema = z.object({
-  tab: z.enum(['salon', 'schedule']).default('salon'),
+  tab: z.enum(['salon', 'schedule', 'loyalty']).default('salon'),
 });
 
 export type SettingsSearch = z.infer<typeof settingsSearchSchema>;

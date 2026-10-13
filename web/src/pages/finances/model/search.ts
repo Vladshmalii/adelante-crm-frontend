@@ -2,7 +2,14 @@ import { z } from 'zod';
 
 import { currentMonth, dayRangeToApi } from '@/shared/lib';
 
-export const FINANCE_TABS = ['overview', 'operations', 'documents', 'receipts', 'methods'] as const;
+export const FINANCE_TABS = [
+  'overview',
+  'operations',
+  'documents',
+  'receipts',
+  'methods',
+  'balances',
+] as const;
 export type FinanceTab = (typeof FINANCE_TABS)[number];
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);

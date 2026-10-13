@@ -39,6 +39,7 @@ import {
   sourceLabels,
 } from '@/shared/lib';
 import { ChangeDetails } from '@/shared/ui';
+import { discountSourceLabels, RecordLoyaltyBlock } from '@/widgets/loyalty';
 import { RecordConsumables } from '@/widgets/record-consumables';
 
 import { useSetRecordStatus } from '../api/calendar.mutations';
@@ -277,6 +278,14 @@ function Services({ record }: { record: RecordDetail }) {
             <span>{formatMoney(s.price)}</span>
           </div>
         ))}
+        {Number(record.discountAmount) > 0 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+            <Typography.Text type="secondary">
+              Знижка · {discountSourceLabels[record.discountSource]}
+            </Typography.Text>
+            <span>−{formatMoney(record.discountAmount)}</span>
+          </div>
+        )}
         <Divider style={{ margin: '4px 0' }} />
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Tag color={paymentStatusLabels[record.paymentStatus].color}>
@@ -327,7 +336,8 @@ function Actions({
               onPay(record);
             }}
           >
-            Оплатити {formatMoney(record.totalAmount)}
+            {/* Итог со скидкой и бонусами считает сервер — сумма в модалке оплаты */}
+            Оплатити
           </Button>
         ) : (
           <Typography.Text type="secondary">Оплату проводить адміністратор</Typography.Text>
@@ -386,6 +396,7 @@ function Client({ record }: { record: RecordDetail }) {
           />
         </>
       )}
+      <RecordLoyaltyBlock clientId={record.client.id} />
       <Typography.Text type={reminder.type}>Нагадування — {reminder.text}</Typography.Text>
     </Space>
   );

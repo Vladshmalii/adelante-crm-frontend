@@ -118,7 +118,6 @@ export function ClientFormModal({ open, onOpenChange, client }: ClientFormModalP
         max={100}
         fieldProps={{ suffix: '%', precision: 0 }}
       />
-      <ProFormText name="cardNumber" label="Номер картки" />
       <ProFormText name="source" label="Звідки дізнався" />
       <ProForm.Item name="color" label="Кольорова мітка">
         <ColorInput />

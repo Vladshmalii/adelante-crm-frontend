@@ -1,9 +1,28 @@
-import { ModalForm, ProFormDigit, ProFormList, ProFormSelect } from '@ant-design/pro-components';
+import {
+  ModalForm,
+  ProFormDependency,
+  ProFormDigit,
+  ProFormList,
+  ProFormSelect,
+  type ProFormInstance,
+} from '@ant-design/pro-components';
 import { useQuery } from '@tanstack/react-query';
-import { App, Typography } from 'antd';
+import { App, Spin, Typography } from 'antd';
+import { useEffect, useRef, useState } from 'react';
 
 import { errorMessage, type Schema } from '@/shared/api';
 import { formatMoney } from '@/shared/lib';
+import { QueryErrorAlert } from '@/shared/ui';
+import {
+  CheckoutSummary,
+  checkPayments,
+  methodAvailable,
+  methodOptionLabel,
+  newOperationKey,
+  type PaymentPart,
+  PaymentWarnings,
+  recordCheckoutQueryOptions,
+} from '@/widgets/loyalty';
 
 import { usePayRecord } from '../api/calendar.mutations';
 import { paymentMethodsQueryOptions } from '../api/calendar.queries';
@@ -11,15 +30,14 @@ import { paymentMethodsQueryOptions } from '../api/calendar.queries';
 type RecordItem = Schema<'RecordOut'>;
 
 interface FormValues {
-  payments: { paymentMethodId: string; amount: number }[];
+  payments: PaymentPart[];
 }
 
-const sum = (payments: { amount?: number }[] | undefined) =>
-  Math.round((payments ?? []).reduce((acc, p) => acc + (p.amount ?? 0), 0) * 100) / 100;
-
 /**
- * Оплата завершённого визита: один или несколько способов, сумма — ровно стоимость записи
- * (частичной оплаты и чаевых нет). Бекенд создаёт чек.
+ * Оплата завершённого визита (раздел 6 спецификации лояльности): предпросмотр сервера —
+ * «Продано», бонусные услуги (чекбоксы у строк), скидка с источником, итог; один или несколько
+ * способов, сумма — ровно итог. Недоплата закрывается частью «Особовий рахунок» (в долг —
+ * с подтверждением), кешбэк — в пределах максимума чека.
  */
 export function PaymentModal({
   record,
@@ -30,54 +48,125 @@ export function PaymentModal({
 }) {
   const { message } = App.useApp();
   const pay = usePayRecord();
+  const formRef = useRef<ProFormInstance<FormValues>>(undefined);
+  const [bonusIds, setBonusIds] = useState<string[]>([]);
+  const [debtConfirmed, setDebtConfirmed] = useState(false);
+  const [key, setKey] = useState(newOperationKey);
   const { data: methods = [] } = useQuery({ ...paymentMethodsQueryOptions(), enabled: !!record });
-  const total = record ? Number(record.totalAmount) : 0;
+  const checkout = useQuery({
+    ...recordCheckoutQueryOptions(record?.id ?? '', bonusIds),
+    enabled: !!record,
+  });
+  const preview = checkout.data;
+  const total = preview ? Number(preview.total) : undefined;
+
+  // Итог изменился (отметили бонусную услугу) — одна строка оплаты подстраивается под него
+  useEffect(() => {
+    if (total === undefined) return;
+    const parts = formRef.current?.getFieldValue('payments') as PaymentPart[] | undefined;
+    if (!parts || parts.length <= 1) {
+      formRef.current?.setFieldsValue({
+        payments: total > 0 ? [{ ...parts?.[0], amount: total }] : [],
+      });
+    }
+  }, [total]);
+
+  const methodType = (id: string | undefined) => methods.find((m) => m.id === id)?.type;
+  const reset = () => {
+    setBonusIds([]);
+    setDebtConfirmed(false);
+  };
 
   return (
     <ModalForm<FormValues>
       title={record ? `Оплата візиту: ${record.client.name}` : 'Оплата візиту'}
       open={!!record}
-      width={520}
+      width={620}
+      formRef={formRef}
       modalProps={{ destroyOnHidden: true, onCancel: onClose }}
       onOpenChange={(open) => {
-        if (!open) onClose();
+        if (open) setKey(newOperationKey());
+        else {
+          reset();
+          onClose();
+        }
       }}
-      initialValues={{ payments: [{ amount: total }] }}
-      submitter={{ searchConfig: { submitText: 'Оплатити', resetText: 'Скасувати' } }}
+      initialValues={{ payments: [{}] }}
+      submitter={{
+        searchConfig: { submitText: 'Оплатити', resetText: 'Скасувати' },
+        submitButtonProps: { disabled: !preview },
+      }}
       onFinish={async (v) => {
-        if (!record) return false;
+        if (!record || !preview) return false;
+        const check = checkPayments(v.payments, methodType, preview);
+        if (check.debt > 0 && !debtConfirmed) {
+          message.warning('Підтвердіть запис у борг');
+          return false;
+        }
         try {
-          const { receipt } = await pay.mutateAsync({ id: record.id, payments: v.payments });
+          const { receipt } = await pay.mutateAsync({
+            id: record.id,
+            key,
+            body: {
+              payments: v.payments.map((p) => ({
+                paymentMethodId: p.paymentMethodId ?? '',
+                amount: p.amount ?? 0,
+              })),
+              bonusRecordServiceIds: bonusIds,
+              expectedTotal: preview.total,
+            },
+          });
           message.success(`Оплачено, чек № ${receipt.number}`);
+          reset();
           return true;
         } catch (error) {
           message.error(errorMessage(error));
+          // Предпросмотр мог устареть (409) — перезапрашиваем
+          void checkout.refetch();
           return false;
         }
       }}
     >
-      <Typography.Paragraph>
-        До сплати: <Typography.Text strong>{formatMoney(total)}</Typography.Text>
-      </Typography.Paragraph>
+      <QueryErrorAlert error={checkout.error} onRetry={() => void checkout.refetch()} />
+      {preview ? (
+        <CheckoutSummary checkout={preview} bonusIds={bonusIds} onBonusChange={setBonusIds} />
+      ) : (
+        <Spin style={{ display: 'block', marginBottom: 16 }} />
+      )}
       <ProFormList
         name="payments"
         label="Оплати"
-        min={1}
+        min={total === 0 ? 0 : 1}
         creatorButtonProps={{ creatorButtonText: 'Додати спосіб оплати' }}
         rules={[
           {
-            validator: (_, value?: FormValues['payments']) =>
-              sum(value) === total
-                ? Promise.resolve()
-                : Promise.reject(new Error(`Сума оплат має дорівнювати ${formatMoney(total)}`)),
+            validator: (_, value?: PaymentPart[]) => {
+              if (!preview) return Promise.resolve();
+              const check = checkPayments(value, methodType, preview);
+              if (check.difference !== 0) {
+                return Promise.reject(
+                  new Error(`Сума оплат має дорівнювати ${formatMoney(preview.total)}`),
+                );
+              }
+              if (check.bonusOverLimit) {
+                return Promise.reject(
+                  new Error(
+                    `Кешбеком — не більше ${formatMoney(preview.cashback?.maxPayment ?? 0)}`,
+                  ),
+                );
+              }
+              return Promise.resolve();
+            },
           },
         ]}
       >
         <ProFormSelect
           name="paymentMethodId"
           placeholder="Спосіб оплати"
-          width="sm"
-          options={methods.map((m) => ({ value: m.id, label: m.name }))}
+          width="md"
+          options={methods
+            .filter((m) => methodAvailable(m, preview))
+            .map((m) => ({ value: m.id, label: methodOptionLabel(m, preview) }))}
           rules={[{ required: true, message: 'Оберіть спосіб' }]}
         />
         <ProFormDigit
@@ -89,6 +178,17 @@ export function PaymentModal({
           rules={[{ required: true, message: 'Сума' }]}
         />
       </ProFormList>
+      <ProFormDependency name={['payments']}>
+        {({ payments }: { payments?: PaymentPart[] }) =>
+          preview && (
+            <PaymentWarnings
+              check={checkPayments(payments, methodType, preview)}
+              debtConfirmed={debtConfirmed}
+              onDebtConfirm={setDebtConfirmed}
+            />
+          )
+        }
+      </ProFormDependency>
       {!methods.length && (
         <Typography.Text type="warning">
           Немає доступних способів оплати — їх налаштовує суперюзер у «Фінанси → Методи оплат».

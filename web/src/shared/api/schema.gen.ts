@@ -29,9 +29,9 @@ export interface paths {
         put?: never;
         /**
          * Forgot Password
-         * @description Выдаёт одноразовый токен сброса (TTL 1 час) и отправляет письмо со ссылкой.
+         * @description ����� ����������� ����� ������ (TTL 1 ���) � ���������� ������ �� �������.
          *
-         *     Ответ всегда 204, чтобы не раскрывать, существует ли email.
+         *     ����� ������ 204, ����� �� ����������, ���������� �� email.
          */
         post: operations["forgot_password_api_admin_v1_auth_forgot_password_post"];
         delete?: never;
@@ -86,8 +86,8 @@ export interface paths {
         put?: never;
         /**
          * Refresh
-         * @description Новая пара токенов. Роль, салоны и is_superuser перечитываются из БД —
-         *     увольнение и снятие прав вступают в силу не позже срока жизни access-токена.
+         * @description ����� ���� �������. ����, ������ � is_superuser �������������� �� �� �
+         *     ���������� � ������ ���� �������� � ���� �� ����� ����� ����� access-������.
          */
         post: operations["refresh_api_admin_v1_auth_refresh_post"];
         delete?: never;
@@ -144,13 +144,125 @@ export interface paths {
         post?: never;
         /**
          * Delete Client
-         * @description Soft-delete: на клиента ссылаются шард-БД всех салонов.
+         * @description Soft-delete: �� ������� ��������� ����-�� ���� �������.
          */
         delete: operations["delete_client_api_admin_v1_clients__client_id__delete"];
         options?: never;
         head?: never;
         /** Patch Client */
         patch: operations["patch_client_api_admin_v1_clients__client_id__patch"];
+        trace?: never;
+    };
+    "/api/admin/v1/clients/{client_id}/account": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Account */
+        get: operations["get_account_api_admin_v1_clients__client_id__account_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/clients/{client_id}/account/adjustments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Adjust Account
+         * @description ������ ������������� ��������� ������� � ����� ������ � ������ ���������.
+         */
+        post: operations["adjust_account_api_admin_v1_clients__client_id__account_adjustments_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/clients/{client_id}/account/refunds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refund
+         * @description ������� �������� ������� � �� ������ �������������� �������; ����� �� �������������.
+         */
+        post: operations["refund_api_admin_v1_clients__client_id__account_refunds_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/clients/{client_id}/account/topups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Topup
+         * @description ���������� (������� ��� ��������� �����). ���� � ����� �� �������������.
+         */
+        post: operations["topup_api_admin_v1_clients__client_id__account_topups_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/clients/{client_id}/account/transactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Account Transactions */
+        get: operations["get_account_transactions_api_admin_v1_clients__client_id__account_transactions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/clients/{client_id}/loyalty-cards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Client Cards */
+        get: operations["client_cards_api_admin_v1_clients__client_id__loyalty_cards_get"];
+        put?: never;
+        /** Issue Card */
+        post: operations["issue_card_api_admin_v1_clients__client_id__loyalty_cards_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/admin/v1/clients/{client_id}/visits": {
@@ -162,7 +274,7 @@ export interface paths {
         };
         /**
          * Client Visits
-         * @description История визитов клиента в салоне (мастеру — только по своим клиентам).
+         * @description ������� ������� ������� � ������ (������� � ������ �� ����� ��������).
          */
         get: operations["client_visits_api_admin_v1_clients__client_id__visits_get"];
         put?: never;
@@ -182,7 +294,7 @@ export interface paths {
         };
         /**
          * Export Clients
-         * @description Excel-выгрузка клиентской базы (+ визиты в текущем салоне).
+         * @description Excel-�������� ���������� ���� (+ ������ � ������� ������).
          */
         get: operations["export_clients_api_admin_v1_clients_export_get"];
         put?: never;
@@ -204,10 +316,10 @@ export interface paths {
         put?: never;
         /**
          * Import Clients
-         * @description Импорт из Excel. Колонки листа: Имя | Фамилия | Телефон | Email.
+         * @description ������ �� Excel. ������� �����: ��� | ������� | ������� | Email.
          *
-         *     Клиент идентифицируется телефоном: существующий — обновляется, новый —
-         *     создаётся. Первая строка считается заголовком и пропускается.
+         *     ������ ���������������� ���������: ������������ � �����������, ����� �
+         *     ��������. ������ ������ ��������� ���������� � ������������.
          */
         post: operations["import_clients_api_admin_v1_clients_import_post"];
         delete?: never;
@@ -249,6 +361,28 @@ export interface paths {
         head?: never;
         /** Patch Cash Register */
         patch: operations["patch_cash_register_api_admin_v1_finances_cash_registers__register_id__patch"];
+        trace?: never;
+    };
+    "/api/admin/v1/finances/client-balances": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Client Balances
+         * @description ������ ������� �� ���� ����: ����� ��������� � ������, ������ ��������� ��������.
+         *
+         *     �������� ������� ���� ������: ���� ��� �������� ������� �����������.
+         */
+        get: operations["client_balances_api_admin_v1_finances_client_balances_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/admin/v1/finances/dashboard": {
@@ -312,7 +446,7 @@ export interface paths {
         };
         /**
          * Export Operations
-         * @description Excel-отчёт по операциям за период.
+         * @description Excel-����� �� ��������� �� ������.
          */
         get: operations["export_operations_api_admin_v1_finances_export_get"];
         put?: never;
@@ -332,7 +466,7 @@ export interface paths {
         };
         /**
          * List Locations
-         * @description Локации активных касс — для фильтра «Локація».
+         * @description ������� �������� ���� � ��� ������� ���������.
          */
         get: operations["list_locations_api_admin_v1_finances_locations_get"];
         put?: never;
@@ -425,7 +559,10 @@ export interface paths {
         put?: never;
         /**
          * Create Receipt
-         * @description Чек: ручная продажа или (с recordId) оплата визита. Операции — на каждую оплату.
+         * @description ���: ������� ��� ������ ��� (� recordId) ������ ������. �������� � �� ������ ������.
+         *
+         *     ������� � ��� � ������ ������, ������� ��������� ������� (����� clientId).
+         *     ������ � ��� �� Idempotency-Key ���������� ��� �� ���.
          */
         post: operations["create_receipt_api_admin_v1_finances_receipts_post"];
         delete?: never;
@@ -445,9 +582,29 @@ export interface paths {
         put?: never;
         /**
          * Cancel Receipt
-         * @description Отмена чека: чек и связанные операции — cancelled; запись чека снова не оплачена.
+         * @description ������ ����: ��� � ��������� �������� � cancelled; ������ ���� ����� �� ��������.
          */
         post: operations["cancel_receipt_api_admin_v1_finances_receipts__receipt_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/finances/receipts/checkout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Sale Checkout
+         * @description ������������ ������� ��� ������: subtotal � ��������, ������ � ����������.
+         */
+        get: operations["sale_checkout_api_admin_v1_finances_receipts_checkout_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -484,8 +641,8 @@ export interface paths {
         post?: never;
         /**
          * Delete Category
-         * @description Удаление категории. Товары переносятся в «Без категорії»; при
-         *     mode=delete_products они ещё и удаляются (мягко — история движений остаётся).
+         * @description �������� ���������. ������ ����������� � ���� ������𳿻; ���
+         *     mode=delete_products ��� ��� � ��������� (����� � ������� �������� �������).
          */
         delete: operations["delete_category_api_admin_v1_inventory_categories__category_id__delete"];
         options?: never;
@@ -503,7 +660,7 @@ export interface paths {
         };
         /**
          * Export Products
-         * @description Excel-выгрузка склада; blocks — через запятую из main, stock, finance, description.
+         * @description Excel-�������� ������; blocks � ����� ������� �� main, stock, finance, description.
          */
         get: operations["export_products_api_admin_v1_inventory_export_get"];
         put?: never;
@@ -525,12 +682,12 @@ export interface paths {
         put?: never;
         /**
          * Import Products
-         * @description Импорт из Excel: первая строка — заголовки (IMPORT_COLUMNS, порядок любой).
+         * @description ������ �� Excel: ������ ������ � ��������� (IMPORT_COLUMNS, ������� �����).
          *
-         *     Товар ищется по артикулу: новый — создаётся, существующий — обновляется;
-         *     отличие остатка оформляется коригуванням. Неизвестная категория создаётся.
-         *     Штрихкод необязателен; занятый другим товаром — ошибка строки, строка
-         *     пропускается; пустая ячейка у существующего товара штрихкод не стирает.
+         *     ����� ������ �� ��������: ����� � ��������, ������������ � �����������;
+         *     ������� ������� ����������� ������������. ����������� ��������� ��������.
+         *     �������� ������������; ������� ������ ������� � ������ ������, ������
+         *     ������������; ������ ������ � ������������� ������ �������� �� �������.
          */
         post: operations["import_products_api_admin_v1_inventory_import_post"];
         delete?: never;
@@ -548,7 +705,7 @@ export interface paths {
         };
         /**
          * List Products
-         * @description Список товаров. Мастеру — только активные и только название, единица, остаток.
+         * @description ������ �������. ������� � ������ �������� � ������ ��������, �������, �������.
          */
         get: operations["list_products_api_admin_v1_inventory_products_get"];
         put?: never;
@@ -573,7 +730,7 @@ export interface paths {
         post?: never;
         /**
          * Delete Product
-         * @description Мягкое удаление: на товар ссылается история движений.
+         * @description ������ ��������: �� ����� ��������� ������� ��������.
          */
         delete: operations["delete_product_api_admin_v1_inventory_products__product_id__delete"];
         options?: never;
@@ -617,6 +774,187 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/v1/loyalty-cards/{card_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Card
+         * @description ��������: ������ �������; ����� ����� �������� � ����, ������� ���� ���������.
+         */
+        delete: operations["delete_card_api_admin_v1_loyalty_cards__card_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/loyalty-cards/{card_id}/cashback-adjustments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Adjust Cashback
+         * @description ������ ������������� ������� � ����� ������ � ������ ���������, ����������� ����������.
+         */
+        post: operations["adjust_cashback_api_admin_v1_loyalty_cards__card_id__cashback_adjustments_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/loyalty-cards/{card_id}/transactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Card Transactions
+         * @description ������� ������-������� �����.
+         */
+        get: operations["card_transactions_api_admin_v1_loyalty_cards__card_id__transactions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/loyalty-cards/{card_id}/visits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Card Visits
+         * @description ����� ������� �� ����� �� ���� ������� ����, ���������� � � reversedAt.
+         */
+        get: operations["card_visits_api_admin_v1_loyalty_cards__card_id__visits_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/loyalty-cards/generate-number": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Generate Number
+         * @description ��������� ����� ��� ����� ������; ��������� ������������ ����������� ��� ������.
+         */
+        get: operations["generate_number_api_admin_v1_loyalty_cards_generate_number_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/loyalty/card-types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Card Types */
+        get: operations["list_card_types_api_admin_v1_loyalty_card_types_get"];
+        put?: never;
+        /** Create Card Type */
+        post: operations["create_card_type_api_admin_v1_loyalty_card_types_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/loyalty/card-types/{type_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Card Type */
+        get: operations["get_card_type_api_admin_v1_loyalty_card_types__type_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Patch Card Type
+         * @description ����� �������� � ������ ����������� � ��������� �����; ����������� �� ���������������.
+         */
+        patch: operations["patch_card_type_api_admin_v1_loyalty_card_types__type_id__patch"];
+        trace?: never;
+    };
+    "/api/admin/v1/loyalty/card-types/{type_id}/bonus-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Bonus Rules */
+        get: operations["list_bonus_rules_api_admin_v1_loyalty_card_types__type_id__bonus_rules_get"];
+        put?: never;
+        /** Create Bonus Rule */
+        post: operations["create_bonus_rule_api_admin_v1_loyalty_card_types__type_id__bonus_rules_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/loyalty/card-types/{type_id}/bonus-rules/{rule_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Bonus Rule
+         * @description ������� ����� ������ ���������������� �������; �� ��������������� � isActive=false.
+         */
+        delete: operations["delete_bonus_rule_api_admin_v1_loyalty_card_types__type_id__bonus_rules__rule_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Patch Bonus Rule
+         * @description ����� N ��������� �� ��������� �������; ����������� �� ���������������.
+         */
+        patch: operations["patch_bonus_rule_api_admin_v1_loyalty_card_types__type_id__bonus_rules__rule_id__patch"];
+        trace?: never;
+    };
     "/api/admin/v1/masters/{master_id}/slots": {
         parameters: {
             query?: never;
@@ -626,7 +964,7 @@ export interface paths {
         };
         /**
          * Master Slots
-         * @description Свободное время мастера на дату под набор услуг (длительность — сумма).
+         * @description ��������� ����� ������� �� ���� ��� ����� ����� (������������ � �����).
          */
         get: operations["master_slots_api_admin_v1_masters__master_id__slots_get"];
         put?: never;
@@ -646,10 +984,11 @@ export interface paths {
         };
         /**
          * List Payment Methods
-         * @description Способы оплаты для приёма оплаты визита (администратор).
+         * @description ������� ������ ��� ����� ������ ������ (�������������).
          *
-         *     Только те, через которые оплата пройдёт: способ активен, у него есть
-         *     касса и она не выключена. Финансовые настройки — в /finances/payment-methods.
+         *     ������ ��, ����� ������� ������ ������: ������ �������, � ���� ����
+         *     ����� � ��� �� ���������; ��������� ��������� ������� � ������� � ���
+         *     �����. ���������� ��������� � � /finances/payment-methods.
          */
         get: operations["list_payment_methods_api_admin_v1_payment_methods_get"];
         put?: never;
@@ -696,6 +1035,28 @@ export interface paths {
         patch: operations["patch_record_api_admin_v1_records__record_id__patch"];
         trace?: never;
     };
+    "/api/admin/v1/records/{record_id}/checkout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Record Checkout
+         * @description ������������ ������ ������: ����� � �������, �������� ������, ������, ����, �������.
+         *
+         *     bonusRecordServiceIds � ������, ���������� �����������: ���� ��������� � ����.
+         */
+        get: operations["record_checkout_api_admin_v1_records__record_id__checkout_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/v1/records/{record_id}/complete": {
         parameters: {
             query?: never;
@@ -707,7 +1068,7 @@ export interface paths {
         put?: never;
         /**
          * Complete Record
-         * @description Завершение визита — без оплаты: запись получает completed + unpaid.
+         * @description ���������� ������ � ��� ������: ������ �������� completed + unpaid.
          */
         post: operations["complete_record_api_admin_v1_records__record_id__complete_post"];
         delete?: never;
@@ -728,7 +1089,7 @@ export interface paths {
         put?: never;
         /**
          * Write Off Consumables
-         * @description Списание расходников по записи (мастер — по своей записи, администратор — по любой).
+         * @description �������� ����������� �� ������ (������ � �� ����� ������, ������������� � �� �����).
          */
         post: operations["write_off_consumables_api_admin_v1_records__record_id__consumables_post"];
         delete?: never;
@@ -749,11 +1110,11 @@ export interface paths {
         post?: never;
         /**
          * Cancel Consumable
-         * @description Отмена ошибочного списания: обратное движение «надходження» с record_id.
+         * @description ������ ���������� ��������: �������� �������� ������������� � record_id.
          *
-         *     Исходное движение не удаляется. Можно по любой записи, в том числе
-         *     завершённой, оплаченной и с удалённым товаром (ошибки находят после визита).
-         *     Ответ — обновлённый список расходников записи.
+         *     �������� �������� �� ���������. ����� �� ����� ������, � ��� �����
+         *     �����������, ���������� � � �������� ������� (������ ������� ����� ������).
+         *     ����� � ���������� ������ ����������� ������.
          */
         delete: operations["cancel_consumable_api_admin_v1_records__record_id__consumables__movement_id__delete"];
         options?: never;
@@ -772,7 +1133,10 @@ export interface paths {
         put?: never;
         /**
          * Pay Record
-         * @description Оплата завершённого визита: чек с recordId на полную сумму (администратор).
+         * @description ������ ������������ ������: ��� � recordId �� ������ ����� (�������������).
+         *
+         *     ����� ��������� ������� ����������� �� ����� �������, ��� �������� � � ����.
+         *     ������ � ��� �� Idempotency-Key ���������� ��� �� ���.
          */
         post: operations["pay_record_api_admin_v1_records__record_id__payment_post"];
         delete?: never;
@@ -807,10 +1171,10 @@ export interface paths {
         };
         /**
          * Daily Summary
-         * @description Число и длительность записей по дням — вид «Місяць» и мини-календарь.
+         * @description ����� � ������������ ������� �� ���� � ��� �̳����� � ����-���������.
          *
-         *     Отменённые не считаются, «Не прийшов» — считаются (время мастера было занято).
-         *     Запись относится к дню своего начала.
+         *     ���������� �� ���������, ��� ������� � ��������� (����� ������� ���� ������).
+         *     ������ ��������� � ��� ������ ������.
          */
         get: operations["daily_summary_api_admin_v1_records_daily_summary_get"];
         put?: never;
@@ -847,7 +1211,7 @@ export interface paths {
         };
         /**
          * Export Reports
-         * @description Все отчёты одним файлом; администратору — без денежных колонок и листа выручки.
+         * @description ��� ������ ����� ������; �������������� � ��� �������� ������� � ����� �������.
          */
         get: operations["export_reports_api_admin_v1_reports_export_get"];
         put?: never;
@@ -952,7 +1316,7 @@ export interface paths {
         };
         /**
          * Schedule
-         * @description Рабочее время мастеров по дням (даты включительно) — сетка Розкладу.
+         * @description ������� ����� �������� �� ���� (���� ������������) � ����� ��������.
          */
         get: operations["schedule_api_admin_v1_schedule_get"];
         put?: never;
@@ -993,7 +1357,7 @@ export interface paths {
         post?: never;
         /**
          * Archive Service
-         * @description Архивирование вместо удаления — на услугу ссылаются записи.
+         * @description ������������� ������ �������� � �� ������ ��������� ������.
          */
         delete: operations["archive_service_api_admin_v1_services__service_id__delete"];
         options?: never;
@@ -1032,7 +1396,7 @@ export interface paths {
         post?: never;
         /**
          * Delete Category
-         * @description Удаление: все услуги категории (включая архивные) переходят в «Інше».
+         * @description ��������: ��� ������ ��������� (������� ��������) ��������� � �����.
          */
         delete: operations["delete_category_api_admin_v1_services_categories__category_id__delete"];
         options?: never;
@@ -1070,10 +1434,10 @@ export interface paths {
         get: operations["get_salon_schedule_api_admin_v1_settings_schedule_get"];
         /**
          * Put Salon Schedule
-         * @description Весь график целиком: все семь дней недели.
+         * @description ���� ������ �������: ��� ���� ���� ������.
          *
-         *     Будущие смены сотрудников обрезаются по новым часам, кроме смен, у которых
-         *     на обрезаемое время есть записи (backend/docs/shifts.md).
+         *     ������� ����� ����������� ���������� �� ����� �����, ����� ����, � �������
+         *     �� ���������� ����� ���� ������ (backend/docs/shifts.md).
          */
         put: operations["put_salon_schedule_api_admin_v1_settings_schedule_put"];
         post?: never;
@@ -1092,7 +1456,7 @@ export interface paths {
         };
         /**
          * Shift Grid
-         * @description Сетка графика: мастера, потом администраторы; мастеру — только его строка.
+         * @description ����� �������: �������, ����� ��������������; ������� � ������ ��� ������.
          */
         get: operations["shift_grid_api_admin_v1_shifts_get"];
         put?: never;
@@ -1116,7 +1480,7 @@ export interface paths {
         post?: never;
         /**
          * Delete Shift
-         * @description Убрать смену или отметку (день становится выходным).
+         * @description ������ ����� ��� ������� (���� ���������� ��������).
          */
         delete: operations["delete_shift_api_admin_v1_shifts__staffId___date__delete"];
         options?: never;
@@ -1135,7 +1499,7 @@ export interface paths {
         put?: never;
         /**
          * Fill Shifts
-         * @description Заполнить смены или отметки на период для нескольких сотрудников.
+         * @description ��������� ����� ��� ������� �� ������ ��� ���������� �����������.
          */
         post: operations["fill_shifts_api_admin_v1_shifts_fill_post"];
         delete?: never;
@@ -1175,7 +1539,7 @@ export interface paths {
         post?: never;
         /**
          * Fire Staff
-         * @description Увольнение из салона. 409, если у мастера есть будущие записи.
+         * @description ���������� �� ������. 409, ���� � ������� ���� ������� ������.
          */
         delete: operations["fire_staff_api_admin_v1_staff__staff_id__delete"];
         options?: never;
@@ -1210,7 +1574,7 @@ export interface paths {
         };
         /**
          * Export Staff
-         * @description Excel-выгрузка сотрудников салона (суперюзер).
+         * @description Excel-�������� ����������� ������ (���������).
          */
         get: operations["export_staff_api_admin_v1_staff_export_get"];
         put?: never;
@@ -1300,7 +1664,7 @@ export interface paths {
         put?: never;
         /**
          * Create Review
-         * @description Отзыв по одноразовому review_token из уведомления о завершённом визите.
+         * @description ����� �� ������������ review_token �� ����������� � ����������� ������.
          */
         post: operations["create_review_api_booking__salon_slug__reviews_post"];
         delete?: never;
@@ -1318,7 +1682,7 @@ export interface paths {
         };
         /**
          * Review Context
-         * @description Данные визита по токену из ссылки; использованный или чужой токен — 404.
+         * @description ������ ������ �� ������ �� ������; �������������� ��� ����� ����� � 404.
          */
         get: operations["review_context_api_booking__salon_slug__reviews__token__get"];
         put?: never;
@@ -1338,7 +1702,7 @@ export interface paths {
         };
         /**
          * Get Salon
-         * @description Карточка салона для сайта записи: контакты и график (без юридического названия).
+         * @description �������� ������ ��� ����� ������: �������� � ������ (��� ������������ ��������).
          */
         get: operations["get_salon_api_booking__salon_slug__salon_get"];
         put?: never;
@@ -1358,10 +1722,10 @@ export interface paths {
         };
         /**
          * List Services
-         * @description Активные услуги, которые выполняет хотя бы один мастер.
+         * @description �������� ������, ������� ��������� ���� �� ���� ������.
          *
-         *     Порядок: по названию категории (украинский алфавит, «Інше» — последней),
-         *     внутри — по названию услуги.
+         *     �������: �� �������� ��������� (���������� �������, ����� � ���������),
+         *     ������ � �� �������� ������.
          */
         get: operations["list_services_api_booking__salon_slug__services_get"];
         put?: never;
@@ -1401,7 +1765,7 @@ export interface paths {
         /**
          * Link Client Telegram
          * @deprecated
-         * @description Устарело: используйте POST /api/bot/link-telegram.
+         * @description ��������: ����������� POST /api/bot/link-telegram.
          */
         post: operations["link_client_telegram_api_bot_clients_link_telegram_post"];
         delete?: never;
@@ -1419,7 +1783,7 @@ export interface paths {
         };
         /**
          * Identify
-         * @description Определяет, кто пишет боту, по telegram_user_id (только Master DB).
+         * @description ����������, ��� ����� ����, �� telegram_user_id (������ Master DB).
          */
         get: operations["identify_api_bot_identify_get"];
         put?: never;
@@ -1441,11 +1805,11 @@ export interface paths {
         put?: never;
         /**
          * Link Telegram
-         * @description Привязывает Telegram по телефону из контакта (бот проверяет, что контакт свой).
+         * @description ����������� Telegram �� �������� �� �������� (��� ���������, ��� ������� ����).
          *
-         *     Привязываются все совпадения — администратор, мастер, клиент: мастер,
-         *     который сам записывается как клиент, получает и уведомления мастера, и
-         *     напоминания. Ответ — как у /identify (старшая роль).
+         *     ������������� ��� ���������� � �������������, ������, ������: ������,
+         *     ������� ��� ������������ ��� ������, �������� � ����������� �������, �
+         *     �����������. ����� � ��� � /identify (������� ����).
          */
         post: operations["link_telegram_api_bot_link_telegram_post"];
         delete?: never;
@@ -1463,7 +1827,7 @@ export interface paths {
         };
         /**
          * Master Records
-         * @description Записи мастера на дату (по Киеву) во всех его салонах, кроме отменённых.
+         * @description ������ ������� �� ���� (�� �����) �� ���� ��� �������, ����� ����������.
          */
         get: operations["master_records_api_bot_masters_records_get"];
         put?: never;
@@ -1483,7 +1847,7 @@ export interface paths {
         };
         /**
          * List Salons
-         * @description Активные салоны со ссылками на сайт записи — бот ведёт туда клиентов.
+         * @description �������� ������ �� �������� �� ���� ������ � ��� ���� ���� ��������.
          */
         get: operations["list_salons_api_bot_salons_get"];
         put?: never;
@@ -1515,6 +1879,23 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AccountOut */
+        AccountOut: {
+            /** Balance */
+            balance: string;
+            /**
+             * Clientid
+             * Format: uuid
+             */
+            clientId: string;
+        };
+        /** AdjustmentIn */
+        AdjustmentIn: {
+            /** Amount */
+            amount: number | string;
+            /** Comment */
+            comment: string;
+        };
         /** SalonOut */
         app__api__admin__auth__SalonOut: {
             /**
@@ -1753,6 +2134,74 @@ export interface components {
             /** File */
             file: string;
         };
+        /** BonusProgressOut */
+        BonusProgressOut: {
+            /** Accruedtotal */
+            accruedTotal: number;
+            /** Available */
+            available: number;
+            /** Everyn */
+            everyN: number;
+            /** Isactive */
+            isActive: boolean;
+            /** Name */
+            name: string;
+            /** Progress */
+            progress: number;
+            /**
+             * Ruleid
+             * Format: uuid
+             */
+            ruleId: string;
+            /** Usedtotal */
+            usedTotal: number;
+        };
+        /** BonusRuleIn */
+        BonusRuleIn: {
+            /** Everyn */
+            everyN: number;
+            /**
+             * Isactive
+             * @default true
+             */
+            isActive: boolean;
+            /** Name */
+            name: string;
+            /** Services */
+            services: components["schemas"]["RuleServiceRef"][];
+        };
+        /** BonusRuleOut */
+        BonusRuleOut: {
+            /**
+             * Cardtypeid
+             * Format: uuid
+             */
+            cardTypeId: string;
+            /** Everyn */
+            everyN: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Isactive */
+            isActive: boolean;
+            /** Name */
+            name: string;
+            /** Services */
+            services: components["schemas"]["RuleServiceRef"][];
+        };
+        /** BonusRulePatchIn */
+        BonusRulePatchIn: {
+            /** Everyn */
+            everyN?: number | null;
+            /** Isactive */
+            isActive?: boolean | null;
+            /** Name */
+            name?: string | null;
+            /** Services */
+            services?: components["schemas"]["RuleServiceRef"][] | null;
+        };
         /** BookingCreate */
         BookingCreate: {
             /** Client Name */
@@ -1803,6 +2252,184 @@ export interface components {
              */
             start_at: string;
         };
+        /** CardIssueIn */
+        CardIssueIn: {
+            /**
+             * Cardtypeid
+             * Format: uuid
+             */
+            cardTypeId: string;
+            /** Number */
+            number?: string | null;
+        };
+        /**
+         * CardStatus
+         * @enum {string}
+         */
+        CardStatus: "active" | "deleted";
+        /** CardTypeBrief */
+        CardTypeBrief: {
+            /** Cashbackmaxpaymentpercent */
+            cashbackMaxPaymentPercent: string;
+            /** Cashbackpercent */
+            cashbackPercent: string;
+            /** Cashbackttldays */
+            cashbackTtlDays: number | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            levelBasis: components["schemas"]["LevelBasis"];
+            /** Name */
+            name: string;
+        };
+        /** CardTypeIn */
+        CardTypeIn: {
+            /**
+             * Cashbackmaxpaymentpercent
+             * @default 100
+             */
+            cashbackMaxPaymentPercent: number | string;
+            /**
+             * Cashbackonproducts
+             * @default true
+             */
+            cashbackOnProducts: boolean;
+            /**
+             * Cashbackonservices
+             * @default true
+             */
+            cashbackOnServices: boolean;
+            /**
+             * Cashbackpercent
+             * @default 0
+             */
+            cashbackPercent: number | string;
+            /** Cashbackttldays */
+            cashbackTtlDays?: number | null;
+            /**
+             * Isactive
+             * @default true
+             */
+            isActive: boolean;
+            /** @default sold_amount */
+            levelBasis: components["schemas"]["LevelBasis"];
+            /** Levels */
+            levels?: components["schemas"]["LevelIn"][];
+            /** Name */
+            name: string;
+            /** Salonids */
+            salonIds?: string[];
+        };
+        /** CardTypeOut */
+        CardTypeOut: {
+            /** Cashbackmaxpaymentpercent */
+            cashbackMaxPaymentPercent: string;
+            /** Cashbackonproducts */
+            cashbackOnProducts: boolean;
+            /** Cashbackonservices */
+            cashbackOnServices: boolean;
+            /** Cashbackpercent */
+            cashbackPercent: string;
+            /** Cashbackttldays */
+            cashbackTtlDays: number | null;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Isactive */
+            isActive: boolean;
+            levelBasis: components["schemas"]["LevelBasis"];
+            /** Levels */
+            levels: components["schemas"]["LevelOut"][];
+            /** Name */
+            name: string;
+            /** Salons */
+            salons: components["schemas"]["PersonRef"][];
+            /**
+             * Updatedat
+             * Format: date-time
+             */
+            updatedAt: string;
+        };
+        /** CardTypePatchIn */
+        CardTypePatchIn: {
+            /** Cashbackmaxpaymentpercent */
+            cashbackMaxPaymentPercent?: number | string | null;
+            /** Cashbackonproducts */
+            cashbackOnProducts?: boolean | null;
+            /** Cashbackonservices */
+            cashbackOnServices?: boolean | null;
+            /** Cashbackpercent */
+            cashbackPercent?: number | string | null;
+            /** Cashbackttldays */
+            cashbackTtlDays?: number | null;
+            /** Isactive */
+            isActive?: boolean | null;
+            levelBasis?: components["schemas"]["LevelBasis"] | null;
+            /** Levels */
+            levels?: components["schemas"]["LevelIn"][] | null;
+            /** Name */
+            name?: string | null;
+            /** Salonids */
+            salonIds?: string[] | null;
+        };
+        /** CardVisitOut */
+        CardVisitOut: {
+            /** Cashbackbase */
+            cashbackBase: string;
+            /** Discountamount */
+            discountAmount: string;
+            /**
+             * Happenedat
+             * Format: date-time
+             */
+            happenedAt: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Isvisit */
+            isVisit: boolean;
+            /** Paidamount */
+            paidAmount: string;
+            /**
+             * Receiptid
+             * Format: uuid
+             */
+            receiptId: string;
+            /** Recordid */
+            recordId: string | null;
+            /** Reversedat */
+            reversedAt: string | null;
+            salon: components["schemas"]["PersonRef"];
+            /** Soldamount */
+            soldAmount: string;
+        };
+        /** CashbackAdjustmentIn */
+        CashbackAdjustmentIn: {
+            /** Amount */
+            amount: number | string;
+            /** Comment */
+            comment: string;
+        };
+        /** CashbackOut */
+        CashbackOut: {
+            /** Balance */
+            balance: string;
+            /** Maxpayment */
+            maxPayment: string;
+            /** Percent */
+            percent: string;
+        };
         /** CashRegisterCreateIn */
         CashRegisterCreateIn: {
             /**
@@ -1833,7 +2460,7 @@ export interface components {
         };
         /**
          * CashRegisterPatchIn
-         * @description Баланс не редактируется — только операциями. Удаления нет — isActive=false.
+         * @description ������ �� ������������� � ������ ����������. �������� ��� � isActive=false.
          */
         CashRegisterPatchIn: {
             /** Isactive */
@@ -1877,6 +2504,105 @@ export interface components {
             count: number;
             /** Revenue */
             revenue: string | null;
+        };
+        /** CheckoutCardOut */
+        CheckoutCardOut: {
+            /** Cardtypename */
+            cardTypeName: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            level: components["schemas"]["CheckoutLevelOut"] | null;
+            /** Number */
+            number: string;
+        };
+        /** CheckoutLevelOut */
+        CheckoutLevelOut: {
+            /** Discountfixed */
+            discountFixed: string;
+            /** Discountpercent */
+            discountPercent: string;
+            /** Name */
+            name: string | null;
+            /** Threshold */
+            threshold: string;
+        };
+        /** CheckoutLineOut */
+        CheckoutLineOut: {
+            /** Amount */
+            amount: string;
+            /**
+             * Bonusavailable
+             * @default false
+             */
+            bonusAvailable: boolean;
+            /** Bonusrulename */
+            bonusRuleName?: string | null;
+            /** Isbonus */
+            isBonus: boolean;
+            /** Kind */
+            kind: string;
+            /** Name */
+            name: string;
+            /** Price */
+            price: string;
+            /** Recordserviceid */
+            recordServiceId: string | null;
+            /** Serviceid */
+            serviceId: string | null;
+        };
+        /** CheckoutOut */
+        CheckoutOut: {
+            /** Accountbalance */
+            accountBalance: string;
+            /** Bonusamount */
+            bonusAmount: string;
+            card: components["schemas"]["CheckoutCardOut"] | null;
+            cashback: components["schemas"]["CashbackOut"] | null;
+            /** Clientid */
+            clientId: string | null;
+            /** Discountamount */
+            discountAmount: string;
+            /** Discounts */
+            discounts: components["schemas"]["DiscountCandidateOut"][];
+            discountSource: components["schemas"]["DiscountSource"];
+            /** Lines */
+            lines: components["schemas"]["CheckoutLineOut"][];
+            /** Sold */
+            sold: string;
+            /** Total */
+            total: string;
+        };
+        /** ClientBalanceItem */
+        ClientBalanceItem: {
+            /** Balance */
+            balance: string;
+            /**
+             * Clientid
+             * Format: uuid
+             */
+            clientId: string;
+            /** Isactive */
+            isActive: boolean;
+            /** Name */
+            name: string;
+            /** Phone */
+            phone: string;
+        };
+        /** ClientBalancesOut */
+        ClientBalancesOut: {
+            /** Debtorscount */
+            debtorsCount: number;
+            /** Depositorscount */
+            depositorsCount: number;
+            /** Items */
+            items: components["schemas"]["ClientBalanceItem"][];
+            /** Totaldebts */
+            totalDebts: string;
+            /** Totaldeposits */
+            totalDeposits: string;
         };
         /**
          * ClientCategory
@@ -1930,6 +2656,11 @@ export interface components {
         ClientImportance: "high" | "medium" | "low";
         /** ClientOut */
         ClientOut: {
+            /**
+             * Accountbalance
+             * @default 0
+             */
+            accountBalance: string;
             /** Additionalphone */
             additionalPhone: string | null;
             /** Birthdate */
@@ -1958,6 +2689,8 @@ export interface components {
             lastName: string | null;
             /** Lastvisit */
             lastVisit?: string | null;
+            /** Loyaltycardnumber */
+            loyaltyCardNumber?: string | null;
             /** Middlename */
             middleName: string | null;
             /** Noonlinebooking */
@@ -2194,6 +2927,22 @@ export interface components {
             /** Workminutes */
             workMinutes: number;
         };
+        /** DiscountCandidateOut */
+        DiscountCandidateOut: {
+            /** Amount */
+            amount: string;
+            /** Percent */
+            percent: string | null;
+            /** Selected */
+            selected: boolean;
+            source: components["schemas"]["DiscountSource"];
+        };
+        /**
+         * DiscountSource
+         * @description �������� ����������� ������: ����, ���������� � ������� (loyalty-accounts.md, ������ 6).
+         * @enum {string}
+         */
+        DiscountSource: "none" | "client" | "card_percent" | "card_fixed";
         /**
          * DocumentContentType
          * @enum {string}
@@ -2273,9 +3022,34 @@ export interface components {
          * @enum {string}
          */
         DocumentType: "receipt" | "invoice" | "expense" | "income" | "act";
+        /** Envelope[AccountOut] */
+        Envelope_AccountOut_: {
+            data: components["schemas"]["AccountOut"];
+            meta?: components["schemas"]["PageMeta"] | null;
+        };
+        /** Envelope[BonusRuleOut] */
+        Envelope_BonusRuleOut_: {
+            data: components["schemas"]["BonusRuleOut"];
+            meta?: components["schemas"]["PageMeta"] | null;
+        };
+        /** Envelope[CardTypeOut] */
+        Envelope_CardTypeOut_: {
+            data: components["schemas"]["CardTypeOut"];
+            meta?: components["schemas"]["PageMeta"] | null;
+        };
         /** Envelope[CashRegisterOut] */
         Envelope_CashRegisterOut_: {
             data: components["schemas"]["CashRegisterOut"];
+            meta?: components["schemas"]["PageMeta"] | null;
+        };
+        /** Envelope[CheckoutOut] */
+        Envelope_CheckoutOut_: {
+            data: components["schemas"]["CheckoutOut"];
+            meta?: components["schemas"]["PageMeta"] | null;
+        };
+        /** Envelope[ClientBalancesOut] */
+        Envelope_ClientBalancesOut_: {
+            data: components["schemas"]["ClientBalancesOut"];
             meta?: components["schemas"]["PageMeta"] | null;
         };
         /** Envelope[ClientOut] */
@@ -2303,6 +3077,11 @@ export interface components {
             data: components["schemas"]["FillReportOut"];
             meta?: components["schemas"]["PageMeta"] | null;
         };
+        /** Envelope[GeneratedNumberOut] */
+        Envelope_GeneratedNumberOut_: {
+            data: components["schemas"]["GeneratedNumberOut"];
+            meta?: components["schemas"]["PageMeta"] | null;
+        };
         /** Envelope[ImportReportOut] */
         Envelope_ImportReportOut_: {
             data: components["schemas"]["ImportReportOut"];
@@ -2317,6 +3096,24 @@ export interface components {
         Envelope_list_AuditOut__: {
             /** Data */
             data: components["schemas"]["AuditOut"][];
+            meta?: components["schemas"]["PageMeta"] | null;
+        };
+        /** Envelope[list[BonusRuleOut]] */
+        Envelope_list_BonusRuleOut__: {
+            /** Data */
+            data: components["schemas"]["BonusRuleOut"][];
+            meta?: components["schemas"]["PageMeta"] | null;
+        };
+        /** Envelope[list[CardTypeOut]] */
+        Envelope_list_CardTypeOut__: {
+            /** Data */
+            data: components["schemas"]["CardTypeOut"][];
+            meta?: components["schemas"]["PageMeta"] | null;
+        };
+        /** Envelope[list[CardVisitOut]] */
+        Envelope_list_CardVisitOut__: {
+            /** Data */
+            data: components["schemas"]["CardVisitOut"][];
             meta?: components["schemas"]["PageMeta"] | null;
         };
         /** Envelope[list[CashRegisterOut]] */
@@ -2347,6 +3144,12 @@ export interface components {
         Envelope_list_DocumentOut__: {
             /** Data */
             data: components["schemas"]["DocumentOut"][];
+            meta?: components["schemas"]["PageMeta"] | null;
+        };
+        /** Envelope[list[LoyaltyCardOut]] */
+        Envelope_list_LoyaltyCardOut__: {
+            /** Data */
+            data: components["schemas"]["LoyaltyCardOut"][];
             meta?: components["schemas"]["PageMeta"] | null;
         };
         /** Envelope[list[MasterScheduleOut]] */
@@ -2433,10 +3236,21 @@ export interface components {
             data: string[];
             meta?: components["schemas"]["PageMeta"] | null;
         };
+        /** Envelope[list[TransactionOut]] */
+        Envelope_list_TransactionOut__: {
+            /** Data */
+            data: components["schemas"]["TransactionOut"][];
+            meta?: components["schemas"]["PageMeta"] | null;
+        };
         /** Envelope[list[VisitOut]] */
         Envelope_list_VisitOut__: {
             /** Data */
             data: components["schemas"]["VisitOut"][];
+            meta?: components["schemas"]["PageMeta"] | null;
+        };
+        /** Envelope[LoyaltyCardOut] */
+        Envelope_LoyaltyCardOut_: {
+            data: components["schemas"]["LoyaltyCardOut"];
             meta?: components["schemas"]["PageMeta"] | null;
         };
         /** Envelope[MeOut] */
@@ -2549,6 +3363,11 @@ export interface components {
             data: components["schemas"]["TokensOnlyOut"];
             meta?: components["schemas"]["PageMeta"] | null;
         };
+        /** Envelope[TransactionOut] */
+        Envelope_TransactionOut_: {
+            data: components["schemas"]["TransactionOut"];
+            meta?: components["schemas"]["PageMeta"] | null;
+        };
         /** Envelope[UploadOut] */
         Envelope_UploadOut_: {
             data: components["schemas"]["UploadOut"];
@@ -2610,6 +3429,11 @@ export interface components {
          * @enum {string}
          */
         Gender: "male" | "female" | "other";
+        /** GeneratedNumberOut */
+        GeneratedNumberOut: {
+            /** Number */
+            number: string;
+        };
         /**
          * GroupBy
          * @enum {string}
@@ -2670,6 +3494,50 @@ export interface components {
             /** Total */
             total: number;
         };
+        /**
+         * LevelBasis
+         * @enum {string}
+         */
+        LevelBasis: "sold_amount" | "visits";
+        /** LevelIn */
+        LevelIn: {
+            /**
+             * Discountfixed
+             * @default 0
+             */
+            discountFixed: number | string;
+            /**
+             * Discountpercent
+             * @default 0
+             */
+            discountPercent: number | string;
+            /** Name */
+            name?: string | null;
+            /** Threshold */
+            threshold: number | string;
+        };
+        /** LevelOut */
+        LevelOut: {
+            /** Discountfixed */
+            discountFixed: string;
+            /** Discountpercent */
+            discountPercent: string;
+            /** Name */
+            name: string | null;
+            /** Threshold */
+            threshold: string;
+        };
+        /** LevelRef */
+        LevelRef: {
+            /** Discountfixed */
+            discountFixed: string;
+            /** Discountpercent */
+            discountPercent: string;
+            /** Name */
+            name: string | null;
+            /** Threshold */
+            threshold: string;
+        };
         /** LinkTelegramRequest */
         LinkTelegramRequest: {
             /** Phone */
@@ -2686,6 +3554,61 @@ export interface components {
             email: string;
             /** Password */
             password: string;
+        };
+        /** LoyaltyCardOut */
+        LoyaltyCardOut: {
+            /** Applieshere */
+            appliesHere: boolean;
+            /**
+             * Bonusaccrued
+             * @default 0
+             */
+            bonusAccrued: number;
+            /**
+             * Bonusavailable
+             * @default 0
+             */
+            bonusAvailable: number;
+            /** Bonusprogress */
+            bonusProgress?: components["schemas"]["BonusProgressOut"][];
+            cardType: components["schemas"]["CardTypeBrief"];
+            /** Cashbackbalance */
+            cashbackBalance: string;
+            /**
+             * Clientid
+             * Format: uuid
+             */
+            clientId: string;
+            /** Deletedat */
+            deletedAt: string | null;
+            deletedBy: components["schemas"]["PersonRef"] | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Issuedat
+             * Format: date-time
+             */
+            issuedAt: string;
+            issuedBy: components["schemas"]["PersonRef"];
+            issuedSalon: components["schemas"]["PersonRef"] | null;
+            level: components["schemas"]["LevelRef"] | null;
+            /** Maxdiscountfixed */
+            maxDiscountFixed: string;
+            /** Maxdiscountpercent */
+            maxDiscountPercent: string;
+            nextLevel: components["schemas"]["NextLevelRef"] | null;
+            /** Number */
+            number: string;
+            /** Paidtotal */
+            paidTotal: string;
+            /** Soldtotal */
+            soldTotal: string;
+            status: components["schemas"]["CardStatus"];
+            /** Visitscount */
+            visitsCount: number;
         };
         /** MarkIn */
         MarkIn: {
@@ -2816,7 +3739,7 @@ export interface components {
         };
         /**
          * MePatchIn
-         * @description Свои контакты. Имя, должность, оклад и прочее меняет администратор.
+         * @description ���� ��������. ���, ���������, ����� � ������ ������ �������������.
          */
         MePatchIn: {
             /** Additionalphone */
@@ -2888,6 +3811,15 @@ export interface components {
             name: string;
             /** Phone */
             phone: string;
+        };
+        /** NextLevelRef */
+        NextLevelRef: {
+            /** Name */
+            name: string | null;
+            /** Remaining */
+            remaining: string;
+            /** Threshold */
+            threshold: string;
         };
         /** OperationCreateIn */
         OperationCreateIn: {
@@ -3053,6 +3985,8 @@ export interface components {
             id: string;
             /** Isactive */
             isActive: boolean;
+            /** Issystem */
+            isSystem: boolean;
             /** Name */
             name: string;
             /** Sortorder */
@@ -3096,7 +4030,7 @@ export interface components {
          * PaymentMethodType
          * @enum {string}
          */
-        PaymentMethodType: "cash" | "card" | "online" | "certificate" | "bonus" | "tips" | "other";
+        PaymentMethodType: "cash" | "card" | "online" | "certificate" | "bonus" | "account" | "tips" | "other";
         /** PaymentSplitItem */
         PaymentSplitItem: {
             /** Amount */
@@ -3112,7 +4046,7 @@ export interface components {
         PaymentStatus: "unpaid" | "partial" | "paid";
         /**
          * PersonRef
-         * @description Короткая ссылка на человека в ответах: {id, name}.
+         * @description �������� ������ �� �������� � �������: {id, name}.
          */
         PersonRef: {
             /** Id */
@@ -3199,7 +4133,7 @@ export interface components {
         };
         /**
          * ProductPatchIn
-         * @description Остаток здесь не меняется — только движениями.
+         * @description ������� ����� �� �������� � ������ ����������.
          */
         ProductPatchIn: {
             /** Barcode */
@@ -3231,36 +4165,47 @@ export interface components {
         ProductUnit: "pcs" | "ml" | "l" | "g" | "kg";
         /** ReceiptCreateIn */
         ReceiptCreateIn: {
+            /** Bonusrecordserviceids */
+            bonusRecordServiceIds?: string[];
             /** Clientid */
             clientId?: string | null;
             /** Clientname */
             clientName?: string | null;
             /** Date */
             date?: string | null;
+            /** Expectedtotal */
+            expectedTotal?: number | string | null;
             /** Payments */
-            payments: components["schemas"]["ReceiptPaymentIn"][];
+            payments?: components["schemas"]["ReceiptPaymentIn"][];
             /** Recordid */
             recordId?: string | null;
             /** @default web */
             source: components["schemas"]["ReceiptSource"];
+            /** Subtotal */
+            subtotal?: number | string | null;
         };
         /** ReceiptOut */
         ReceiptOut: {
             /** Amount */
             amount: string;
             author: components["schemas"]["PersonRef"];
-            cashRegister: components["schemas"]["PersonRef"];
+            cashRegister: components["schemas"]["PersonRef"] | null;
             client: components["schemas"]["PersonRef"] | null;
             /**
              * Date
              * Format: date-time
              */
             date: string;
+            /** Discountamount */
+            discountAmount: string;
+            discountSource: components["schemas"]["DiscountSource"];
             /**
              * Id
              * Format: uuid
              */
             id: string;
+            /** Loyaltycardid */
+            loyaltyCardId: string | null;
             /** Number */
             number: string;
             /** Payments */
@@ -3269,6 +4214,8 @@ export interface components {
             recordId: string | null;
             source: components["schemas"]["ReceiptSource"];
             status: components["schemas"]["ReceiptStatus"];
+            /** Subtotal */
+            subtotal: string;
         };
         /** ReceiptPaymentIn */
         ReceiptPaymentIn: {
@@ -3361,6 +4308,9 @@ export interface components {
              */
             createdAt: string;
             createdBy: components["schemas"]["PersonRef"];
+            /** Discountamount */
+            discountAmount: string;
+            discountSource: components["schemas"]["DiscountSource"];
             /**
              * Endat
              * Format: date-time
@@ -3426,6 +4376,9 @@ export interface components {
              */
             createdAt: string;
             createdBy: components["schemas"]["PersonRef"];
+            /** Discountamount */
+            discountAmount: string;
+            discountSource: components["schemas"]["DiscountSource"];
             /**
              * Endat
              * Format: date-time
@@ -3487,8 +4440,12 @@ export interface components {
         };
         /** RecordPaymentIn */
         RecordPaymentIn: {
+            /** Bonusrecordserviceids */
+            bonusRecordServiceIds?: string[];
+            /** Expectedtotal */
+            expectedTotal?: number | string | null;
             /** Payments */
-            payments: components["schemas"]["PaymentIn"][];
+            payments?: components["schemas"]["PaymentIn"][];
         };
         /** RecordPaymentOut */
         RecordPaymentOut: {
@@ -3497,7 +4454,7 @@ export interface components {
         };
         /**
          * RecordServiceOut
-         * @description Услуга в записи: снапшот названия/цены/длительности + текущие категория и цвет.
+         * @description ������ � ������: ������� ��������/����/������������ + ������� ��������� � ����.
          */
         RecordServiceOut: {
             category?: components["schemas"]["CategoryRef"] | null;
@@ -3530,6 +4487,13 @@ export interface components {
             /** Refreshtoken */
             refreshToken: string;
         };
+        /** RefundIn */
+        RefundIn: {
+            /** Amount */
+            amount: number | string;
+            /** Comment */
+            comment?: string | null;
+        };
         /** ResetPasswordIn */
         ResetPasswordIn: {
             /** Password */
@@ -3559,7 +4523,7 @@ export interface components {
         };
         /**
          * ReviewContextOut
-         * @description Что показать на форме отзыва: к кому и когда был визит.
+         * @description ��� �������� �� ����� ������: � ���� � ����� ��� �����.
          */
         ReviewContextOut: {
             /** Master Name */
@@ -3623,6 +4587,19 @@ export interface components {
          * @enum {string}
          */
         Role: "administrator" | "master";
+        /** RuleServiceRef */
+        RuleServiceRef: {
+            /**
+             * Salonid
+             * Format: uuid
+             */
+            salonId: string;
+            /**
+             * Serviceid
+             * Format: uuid
+             */
+            serviceId: string;
+        };
         /** SalonDay */
         SalonDay: {
             /** End */
@@ -3683,7 +4660,7 @@ export interface components {
         };
         /**
          * SalonInfoPatchIn
-         * @description Передаются только изменённые поля; null — очистить (кроме name).
+         * @description ���������� ������ ���������� ����; null � �������� (����� name).
          */
         SalonInfoPatchIn: {
             /** Address */
@@ -3723,7 +4700,7 @@ export interface components {
         };
         /**
          * SalonProfileOut
-         * @description Условия работы в текущем салоне (заголовок X-Salon-Id). Свой оклад видит каждый.
+         * @description ������� ������ � ������� ������ (��������� X-Salon-Id). ���� ����� ����� ������.
          */
         SalonProfileOut: {
             /** Commissionpercent */
@@ -3933,7 +4910,7 @@ export interface components {
         };
         /**
          * ShiftIn
-         * @description Смена (`kind: shift` + время) или отметка (`vacation` / `sick`).
+         * @description ����� (`kind: shift` + �����) ��� ������� (`vacation` / `sick`).
          */
         ShiftIn: {
             /** Breakend */
@@ -4199,7 +5176,7 @@ export interface components {
         };
         /**
          * StaffStatus
-         * @description Статус в салоне. Отпуск и больничный — отметки в графике (StaffShift).
+         * @description ������ � ������. ������ � ���������� � ������� � ������� (StaffShift).
          * @enum {string}
          */
         StaffStatus: "active" | "fired";
@@ -4258,6 +5235,49 @@ export interface components {
             /** Revenue */
             revenue: string;
         };
+        /** TopupIn */
+        TopupIn: {
+            /** Amount */
+            amount: number | string;
+            /** Comment */
+            comment?: string | null;
+            /** Staffid */
+            staffId?: string | null;
+        };
+        /** TransactionOut */
+        TransactionOut: {
+            /** Amount */
+            amount: string;
+            author: components["schemas"]["PersonRef"];
+            /** Balanceafter */
+            balanceAfter: string;
+            /** Comment */
+            comment: string | null;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Receiptid */
+            receiptId: string | null;
+            /** Recordid */
+            recordId: string | null;
+            /** Reversesid */
+            reversesId: string | null;
+            salon: components["schemas"]["PersonRef"] | null;
+            staff: components["schemas"]["PersonRef"] | null;
+            type: components["schemas"]["TransactionType"];
+        };
+        /**
+         * TransactionType
+         * @enum {string}
+         */
+        TransactionType: "topup" | "refund" | "payment" | "accrual" | "reversal" | "adjustment" | "burn";
         /** UploadOut */
         UploadOut: {
             /**
@@ -4584,6 +5604,7 @@ export interface operations {
     list_clients_api_admin_v1_clients_get: {
         parameters: {
             query?: {
+                balance?: string | null;
                 category?: components["schemas"]["ClientCategory"] | null;
                 page?: number;
                 perPage?: number;
@@ -4732,6 +5753,253 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_ClientOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_account_api_admin_v1_clients__client_id__account_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_AccountOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    adjust_account_api_admin_v1_clients__client_id__account_adjustments_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdjustmentIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_TransactionOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    refund_api_admin_v1_clients__client_id__account_refunds_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefundIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_TransactionOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    topup_api_admin_v1_clients__client_id__account_topups_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TopupIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_TransactionOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_account_transactions_api_admin_v1_clients__client_id__account_transactions_get: {
+        parameters: {
+            query?: {
+                dateFrom?: string | null;
+                dateTo?: string | null;
+                page?: number;
+                perPage?: number;
+                type?: components["schemas"]["TransactionType"][] | null;
+            };
+            header?: never;
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_list_TransactionOut__"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    client_cards_api_admin_v1_clients__client_id__loyalty_cards_get: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["CardStatus"] | null;
+            };
+            header?: never;
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_list_LoyaltyCardOut__"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    issue_card_api_admin_v1_clients__client_id__loyalty_cards_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CardIssueIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_LoyaltyCardOut_"];
                 };
             };
             /** @description Validation Error */
@@ -4927,6 +6195,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_CashRegisterOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    client_balances_api_admin_v1_finances_client_balances_get: {
+        parameters: {
+            query?: {
+                kind?: string | null;
+                page?: number;
+                perPage?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_ClientBalancesOut_"];
                 };
             };
             /** @description Validation Error */
@@ -5386,7 +6687,9 @@ export interface operations {
     create_receipt_api_admin_v1_finances_receipts_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -5434,6 +6737,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_ReceiptOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sale_checkout_api_admin_v1_finances_receipts_checkout_get: {
+        parameters: {
+            query: {
+                clientId?: string | null;
+                subtotal: number | string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_CheckoutOut_"];
                 };
             };
             /** @description Validation Error */
@@ -5904,6 +7239,434 @@ export interface operations {
             };
         };
     };
+    delete_card_api_admin_v1_loyalty_cards__card_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                card_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_LoyaltyCardOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    adjust_cashback_api_admin_v1_loyalty_cards__card_id__cashback_adjustments_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                card_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CashbackAdjustmentIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_TransactionOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    card_transactions_api_admin_v1_loyalty_cards__card_id__transactions_get: {
+        parameters: {
+            query?: {
+                dateFrom?: string | null;
+                dateTo?: string | null;
+                page?: number;
+                perPage?: number;
+                type?: components["schemas"]["TransactionType"][] | null;
+            };
+            header?: never;
+            path: {
+                card_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_list_TransactionOut__"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    card_visits_api_admin_v1_loyalty_cards__card_id__visits_get: {
+        parameters: {
+            query?: {
+                page?: number;
+                perPage?: number;
+            };
+            header?: never;
+            path: {
+                card_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_list_CardVisitOut__"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_number_api_admin_v1_loyalty_cards_generate_number_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_GeneratedNumberOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_card_types_api_admin_v1_loyalty_card_types_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_list_CardTypeOut__"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_card_type_api_admin_v1_loyalty_card_types_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CardTypeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_CardTypeOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_card_type_api_admin_v1_loyalty_card_types__type_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                type_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_CardTypeOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_card_type_api_admin_v1_loyalty_card_types__type_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                type_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CardTypePatchIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_CardTypeOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_bonus_rules_api_admin_v1_loyalty_card_types__type_id__bonus_rules_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                type_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_list_BonusRuleOut__"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_bonus_rule_api_admin_v1_loyalty_card_types__type_id__bonus_rules_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                type_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BonusRuleIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_BonusRuleOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_bonus_rule_api_admin_v1_loyalty_card_types__type_id__bonus_rules__rule_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                rule_id: string;
+                type_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_bonus_rule_api_admin_v1_loyalty_card_types__type_id__bonus_rules__rule_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                rule_id: string;
+                type_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BonusRulePatchIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_BonusRuleOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     master_slots_api_admin_v1_masters__master_id__slots_get: {
         parameters: {
             query: {
@@ -6109,6 +7872,39 @@ export interface operations {
             };
         };
     };
+    record_checkout_api_admin_v1_records__record_id__checkout_get: {
+        parameters: {
+            query?: {
+                bonusRecordServiceIds?: string[] | null;
+            };
+            header?: never;
+            path: {
+                record_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_CheckoutOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     complete_record_api_admin_v1_records__record_id__complete_post: {
         parameters: {
             query?: never;
@@ -6245,7 +8041,9 @@ export interface operations {
     pay_record_api_admin_v1_records__record_id__payment_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 record_id: string;
             };

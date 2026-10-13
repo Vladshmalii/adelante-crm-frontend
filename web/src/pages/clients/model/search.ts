@@ -1,6 +1,12 @@
 import { z } from 'zod';
 
-export const CLIENT_SORTS = ['name', 'lastVisit', 'totalSpent', 'totalVisits'] as const;
+export const CLIENT_SORTS = [
+  'name',
+  'lastVisit',
+  'totalSpent',
+  'totalVisits',
+  'accountBalance',
+] as const;
 
 /** Состояние страницы клиентов в URL: ссылкой можно поделиться, «назад» работает. */
 export const clientsSearchSchema = z.object({
@@ -9,6 +15,8 @@ export const clientsSearchSchema = z.object({
   query: z.string().optional(),
   segment: z.enum(['new', 'repeat', 'lost']).optional(),
   category: z.enum(['vip', 'regular', 'new', 'inactive']).optional(),
+  /** Особовий рахунок: боржники (< 0) или с депозитом (> 0). */
+  balance: z.enum(['debt', 'deposit']).optional(),
   sort: z.enum(CLIENT_SORTS).default('name'),
   /** Открытая карточка клиента (ссылки из поиска и из записи ведут сюда). */
   id: z.string().optional(),

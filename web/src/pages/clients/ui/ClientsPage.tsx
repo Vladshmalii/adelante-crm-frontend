@@ -10,9 +10,11 @@ import { errorMessage, type Schema } from '@/shared/api';
 import { useViewer } from '@/shared/auth';
 import { formatDateTime, formatMoney, formatPhone } from '@/shared/lib';
 import { QueryErrorAlert } from '@/shared/ui';
+import { AccountBalance, formatCardNumber } from '@/widgets/loyalty';
 
 import { useDeleteClient } from '../api/clients.mutations';
 import { clientsListQueryOptions } from '../api/clients.queries';
+import { deleteWarning } from '../model/account';
 import { categoryLabels, clientFullName, segmentLabels } from '../model/labels';
 import { CLIENT_SORTS, type ClientSort, type ClientsSearch, toListParams } from '../model/search';
 import { ClientDrawer } from './ClientDrawer';
@@ -105,6 +107,21 @@ export function ClientsPage() {
       render: (_, c) => formatMoney(c.totalSpent),
     },
     {
+      title: 'Баланс',
+      key: 'accountBalance',
+      align: 'right',
+      sorter: true,
+      sortDirections: ['descend'],
+      sortOrder: sortOrder('accountBalance'),
+      render: (_, c) =>
+        Number(c.accountBalance) === 0 ? '—' : <AccountBalance balance={c.accountBalance} />,
+    },
+    {
+      title: 'Картка',
+      key: 'loyaltyCardNumber',
+      render: (_, c) => (c.loyaltyCardNumber ? formatCardNumber(c.loyaltyCardNumber) : '—'),
+    },
+    {
       title: 'Знижка',
       dataIndex: 'discountPercent',
       align: 'right',
@@ -141,7 +158,7 @@ export function ClientsPage() {
           {can.clients.delete && (
             <Popconfirm
               title="Видалити клієнта?"
-              description="Цю дію неможливо скасувати."
+              description={deleteWarning(c)}
               okText="Видалити"
               cancelText="Скасувати"
               okButtonProps={{ danger: true }}
@@ -202,7 +219,7 @@ export function ClientsPage() {
               }),
           },
           search: {
-            placeholder: "Ім'я, телефон, email",
+            placeholder: "Ім'я, телефон, номер картки",
             allowClear: true,
             defaultValue: search.query,
             onSearch: (query: string) => void setSearch({ query: query || undefined, page: 1 }),
@@ -221,6 +238,20 @@ export function ClientsPage() {
                 value,
                 label: text,
               }))}
+            />,
+            <Select
+              key="balance"
+              allowClear
+              placeholder="Усі рахунки"
+              style={{ width: 160 }}
+              value={search.balance}
+              onChange={(balance?: ClientsSearch['balance']) =>
+                void setSearch({ balance, page: 1 })
+              }
+              options={[
+                { value: 'debt', label: 'Боржники' },
+                { value: 'deposit', label: 'З депозитом' },
+              ]}
             />,
             excelMenu.length > 0 && (
               <Dropdown

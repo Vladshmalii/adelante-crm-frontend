@@ -21,6 +21,12 @@ import { useState } from 'react';
 import { errorMessage, type Schema } from '@/shared/api';
 import { useViewer } from '@/shared/auth';
 import { formatDate, formatDateTime, formatMoney, formatPhone, genderLabels } from '@/shared/lib';
+import {
+  AccountBalance,
+  ClientAccountBlock,
+  formatCardNumber,
+  LoyaltyCardsBlock,
+} from '@/widgets/loyalty';
 
 import { useDeleteClient } from '../api/clients.mutations';
 import {
@@ -35,6 +41,7 @@ import {
   segmentLabels,
   visitStatusLabels,
 } from '../model/labels';
+import { deleteWarning } from '../model/account';
 
 type Client = Schema<'ClientOut'>;
 type Visit = Schema<'VisitOut'>;
@@ -74,7 +81,7 @@ export function ClientDrawer({ clientId, onClose, onEdit }: ClientDrawerProps) {
       {can.clients.delete && (
         <Popconfirm
           title="Видалити клієнта?"
-          description="Цю дію неможливо скасувати."
+          description={deleteWarning(client)}
           okText="Видалити"
           cancelText="Скасувати"
           okButtonProps={{ danger: true }}
@@ -111,6 +118,16 @@ export function ClientDrawer({ clientId, onClose, onEdit }: ClientDrawerProps) {
         <Tabs
           items={[
             { key: 'info', label: 'Інформація', children: <ClientInfo client={client} /> },
+            {
+              key: 'loyalty',
+              label: 'Рахунок і лояльність',
+              children: (
+                <Space orientation="vertical" size="middle" style={{ display: 'flex' }}>
+                  <ClientAccountBlock clientId={client.id} />
+                  <LoyaltyCardsBlock clientId={client.id} />
+                </Space>
+              ),
+            },
             {
               key: 'visits',
               label: 'Історія відвідувань',
@@ -161,7 +178,14 @@ function ClientInfo({ client }: { client: Client }) {
         { label: 'Стать', children: client.gender ? genderLabels[client.gender] : '—' },
         { label: 'Важливість', children: importanceLabels[client.importance] },
         { label: 'Знижка', children: `${client.discountPercent}%` },
-        { label: 'Номер картки', children: client.cardNumber ?? '—' },
+        {
+          label: 'Особовий рахунок',
+          children: <AccountBalance balance={client.accountBalance} />,
+        },
+        {
+          label: 'Картка лояльності',
+          children: client.loyaltyCardNumber ? formatCardNumber(client.loyaltyCardNumber) : '—',
+        },
         { label: 'Звідки дізнався', children: client.source ?? '—' },
         { label: 'Візитів', children: client.totalVisits },
         { label: 'Витрачено', children: formatMoney(client.totalSpent) },

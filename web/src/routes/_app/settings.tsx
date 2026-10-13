@@ -15,9 +15,12 @@ export const Route = createFileRoute('/_app/settings')({
   beforeLoad: ({ context }) => {
     requireSection(context.viewer, 'settings');
   },
+  // «Лояльність» грузится в самой вкладке
   loader: ({ context: { queryClient }, deps }) =>
     deps.tab === 'salon'
       ? queryClient.query({ ...salonInfoQueryOptions(), staleTime: 'static' })
-      : queryClient.query({ ...salonScheduleQueryOptions(), staleTime: 'static' }),
+      : deps.tab === 'schedule'
+        ? queryClient.query({ ...salonScheduleQueryOptions(), staleTime: 'static' })
+        : undefined,
   component: SettingsPage,
 });

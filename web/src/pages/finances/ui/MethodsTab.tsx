@@ -1,7 +1,7 @@
 import { EditOutlined, PlusOutlined } from '@ant-design/icons';
 import { ProCard, type ProColumns, ProTable, StatisticCard } from '@ant-design/pro-components';
 import { useQuery } from '@tanstack/react-query';
-import { App, Button, Empty, Switch, Tag } from 'antd';
+import { App, Button, Empty, Switch, Tag, Tooltip } from 'antd';
 import { useState } from 'react';
 
 import { errorMessage, type Schema } from '@/shared/api';
@@ -32,9 +32,26 @@ export function MethodsTab() {
   const registerName = (id: string | null) => registers.data?.find((r) => r.id === id)?.name ?? '—';
 
   const columns: ProColumns<Method>[] = [
-    { title: 'Назва', dataIndex: 'name' },
+    {
+      title: 'Назва',
+      key: 'name',
+      render: (_, m) => (
+        <>
+          {m.name}
+          {m.isSystem && (
+            <Tooltip title="Гроші на рахунку клієнта, не в касі: системний спосіб не редагується">
+              <Tag style={{ marginLeft: 8 }}>системний</Tag>
+            </Tooltip>
+          )}
+        </>
+      ),
+    },
     { title: 'Тип', key: 'type', render: (_, m) => methodTypeLabels[m.type] },
-    { title: 'Каса', key: 'register', render: (_, m) => registerName(m.cashRegisterId) },
+    {
+      title: 'Каса',
+      key: 'register',
+      render: (_, m) => (m.isSystem ? 'Без каси' : registerName(m.cashRegisterId)),
+    },
     { title: 'Комісія', key: 'commission', render: (_, m) => commission(m) },
     {
       title: 'Онлайн',
@@ -47,6 +64,7 @@ export function MethodsTab() {
       render: (_, m) => (
         <Switch
           size="small"
+          disabled={m.isSystem}
           checked={m.isActive}
           onChange={(isActive) =>
             void update
@@ -60,16 +78,17 @@ export function MethodsTab() {
       title: '',
       key: 'actions',
       width: 48,
-      render: (_, m) => (
-        <Button
-          type="text"
-          aria-label="Редагувати"
-          icon={<EditOutlined />}
-          onClick={() => {
-            setForm({ method: m });
-          }}
-        />
-      ),
+      render: (_, m) =>
+        !m.isSystem && (
+          <Button
+            type="text"
+            aria-label="Редагувати"
+            icon={<EditOutlined />}
+            onClick={() => {
+              setForm({ method: m });
+            }}
+          />
+        ),
     },
   ];
 

@@ -77,21 +77,36 @@ export function useCompleteRecord() {
   });
 }
 
-/** Оплата завершённого визита — создаёт чек (только администратор). */
+/**
+ * Оплата завершённого визита — создаёт чек (только администратор). Итог считает сервер:
+ * expectedTotal из предпросмотра защищает от устаревших данных (409), ключ идемпотентности
+ * на открытие модалки — от двойного списания со счёта при повторе.
+ */
 export function usePayRecord() {
   const queryClient = useQueryClient();
   const changed = useRecordChanged();
   return useMutation({
-    mutationFn: async ({ id, payments }: { id: string; payments: Schema<'PaymentIn'>[] }) =>
+    mutationFn: async ({
+      id,
+      key,
+      body,
+    }: {
+      id: string;
+      key: string;
+      body: Schema<'RecordPaymentIn'>;
+    }) =>
       unwrap(
         await api.POST('/api/admin/v1/records/{record_id}/payment', {
           params: { path: { record_id: id } },
-          body: { payments },
+          headers: { 'Idempotency-Key': key },
+          body,
         }),
       ).data,
     onSuccess: ({ record }) => {
       changed(record);
       void queryClient.invalidateQueries({ queryKey: ['finances'] });
+      // Счёт, кешбэк, бонусные услуги и счётчики карты клиента
+      void queryClient.invalidateQueries({ queryKey: ['loyalty'] });
     },
   });
 }

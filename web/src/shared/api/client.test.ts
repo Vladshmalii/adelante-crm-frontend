@@ -40,6 +40,13 @@ describe('api client auth middleware', () => {
     expect(request?.headers.get('X-Salon-Id')).toBe('s1');
   });
 
+  it('явно переданный X-Salon-Id не перетирает', async () => {
+    useSessionStore.setState({ accessToken: 'new' });
+    await api.GET('/api/admin/v1/auth/me', { headers: { 'X-Salon-Id': 's2' } });
+    const [request] = fetchMock.mock.calls[0] ?? [];
+    expect(request?.headers.get('X-Salon-Id')).toBe('s2');
+  });
+
   it('на 401 обновляет токены и повторяет запрос', async () => {
     const { data } = await api.GET('/api/admin/v1/auth/me');
     expect(data).toEqual({ data: me });

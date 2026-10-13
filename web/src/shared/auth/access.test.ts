@@ -82,6 +82,15 @@ describe('права доступа (docs/ACCESS.md)', () => {
     expect(can.staff).toMatchObject({ manageAdmins: true, viewFinance: true });
   });
 
+  it('лояльность: мастер смотрит, администратор проводит, суперюзер корректирует', () => {
+    const master = permissions(toViewer(me('master')));
+    const admin = permissions(toViewer(me('administrator')));
+    const su = permissions(toViewer(me('administrator', { isSuperuser: true })));
+    expect(master.loyalty).toEqual({ manage: false, adjust: false, settings: false });
+    expect(admin.loyalty).toEqual({ manage: true, adjust: false, settings: false });
+    expect(su.loyalty).toEqual({ manage: true, adjust: true, settings: true });
+  });
+
   it('флаг суперюзера у мастера игнорируется', () => {
     expect(toViewer(me('master', { isSuperuser: true })).isSuperuser).toBe(false);
   });
