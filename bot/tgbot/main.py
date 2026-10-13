@@ -5,7 +5,8 @@ Celery-воркер backend'а напрямую в Telegram API — этот п�
 только за интерактивные диалоги.
 
 Бот не создаёт записи (решение от 28.09.2026):
-- клиенту — ссылки на сайт записи; напоминания о визитах шлёт воркер;
+- клиенту — ссылки на сайт записи и «Мій баланс» (особовий рахунок, карта
+  лояльности, кешбэк, уровень — только просмотр); напоминания о визитах шлёт воркер;
 - мастеру — его записи на сегодня или на выбранную дату;
 - администратору — только уведомления от воркера.
 Узнаёт пользователя по контакту: телефон ищется среди администраторов,
@@ -18,6 +19,7 @@ import logging
 import re
 import sys
 from datetime import date, datetime, timedelta
+from decimal import Decimal
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -47,6 +49,7 @@ BTN_TODAY = "📅 Записи на сьогодні"
 BTN_DATE = "🗓 Записи на дату"
 BTN_BOOK = "✍️ Записатися"
 BTN_CONTACT = "📱 Поділитися контактом"
+BTN_BALANCE = "💳 Мій баланс"
 
 WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд"]
 STATUS_ICONS = {
@@ -69,7 +72,8 @@ CONTACT_KEYBOARD = ReplyKeyboardMarkup(
     resize_keyboard=True,
 )
 CLIENT_KEYBOARD = ReplyKeyboardMarkup(
-    keyboard=[[KeyboardButton(text=BTN_BOOK)]], resize_keyboard=True
+    keyboard=[[KeyboardButton(text=BTN_BOOK), KeyboardButton(text=BTN_BALANCE)]],
+    resize_keyboard=True,
 )
 
 
@@ -261,11 +265,64 @@ async def on_date_text(message: Message, backend: BackendClient) -> None:
     await send_master_day(message, backend, message.from_user.id, day)
 
 
+def _money(value: str | float) -> str:
+    amount = Decimal(str(value))
+    text = f"{amount:,.2f}".replace(",", " ").removesuffix(".00")
+    return f"{text} ₴"
+
+
+def format_balance(data: dict[str, Any]) -> str:
+    """«Мій баланс»: особовий рахунок (депозит или борг), карта, кешбэк, уровень и скидка."""
+    balance = Decimal(str(data["account_balance"]))
+    if balance > 0:
+        account = f"депозит <b>{_money(balance)}</b>"
+    elif balance < 0:
+        account = f"борг <b>{_money(-balance)}</b>"
+    else:
+        account = "0 ₴"
+    lines = [f"💳 Особовий рахунок: {account}"]
+    card = data.get("card")
+    if not card:
+        lines.append("🎫 Картки лояльності немає — її видають у салоні.")
+        return "\n".join(lines)
+    number = " ".join(card["number"][i : i + 4] for i in range(0, len(card["number"]), 4))
+    lines.append(f"🎫 Картка: <code>{number}</code> ({html.escape(card['card_type'])})")
+    lines.append(f"💰 Кешбек: <b>{_money(card['cashback'])}</b>")
+    discounts = []
+    percent = Decimal(str(card["discount_percent"]))
+    if percent > 0:
+        discounts.append(f"{percent.normalize():f}%")
+    if Decimal(str(card["discount_fixed"])) > 0:
+        discounts.append(_money(card["discount_fixed"]))
+    parts = []
+    if card.get("level_name"):
+        parts.append(html.escape(card["level_name"]))
+    if discounts:
+        parts.append("знижка " + " / ".join(discounts))
+    if parts:
+        lines.append("⭐ Рівень: " + " · ".join(parts))
+    return "\n".join(lines)
+
+
+@router.message(Command("balance"))
+@router.message(F.text == BTN_BALANCE)
+async def cmd_balance(message: Message, backend: BackendClient) -> None:
+    data = await backend.client_loyalty(message.from_user.id)
+    if data is None:
+        await message.answer(
+            "Не знайшов вас серед клієнтів. Поділіться контактом кнопкою нижче.",
+            reply_markup=CONTACT_KEYBOARD,
+        )
+        return
+    await message.answer(format_balance(data), reply_markup=CLIENT_KEYBOARD)
+
+
 @router.message(Command("help"))
 async def cmd_help(message: Message) -> None:
     await message.answer(
         "/start — почати\n"
         "/book — записатися онлайн\n"
+        "/balance — мій баланс і картка лояльності\n"
         "/today — мої записи на сьогодні (для майстрів)\n"
         "/date — мої записи на дату (для майстрів)\n"
         "/help — допомога"

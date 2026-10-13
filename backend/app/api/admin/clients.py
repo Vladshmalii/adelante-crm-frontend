@@ -55,7 +55,6 @@ class ClientOut(ApiModel):
     email: str | None
     birth_date: date_type | None
     gender: Gender | None
-    card_number: str | None
     source: str | None
     notes: str | None
     color: str | None
@@ -188,7 +187,6 @@ async def list_clients(
             Client.first_name.ilike(pattern)
             | Client.last_name.ilike(pattern)
             | Client.phone.ilike(pattern)
-            | Client.card_number.ilike(pattern)
             | Client.id.in_(select(LoyaltyCard.client_id).where(LoyaltyCard.number.ilike(pattern)))
         )
     if balance is not None:
@@ -228,7 +226,6 @@ class ClientCreateIn(ApiModel):
     email: str | None = None
     birth_date: date_type | None = None
     gender: Gender | None = None
-    card_number: str | None = None
     source: str | None = None
     notes: str | None = None
     color: str | None = None
@@ -432,7 +429,6 @@ class ClientPatchIn(ApiModel):
     email: str | None = None
     birth_date: date_type | None = None
     gender: Gender | None = None
-    card_number: str | None = None
     source: str | None = None
     notes: str | None = None
     color: str | None = None

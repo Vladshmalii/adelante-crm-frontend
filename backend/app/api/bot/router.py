@@ -6,12 +6,14 @@ Auth: X-API-Key. Бот не имеет доступа к БД и не явля�
 
 Бот не создаёт записи (решение от 28.09.2026): клиентам он напоминает о
 визитах и ведёт на сайт записи, мастерам — сообщает о новых, перенесённых и
-отменённых записях и показывает записи на день.
+отменённых записях и показывает записи на день; клиенту — «Мій баланс»
+(особовий рахунок, карта лояльности, кешбэк и уровень; только просмотр).
 """
 
 import logging
 import uuid
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Annotated, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -23,6 +25,7 @@ from app.api.security import verify_bot_api_key
 from app.config import Settings, get_settings
 from app.models.master import Administrator, Client, Master, Salon, SalonStatus
 from app.models.shard import Record, RecordStatus
+from app.services import ledger, loyalty
 from app.services.phones import phone_prefilter, same_phone
 from app.tenancy.deps import MasterSession
 from app.tenancy.registry import EngineRegistry, SalonNotFound, SalonSuspended
@@ -243,3 +246,55 @@ async def master_records(
                 )
             )
     return MasterDayOut(date=day, master_name=master.full_name, salons=salons)
+
+
+# --- Мій баланс (loyalty-accounts.md, раздел 11) ------------------------------
+
+
+class LoyaltyCardInfo(BaseModel):
+    number: str
+    card_type: str
+    cashback: Decimal
+    level_name: str | None
+    discount_percent: Decimal
+    discount_fixed: Decimal
+
+
+class ClientLoyaltyOut(BaseModel):
+    client_name: str
+    # Особовий рахунок: > 0 — депозит, < 0 — борг
+    account_balance: Decimal
+    card: LoyaltyCardInfo | None
+
+
+@router.get("/clients/by-telegram/{tg_user_id}/loyalty", response_model=ClientLoyaltyOut)
+async def client_loyalty(tg_user_id: int, master_session: MasterSession) -> ClientLoyaltyOut:
+    """Баланс счёта, карта, кешбэк и уровень клиента — только просмотр. 404 — клиента нет."""
+    client = await master_session.scalar(
+        select(Client).where(Client.telegram_user_id == tg_user_id, Client.is_active.is_(True))
+    )
+    if client is None:
+        raise HTTPException(404, "Клієнта не знайдено")
+
+    def build(session) -> ClientLoyaltyOut:  # type: ignore[no-untyped-def]
+        account = ledger.find_money_account(session, client.id)
+        card = loyalty.active_card(session, client.id)
+        info = None
+        if card is not None:
+            cashback = loyalty.cashback_account(session, card.id)
+            level = loyalty.level_state(card).current
+            info = LoyaltyCardInfo(
+                number=card.number,
+                card_type=card.card_type.name,
+                cashback=cashback.balance if cashback else Decimal(0),
+                level_name=level.name if level else None,
+                discount_percent=level.discount_percent if level else Decimal(0),
+                discount_fixed=level.discount_fixed if level else Decimal(0),
+            )
+        return ClientLoyaltyOut(
+            client_name=client.full_name,
+            account_balance=account.balance if account else Decimal(0),
+            card=info,
+        )
+
+    return await master_session.run_sync(build)

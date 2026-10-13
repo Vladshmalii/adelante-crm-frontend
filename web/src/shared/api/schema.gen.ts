@@ -1753,6 +1753,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/bot/clients/by-telegram/{tg_user_id}/loyalty": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Client Loyalty
+         * @description ������ �����, �����, ������ � ������� ������� � ������ ��������. 404 � ������� ���.
+         */
+        get: operations["client_loyalty_api_bot_clients_by_telegram__tg_user_id__loyalty_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/bot/clients/link-telegram": {
         parameters: {
             query?: never;
@@ -2615,8 +2635,6 @@ export interface components {
             additionalPhone?: string | null;
             /** Birthdate */
             birthDate?: string | null;
-            /** Cardnumber */
-            cardNumber?: string | null;
             /** @default new */
             category: components["schemas"]["ClientCategory"];
             /** Color */
@@ -2654,6 +2672,14 @@ export interface components {
          * @enum {string}
          */
         ClientImportance: "high" | "medium" | "low";
+        /** ClientLoyaltyOut */
+        ClientLoyaltyOut: {
+            /** Account Balance */
+            account_balance: string;
+            card: components["schemas"]["LoyaltyCardInfo"] | null;
+            /** Client Name */
+            client_name: string;
+        };
         /** ClientOut */
         ClientOut: {
             /**
@@ -2665,8 +2691,6 @@ export interface components {
             additionalPhone: string | null;
             /** Birthdate */
             birthDate: string | null;
-            /** Cardnumber */
-            cardNumber: string | null;
             category: components["schemas"]["ClientCategory"];
             /** Color */
             color: string | null;
@@ -2728,8 +2752,6 @@ export interface components {
             additionalPhone?: string | null;
             /** Birthdate */
             birthDate?: string | null;
-            /** Cardnumber */
-            cardNumber?: string | null;
             category?: components["schemas"]["ClientCategory"] | null;
             /** Color */
             color?: string | null;
@@ -3554,6 +3576,21 @@ export interface components {
             email: string;
             /** Password */
             password: string;
+        };
+        /** LoyaltyCardInfo */
+        LoyaltyCardInfo: {
+            /** Card Type */
+            card_type: string;
+            /** Cashback */
+            cashback: string;
+            /** Discount Fixed */
+            discount_fixed: string;
+            /** Discount Percent */
+            discount_percent: string;
+            /** Level Name */
+            level_name: string | null;
+            /** Number */
+            number: string;
         };
         /** LoyaltyCardOut */
         LoyaltyCardOut: {
@@ -9440,6 +9477,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["app__api__booking__router__SlotOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    client_loyalty_api_bot_clients_by_telegram__tg_user_id__loyalty_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-API-Key"?: string | null;
+            };
+            path: {
+                tg_user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientLoyaltyOut"];
                 };
             };
             /** @description Validation Error */

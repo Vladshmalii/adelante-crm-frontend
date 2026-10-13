@@ -41,7 +41,6 @@ class Client(PersonNameMixin, MasterBase):
     birth_date: Mapped[date | None] = mapped_column(Date)
     avatar_url: Mapped[str | None] = mapped_column(String(1024))
 
-    card_number: Mapped[str | None] = mapped_column(String(64))
     source: Mapped[str | None] = mapped_column(String(64))
     notes: Mapped[str | None] = mapped_column(String(4000))
     color: Mapped[str | None] = mapped_column(String(16))
