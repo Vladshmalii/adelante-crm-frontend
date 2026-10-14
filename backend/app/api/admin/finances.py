@@ -16,6 +16,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import Field
 from sqlalchemy import Select, case, func, literal, select, union_all, update
 
+from app.api.admin.certificates import CertificateSaleIn
 from app.api.admin.deps import CurrentAuthor
 from app.api.schemas import ApiModel, Envelope, PersonRef, page_meta
 from app.api.security import require_admin, require_superuser
@@ -38,12 +39,14 @@ from app.models.shard import (
     PaymentMethod,
     PaymentMethodType,
     Receipt,
+    ReceiptCertificateLine,
     ReceiptSource,
     ReceiptStatus,
     Record,
     RecordService,
     RecordStatus,
 )
+from app.services import certificates as certificates_service
 from app.services import visits as visits_service
 from app.services.audit import diff_fields, write_audit
 from app.services.text import uk_sort_key
@@ -821,6 +824,8 @@ async def list_receipts(
 class ReceiptPaymentIn(ApiModel):
     payment_method_id: uuid.UUID
     amount: Decimal = Field(gt=0)
+    # Для способа «Сертифікат» — код сертификата
+    certificate_code: str | None = Field(default=None, max_length=32)
 
 
 class ReceiptCreateIn(ApiModel):
@@ -839,6 +844,8 @@ class ReceiptCreateIn(ApiModel):
     expected_total: Decimal | None = None
     # Только для оплаты визита (recordId)
     bonus_record_service_ids: list[uuid.UUID] = Field(default_factory=list)
+    # Продажа сертификатов в том же чеке (certificates.md, раздел 4)
+    certificates: list[CertificateSaleIn] = Field(default_factory=list, max_length=20)
 
 
 @sales_router.post(
@@ -858,9 +865,14 @@ async def create_receipt(
     Повтор с тем же Idempotency-Key возвращает тот же чек.
     """
     payments = [
-        visits_service.PaymentPart(payment_method_id=p.payment_method_id, amount=p.amount)
+        visits_service.PaymentPart(
+            payment_method_id=p.payment_method_id,
+            amount=p.amount,
+            certificate_code=p.certificate_code,
+        )
         for p in body.payments
     ]
+    certificate_sales = [c.to_sale() for c in body.certificates]
     try:
         if body.record_id is not None:
             record = await tenant_session.get(Record, body.record_id)
@@ -879,6 +891,7 @@ async def create_receipt(
                 idempotency_key=idempotency_key,
                 bonus_record_service_ids=body.bonus_record_service_ids,
                 expected_total=body.expected_total,
+                certificate_sales=certificate_sales,
             )
         else:
             if not body.payments and not body.subtotal:
@@ -897,6 +910,7 @@ async def create_receipt(
                 idempotency_key=idempotency_key,
                 subtotal=body.subtotal,
                 expected_total=body.expected_total,
+                certificate_sales=certificate_sales,
             )
     except visits_service.StaleCheckout as exc:
         raise HTTPException(409, str(exc))
@@ -910,14 +924,35 @@ async def cancel_receipt(
     receipt_id: uuid.UUID,
     author: CurrentAuthor,
     salon_id: SalonId,
+    master_session: MasterSession,
     tenant_session: TenantSession,
 ) -> Envelope[ReceiptOut]:
-    """Отмена чека: чек и связанные операции — cancelled; запись чека снова не оплачена."""
+    """Отмена чека: чек и связанные операции — cancelled; запись чека снова не оплачена.
+
+    Чек продажи сертификатов отменяется, только пока ими не расплачивались
+    (certificates.md, раздел 6); сертификаты аннулирует воркер вместе со сторно.
+    """
     receipt = await tenant_session.get(Receipt, receipt_id)
     if receipt is None:
         raise HTTPException(404, "Чек не знайдено")
     if receipt.status == ReceiptStatus.CANCELLED:
         raise HTTPException(409, "Чек уже скасовано")
+    sold = [
+        c
+        for c in await tenant_session.scalars(
+            select(ReceiptCertificateLine.certificate_id).where(
+                ReceiptCertificateLine.receipt_id == receipt_id
+            )
+        )
+        if c is not None
+    ]
+    redeemed = bool(sold) and await master_session.run_sync(
+        lambda s: certificates_service.was_redeemed(s, sold)
+    )
+    if redeemed:
+        raise HTTPException(
+            409, "Сертифікатом із цього чека вже розраховувались — скасувати чек не можна"
+        )
 
     receipt.status = ReceiptStatus.CANCELLED
     operations = await tenant_session.scalars(
@@ -970,7 +1005,7 @@ class PaymentMethodOut(ApiModel):
     allow_tips: bool
     sort_order: int
     is_active: bool
-    # «Особовий рахунок» и «Кешбек»: без кассы, не редактируются
+    # «Особовий рахунок», «Кешбек» и «Сертифікат»: без кассы, не редактируются
     is_system: bool
 
 

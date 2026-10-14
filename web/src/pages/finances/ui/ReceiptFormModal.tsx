@@ -28,6 +28,13 @@ import {
 } from '@/shared/lib';
 import { QueryErrorAlert } from '@/shared/ui';
 import {
+  CertificateCodeField,
+  CertificateSalePicker,
+  type CertificateSaleItem,
+  SoldCertificatesModal,
+  templateIdsOf,
+} from '@/widgets/certificates';
+import {
   CheckoutSummary,
   checkPayments,
   methodAvailable,
@@ -68,7 +75,8 @@ const recordLabel = (r: RecordItem) =>
  * Чек: продажа товаров без записи или оплата завершённого визита (`recordId`). Итог считает
  * сервер (предпросмотр): у продажи — от «Продано» со скидкой клиента или карты, у визита —
  * с бонусными услугами и скидкой. Сумма оплат = итог; способы — как у оплаты визита, включая
- * «Особовий рахунок» (для продажи нужен клиент) и «Кешбек».
+ * «Особовий рахунок» (для продажи нужен клиент) и «Кешбек». «+ Сертифікат» — продажа подарочных
+ * сертификатов в том же чеке (продажа может состоять из одних сертификатов); после — коды.
  */
 export function ReceiptFormModal({ open, onOpenChange }: ReceiptFormModalProps) {
   const { message } = App.useApp();
@@ -86,6 +94,12 @@ export function ReceiptFormModal({ open, onOpenChange }: ReceiptFormModalProps) 
   const debouncedSubtotal = useDebouncedValue(subtotal);
   const [bonusIds, setBonusIds] = useState<string[]>([]);
   const [debtConfirmed, setDebtConfirmed] = useState(false);
+  const [certificates, setCertificates] = useState<CertificateSaleItem[]>([]);
+  const certificateIds = templateIdsOf(certificates);
+  const [sold, setSold] = useState<{
+    receiptId: string;
+    client: { id: string; name: string } | null;
+  }>();
 
   const { data: methods = [] } = useQuery({ ...paymentMethodsQueryOptions(), enabled: open });
   const { data: unpaid, isFetching: recordsLoading } = useQuery({
@@ -105,12 +119,13 @@ export function ReceiptFormModal({ open, onOpenChange }: ReceiptFormModalProps) 
     staleTime: 30_000,
   });
   const visitCheckout = useQuery({
-    ...recordCheckoutQueryOptions(recordId ?? '', bonusIds),
+    ...recordCheckoutQueryOptions(recordId ?? '', bonusIds, certificateIds),
     enabled: open && kind === 'visit' && !!recordId,
   });
   const saleCheckout = useQuery({
-    ...saleCheckoutQueryOptions(clientId, debouncedSubtotal ?? 0),
-    enabled: open && kind === 'sale' && debouncedSubtotal !== undefined,
+    ...saleCheckoutQueryOptions(clientId, debouncedSubtotal ?? 0, certificateIds),
+    enabled:
+      open && kind === 'sale' && (debouncedSubtotal !== undefined || certificateIds.length > 0),
   });
   const checkout = kind === 'visit' ? visitCheckout : saleCheckout;
   const preview = kind === 'visit' ? (recordId ? checkout.data : undefined) : checkout.data;
@@ -130,7 +145,7 @@ export function ReceiptFormModal({ open, onOpenChange }: ReceiptFormModalProps) 
   const methodType = (id: string | undefined) => methods.find((m) => m.id === id)?.type;
   const methodOptions = methods
     .filter((m) => m.isActive)
-    .filter((m) => m.type !== 'account' || kind === 'visit' || !!clientId)
+    .filter((m) => !['account', 'certificate'].includes(m.type) || kind === 'visit' || !!clientId)
     .filter((m) => methodAvailable(m, preview))
     .map((m) => ({ value: m.id, label: methodOptionLabel(m, preview) }));
 
@@ -153,221 +168,269 @@ export function ReceiptFormModal({ open, onOpenChange }: ReceiptFormModalProps) 
     setSubtotal(undefined);
     setBonusIds([]);
     setDebtConfirmed(false);
+    setCertificates([]);
     setRecordQuery('');
     setClientQuery('');
   };
 
   return (
-    <ModalForm<FormValues>
-      title="Новий чек"
-      open={open}
-      onOpenChange={(value) => {
-        if (value) setKey(newOperationKey());
-        else reset();
-        onOpenChange(value);
-      }}
-      formRef={formRef}
-      width={640}
-      // Даты нужны как Dayjs: в API уходят через пояс салона (fromPickerDateTime).
-      dateFormatter={false}
-      modalProps={{ destroyOnHidden: true }}
-      initialValues={initialValues}
-      submitter={{
-        searchConfig: { submitText: 'Створити', resetText: 'Скасувати' },
-        submitButtonProps: { disabled: !preview },
-      }}
-      onFinish={async (v) => {
-        if (!preview) return false;
-        if (checkPayments(v.payments, methodType, preview).debt > 0 && !debtConfirmed) {
-          message.warning('Підтвердіть запис у борг');
-          return false;
-        }
-        const payments = v.payments.map((p) => ({
-          paymentMethodId: p.paymentMethodId ?? '',
-          amount: p.amount ?? 0,
-        }));
-        try {
-          const isVisit = v.kind === 'visit';
-          await create.mutateAsync({
-            key,
-            body: {
-              ...(isVisit
-                ? { recordId: v.recordId, bonusRecordServiceIds: bonusIds }
-                : {
-                    clientId: v.clientId ?? null,
-                    clientName: !v.clientId && v.clientName?.trim() ? v.clientName : null,
-                    subtotal: v.subtotal ?? 0,
-                  }),
-              expectedTotal: preview.total,
-              date: fromPickerDateTime(v.date),
-              source: v.source,
-              payments,
-            },
-          });
-          message.success(isVisit ? 'Візит оплачено' : 'Чек створено');
-          return true;
-        } catch (error) {
-          message.error(errorMessage(error));
-          void checkout.refetch();
-          return false;
-        }
-      }}
-    >
-      <ProFormRadio.Group
-        name="kind"
-        radioType="button"
-        options={[
-          { value: 'sale', label: 'Продаж' },
-          { value: 'visit', label: 'Оплата візиту' },
-        ]}
-        fieldProps={{
-          onChange: (e) => {
-            setKind(e.target.value as FormValues['kind']);
-            setRecordId(undefined);
-            setBonusIds([]);
-            setDebtConfirmed(false);
-            formRef.current?.setFieldsValue({ recordId: undefined, payments: [{}] });
-          },
+    <>
+      <ModalForm<FormValues>
+        title="Новий чек"
+        open={open}
+        onOpenChange={(value) => {
+          if (value) setKey(newOperationKey());
+          else reset();
+          onOpenChange(value);
         }}
-      />
-      {kind === 'visit' ? (
-        <ProForm.Item
-          name="recordId"
-          label="Візит"
-          tooltip="Завершені й неоплачені візити"
-          rules={[{ required: true, message: 'Оберіть візит' }]}
-        >
-          <Select
-            showSearch={{ filterOption: false, onSearch: setRecordQuery }}
-            placeholder="Клієнт: ім’я або телефон"
-            loading={recordsLoading}
-            notFoundContent={recordsLoading ? 'Шукаємо…' : 'Неоплачених візитів немає'}
-            options={(unpaid ?? []).map((r) => ({ value: r.id, label: recordLabel(r) }))}
-            onChange={(id: string) => {
-              setRecordId(id);
+        formRef={formRef}
+        width={640}
+        // Даты нужны как Dayjs: в API уходят через пояс салона (fromPickerDateTime).
+        dateFormatter={false}
+        modalProps={{ destroyOnHidden: true }}
+        initialValues={initialValues}
+        submitter={{
+          searchConfig: { submitText: 'Створити', resetText: 'Скасувати' },
+          submitButtonProps: { disabled: !preview },
+        }}
+        onFinish={async (v) => {
+          if (!preview) return false;
+          if (checkPayments(v.payments, methodType, preview).debt > 0 && !debtConfirmed) {
+            message.warning('Підтвердіть запис у борг');
+            return false;
+          }
+          const payments = v.payments.map((p) => ({
+            paymentMethodId: p.paymentMethodId ?? '',
+            amount: p.amount ?? 0,
+            certificateCode:
+              methodType(p.paymentMethodId) === 'certificate' ? p.certificateCode : null,
+          }));
+          try {
+            const isVisit = v.kind === 'visit';
+            const receipt = await create.mutateAsync({
+              key,
+              body: {
+                ...(isVisit
+                  ? { recordId: v.recordId, bonusRecordServiceIds: bonusIds }
+                  : {
+                      clientId: v.clientId ?? null,
+                      clientName: !v.clientId && v.clientName?.trim() ? v.clientName : null,
+                      subtotal: v.subtotal ?? 0,
+                    }),
+                expectedTotal: preview.total,
+                date: fromPickerDateTime(v.date),
+                source: v.source,
+                payments,
+                certificates,
+              },
+            });
+            message.success(isVisit ? 'Візит оплачено' : 'Чек створено');
+            if (certificates.length) {
+              setSold({
+                receiptId: receipt.id,
+                client:
+                  receipt.client?.id && receipt.client.name
+                    ? { id: receipt.client.id, name: receipt.client.name }
+                    : null,
+              });
+            }
+            return true;
+          } catch (error) {
+            message.error(errorMessage(error));
+            void checkout.refetch();
+            return false;
+          }
+        }}
+      >
+        <ProFormRadio.Group
+          name="kind"
+          radioType="button"
+          options={[
+            { value: 'sale', label: 'Продаж' },
+            { value: 'visit', label: 'Оплата візиту' },
+          ]}
+          fieldProps={{
+            onChange: (e) => {
+              setKind(e.target.value as FormValues['kind']);
+              setRecordId(undefined);
               setBonusIds([]);
-            }}
-          />
-        </ProForm.Item>
-      ) : (
-        <>
+              setDebtConfirmed(false);
+              formRef.current?.setFieldsValue({ recordId: undefined, payments: [{}] });
+            },
+          }}
+        />
+        {kind === 'visit' ? (
           <ProForm.Item
-            name="clientId"
-            label="Клієнт"
-            tooltip="Для знижки, кешбеку й оплати з рахунку"
+            name="recordId"
+            label="Візит"
+            tooltip="Завершені й неоплачені візити"
+            rules={[{ required: true, message: 'Оберіть візит' }]}
           >
             <Select
-              allowClear
-              showSearch={{ filterOption: false, onSearch: setClientQuery }}
-              placeholder="Ім’я, телефон або номер картки"
-              loading={clients.isFetching}
-              options={(clients.data ?? []).map((c) => ({
-                value: c.id,
-                label: `${[c.firstName, c.lastName].filter(Boolean).join(' ')} · ${formatPhone(c.phone)}`,
-              }))}
-              onChange={(id?: string) => {
-                setClientId(id);
+              showSearch={{ filterOption: false, onSearch: setRecordQuery }}
+              placeholder="Клієнт: ім’я або телефон"
+              loading={recordsLoading}
+              notFoundContent={recordsLoading ? 'Шукаємо…' : 'Неоплачених візитів немає'}
+              options={(unpaid ?? []).map((r) => ({ value: r.id, label: recordLabel(r) }))}
+              onChange={(id: string) => {
+                setRecordId(id);
+                setBonusIds([]);
               }}
             />
           </ProForm.Item>
-          <ProFormDependency name={['clientId']}>
-            {({ clientId: selected }: { clientId?: string }) =>
-              !selected && (
-                <ProFormText name="clientName" label="Ім’я покупця" placeholder="Необов'язково" />
+        ) : (
+          <>
+            <ProForm.Item
+              name="clientId"
+              label="Клієнт"
+              tooltip="Для знижки, кешбеку й оплати з рахунку"
+            >
+              <Select
+                allowClear
+                showSearch={{ filterOption: false, onSearch: setClientQuery }}
+                placeholder="Ім’я, телефон або номер картки"
+                loading={clients.isFetching}
+                options={(clients.data ?? []).map((c) => ({
+                  value: c.id,
+                  label: `${[c.firstName, c.lastName].filter(Boolean).join(' ')} · ${formatPhone(c.phone)}`,
+                }))}
+                onChange={(id?: string) => {
+                  setClientId(id);
+                }}
+              />
+            </ProForm.Item>
+            <ProFormDependency name={['clientId']}>
+              {({ clientId: selected }: { clientId?: string }) =>
+                !selected && (
+                  <ProFormText name="clientName" label="Ім’я покупця" placeholder="Необов'язково" />
+                )
+              }
+            </ProFormDependency>
+            <ProFormDigit
+              name="subtotal"
+              label="Продано"
+              tooltip="Сума товарів до знижки, без сертифікатів. Лише сертифікати — 0"
+              min={0}
+              fieldProps={{
+                suffix: '₴',
+                precision: 2,
+                onChange: (value) => {
+                  setSubtotal(value ?? undefined);
+                },
+              }}
+              rules={[{ required: true, message: 'Вкажіть суму' }]}
+            />
+          </>
+        )}
+        <CertificateSalePicker value={certificates} onChange={setCertificates} />
+        <QueryErrorAlert error={checkout.error} onRetry={() => void checkout.refetch()} />
+        {preview ? (
+          <CheckoutSummary
+            checkout={preview}
+            bonusIds={bonusIds}
+            onBonusChange={kind === 'visit' ? setBonusIds : undefined}
+          />
+        ) : (
+          checkout.isFetching && <Spin style={{ display: 'block', marginBottom: 16 }} />
+        )}
+        <ProFormDateTimePicker
+          name="date"
+          label="Дата і час"
+          fieldProps={{ format: 'DD.MM.YYYY HH:mm', style: { width: '100%' } }}
+        />
+        <ProFormSelect
+          name="source"
+          label="Джерело"
+          allowClear={false}
+          options={toOptions(receiptSourceLabels)}
+        />
+        <ProFormList
+          name="payments"
+          label="Оплати"
+          min={total === 0 ? 0 : 1}
+          creatorButtonProps={{ creatorButtonText: 'Додати оплату' }}
+          rules={[
+            {
+              validator: (_, value?: PaymentPart[]) => {
+                if (!preview) return Promise.reject(new Error('Дочекайтеся розрахунку суми'));
+                const check = checkPayments(value, methodType, preview);
+                if (check.difference !== 0) {
+                  return Promise.reject(
+                    new Error(`Сума оплат має дорівнювати ${formatMoney(preview.total)}`),
+                  );
+                }
+                if (check.bonusOverLimit) {
+                  return Promise.reject(
+                    new Error(
+                      `Кешбеком — не більше ${formatMoney(preview.cashback?.maxPayment ?? 0)}`,
+                    ),
+                  );
+                }
+                if (check.certificatesNotByRegister) {
+                  return Promise.reject(new Error('Сертифікати — лише касовими способами'));
+                }
+                return Promise.resolve();
+              },
+            },
+          ]}
+        >
+          <ProFormSelect
+            name="paymentMethodId"
+            placeholder="Метод оплати"
+            width="md"
+            options={methodOptions}
+            rules={[{ required: true, message: 'Оберіть метод' }]}
+          />
+          <ProFormDigit
+            name="amount"
+            placeholder="Сума"
+            width="xs"
+            min={0.01}
+            fieldProps={{ suffix: '₴', precision: 2 }}
+            rules={[{ required: true, message: 'Сума' }]}
+          />
+          <ProFormDependency name={['paymentMethodId']}>
+            {({ paymentMethodId }: { paymentMethodId?: string }) =>
+              methodType(paymentMethodId) === 'certificate' && (
+                <ProForm.Item
+                  name="certificateCode"
+                  rules={[{ required: true, message: 'Код сертифіката' }]}
+                >
+                  <CertificateCodeField
+                    context={
+                      kind === 'visit'
+                        ? {
+                            recordId,
+                            bonusRecordServiceIds: bonusIds,
+                            clientId: preview?.clientId ?? undefined,
+                          }
+                        : { clientId }
+                    }
+                  />
+                </ProForm.Item>
               )
             }
           </ProFormDependency>
-          <ProFormDigit
-            name="subtotal"
-            label="Продано"
-            tooltip="Сума товарів до знижки"
-            min={0}
-            fieldProps={{
-              suffix: '₴',
-              precision: 2,
-              onChange: (value) => {
-                setSubtotal(value ?? undefined);
-              },
-            }}
-            rules={[{ required: true, message: 'Вкажіть суму' }]}
-          />
-        </>
-      )}
-      <QueryErrorAlert error={checkout.error} onRetry={() => void checkout.refetch()} />
-      {preview ? (
-        <CheckoutSummary
-          checkout={preview}
-          bonusIds={bonusIds}
-          onBonusChange={kind === 'visit' ? setBonusIds : undefined}
-        />
-      ) : (
-        checkout.isFetching && <Spin style={{ display: 'block', marginBottom: 16 }} />
-      )}
-      <ProFormDateTimePicker
-        name="date"
-        label="Дата і час"
-        fieldProps={{ format: 'DD.MM.YYYY HH:mm', style: { width: '100%' } }}
+        </ProFormList>
+        <ProFormDependency name={['payments']}>
+          {({ payments }: { payments?: PaymentPart[] }) =>
+            preview && (
+              <PaymentWarnings
+                check={checkPayments(payments, methodType, preview)}
+                debtConfirmed={debtConfirmed}
+                onDebtConfirm={setDebtConfirmed}
+              />
+            )
+          }
+        </ProFormDependency>
+      </ModalForm>
+      <SoldCertificatesModal
+        receiptId={sold?.receiptId ?? null}
+        client={sold?.client}
+        onClose={() => {
+          setSold(undefined);
+        }}
       />
-      <ProFormSelect
-        name="source"
-        label="Джерело"
-        allowClear={false}
-        options={toOptions(receiptSourceLabels)}
-      />
-      <ProFormList
-        name="payments"
-        label="Оплати"
-        min={total === 0 ? 0 : 1}
-        creatorButtonProps={{ creatorButtonText: 'Додати оплату' }}
-        rules={[
-          {
-            validator: (_, value?: PaymentPart[]) => {
-              if (!preview) return Promise.reject(new Error('Дочекайтеся розрахунку суми'));
-              const check = checkPayments(value, methodType, preview);
-              if (check.difference !== 0) {
-                return Promise.reject(
-                  new Error(`Сума оплат має дорівнювати ${formatMoney(preview.total)}`),
-                );
-              }
-              if (check.bonusOverLimit) {
-                return Promise.reject(
-                  new Error(
-                    `Кешбеком — не більше ${formatMoney(preview.cashback?.maxPayment ?? 0)}`,
-                  ),
-                );
-              }
-              return Promise.resolve();
-            },
-          },
-        ]}
-      >
-        <ProFormSelect
-          name="paymentMethodId"
-          placeholder="Метод оплати"
-          width="md"
-          options={methodOptions}
-          rules={[{ required: true, message: 'Оберіть метод' }]}
-        />
-        <ProFormDigit
-          name="amount"
-          placeholder="Сума"
-          width="xs"
-          min={0.01}
-          fieldProps={{ suffix: '₴', precision: 2 }}
-          rules={[{ required: true, message: 'Сума' }]}
-        />
-      </ProFormList>
-      <ProFormDependency name={['payments']}>
-        {({ payments }: { payments?: PaymentPart[] }) =>
-          preview && (
-            <PaymentWarnings
-              check={checkPayments(payments, methodType, preview)}
-              debtConfirmed={debtConfirmed}
-              onDebtConfirm={setDebtConfirmed}
-            />
-          )
-        }
-      </ProFormDependency>
-    </ModalForm>
+    </>
   );
 }

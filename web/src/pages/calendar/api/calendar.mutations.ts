@@ -107,6 +107,8 @@ export function usePayRecord() {
       void queryClient.invalidateQueries({ queryKey: ['finances'] });
       // Счёт, кешбэк, бонусные услуги и счётчики карты клиента
       void queryClient.invalidateQueries({ queryKey: ['loyalty'] });
+      // Продажа и погашение сертификатов
+      void queryClient.invalidateQueries({ queryKey: ['certificates'] });
     },
   });
 }

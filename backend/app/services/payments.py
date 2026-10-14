@@ -11,6 +11,10 @@ backend/docs/loyalty-accounts.md, раздел 6, шаг 4:
 5. ошибка на шаге 4 — сторно всех списаний по этому чеку и ошибка
    пользователю. Падение процесса между 3 и 4 подбирает ночная сверка
    (workers.tasks.integrity.reconcile_payments).
+
+На шаге 3 там же списываются части, оплаченные сертификатами (ключ
+`pay:{salon}:{receipt}:certificate:{id}`), и выпускаются проданные чеком
+сертификаты (certificates.md, 4.4 и 5): компенсация и сверка отменяют всё вместе.
 """
 
 import uuid
@@ -25,7 +29,7 @@ from sqlalchemy.orm import Session
 
 from app.models.master import AccountTransaction, LoyaltyCard, TransactionType
 from app.models.shard import Receipt
-from app.services import ledger, loyalty
+from app.services import certificates, ledger, loyalty
 
 # Пространство имён UUIDv5 для receipt_id из Idempotency-Key
 RECEIPT_NAMESPACE = uuid.UUID("4f1d6a0e-6b1e-4c39-9a51-7c0b3e2f8d11")
@@ -67,16 +71,33 @@ class Charges:
     total: Decimal = Decimal(0)
     # Строки записи, списываемые как бонусные услуги карты
     bonus_lines: tuple[loyalty.BonusLine, ...] = ()
+    # Сертификаты, продаваемые чеком: выпуск в той же транзакции Master
+    issues: tuple[certificates.Issue, ...] = ()
+    # Части, оплаченные сертификатами, и строки-услуги чека для области «на послуги»
+    redemptions: tuple[certificates.Redemption, ...] = ()
+    service_lines: tuple[certificates.ServiceAmount, ...] = ()
+
+    @property
+    def needs_client(self) -> bool:
+        """Списания со счетов клиента; выпуск сертификата клиента не требует."""
+        return (
+            self.account > 0 or self.bonus > 0 or bool(self.bonus_lines) or bool(self.redemptions)
+        )
 
     @property
     def any(self) -> bool:
-        return self.account > 0 or self.bonus > 0 or bool(self.bonus_lines)
+        return self.needs_client or bool(self.issues)
 
 
 @dataclass(frozen=True)
 class ChargeResult:
     # Баланс особового рахунку до оплаты — по нему считается часть, ушедшая в долг
     account_balance_before: Decimal | None = None
+    # Выпущенные сертификаты: (позиция, штука) → сертификат — для строк чека в шарде
+    issued: tuple[certificates.Issued, ...] = ()
+
+    def certificate_id(self, line: int, n: int) -> uuid.UUID | None:
+        return next((i.certificate_id for i in self.issued if i.line == line and i.n == n), None)
 
 
 def charge(
@@ -84,13 +105,19 @@ def charge(
     *,
     salon_id: uuid.UUID,
     receipt_id: uuid.UUID,
-    client_id: uuid.UUID,
+    client_id: uuid.UUID | None,
     charges: Charges,
     meta: ledger.Meta,
 ) -> ChargeResult:
-    """Списания в одной транзакции Master. Порядок блокировок: money-счёт, затем кешбек."""
+    """Списания и выпуск сертификатов в одной транзакции Master.
+
+    Порядок блокировок: money-счёт → кешбек → сертификаты → прогресс бонусов.
+    """
     balance_before = None
+    if charges.needs_client and client_id is None:
+        raise ledger.LedgerError("Для оплати з рахунку потрібен клієнт")
     if charges.account > 0:
+        assert client_id is not None
         account = ledger.lock_money_account(session, client_id)
         key = payment_key(salon_id, receipt_id, "account")
         existing = _existing_payment(session, key)
@@ -110,6 +137,24 @@ def charge(
         _charge_cashback(
             session, salon_id=salon_id, receipt_id=receipt_id, charges=charges, meta=meta
         )
+    if charges.redemptions:
+        certificates.redeem(
+            session,
+            salon_id=salon_id,
+            receipt_id=receipt_id,
+            client_id=client_id,
+            redemptions=list(charges.redemptions),
+            lines=list(charges.service_lines),
+            meta=meta,
+        )
+    issued = certificates.issue(
+        session,
+        salon_id=salon_id,
+        receipt_id=receipt_id,
+        buyer_client_id=client_id,
+        issues=list(charges.issues),
+        meta=meta,
+    )
     if charges.bonus_lines:
         if charges.card_id is None:
             raise ledger.LedgerError(
@@ -123,7 +168,7 @@ def charge(
             record_id=meta.record_id,
             lines=list(charges.bonus_lines),
         )
-    return ChargeResult(account_balance_before=balance_before)
+    return ChargeResult(account_balance_before=balance_before, issued=tuple(issued))
 
 
 def _existing_payment(session: Session, key: str) -> AccountTransaction | None:
@@ -182,19 +227,34 @@ def open_payments(
     )
 
 
+def _lock_order(txn: AccountTransaction) -> tuple[int, str]:
+    """money-счёт → кешбэк → сертификаты по id (id — в конце ключа погашения)."""
+    key = txn.idempotency_key
+    if key.endswith(":account"):
+        return 0, key
+    if key.endswith(":bonus"):
+        return 1, key
+    return 2, key
+
+
 def reverse_payments(
     session: Session, *, salon_id: uuid.UUID, receipt_id: uuid.UUID, meta: ledger.Meta
 ) -> int:
     """Сторно всех списаний по чеку (компенсация, отмена чека, сверка). Идемпотентно.
 
-    Деньги и кешбэк возвращаются сторно, использованные бонусные услуги — в available.
-    Порядок блокировок как при оплате: money-счёт, кешбек, прогресс бонусов.
+    Деньги и кешбэк возвращаются сторно, выпущенные чеком сертификаты отменяются,
+    использованные бонусные услуги — в available. Порядок блокировок как при
+    оплате: money-счёт, кешбек, сертификаты, прогресс бонусов.
     """
     txns = open_payments(session, salon_id=salon_id, receipt_id=receipt_id)
-    txns.sort(key=lambda t: t.idempotency_key.endswith(":bonus"))
+    txns.sort(key=_lock_order)
     for txn in txns:
         ledger.reverse(session, txn, meta=meta)
-    return len(txns) + loyalty.reverse_bonus_uses(session, salon_id, receipt_id)
+        certificates.after_reversal(session, ledger.lock_account(session, txn.account_id))
+    cancelled = certificates.cancel_issued(
+        session, salon_id=salon_id, receipt_id=receipt_id, meta=meta
+    )
+    return len(txns) + cancelled + loyalty.reverse_bonus_uses(session, salon_id, receipt_id)
 
 
 def hanging_payments(
@@ -246,7 +306,7 @@ async def settle(
     )
     result = ChargeResult()
     if charges.any:
-        if client_id is None:
+        if charges.needs_client and client_id is None:
             raise PaymentError("Для оплати з рахунку потрібен клієнт")
         try:
             result = await master_session.run_sync(

@@ -16,6 +16,7 @@ from pydantic import Field
 from sqlalchemy import exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.admin.certificates import CertificateSaleIn
 from app.api.admin.deps import CurrentAuthor, ensure_own_record
 from app.api.admin.services import CategoryRef
 from app.api.schemas import ApiModel, Envelope, PersonRef, page_meta
@@ -695,6 +696,8 @@ async def complete_record(
 class PaymentIn(ApiModel):
     payment_method_id: uuid.UUID
     amount: Decimal = Field(gt=0)
+    # Для способа «Сертифікат» — код сертификата
+    certificate_code: str | None = Field(default=None, max_length=32)
 
 
 class RecordPaymentIn(ApiModel):
@@ -705,6 +708,8 @@ class RecordPaymentIn(ApiModel):
     bonus_record_service_ids: list[uuid.UUID] = Field(default_factory=list)
     # Итог из GET /records/{id}/checkout: при расхождении — 409, предпросмотр устарел
     expected_total: Decimal | None = None
+    # Продажа сертификатов в том же чеке (certificates.md, раздел 4)
+    certificates: list[CertificateSaleIn] = Field(default_factory=list, max_length=20)
 
 
 class ReceiptRef(ApiModel):
@@ -742,7 +747,11 @@ async def pay_record(
             salon_id=salon_id,
             record=record,
             payments=[
-                visits_service.PaymentPart(payment_method_id=p.payment_method_id, amount=p.amount)
+                visits_service.PaymentPart(
+                    payment_method_id=p.payment_method_id,
+                    amount=p.amount,
+                    certificate_code=p.certificate_code,
+                )
                 for p in body.payments
             ],
             author_id=author.id,
@@ -750,6 +759,7 @@ async def pay_record(
             idempotency_key=idempotency_key,
             bonus_record_service_ids=body.bonus_record_service_ids,
             expected_total=body.expected_total,
+            certificate_sales=[c.to_sale() for c in body.certificates],
         )
     except visits_service.PaymentError as exc:
         raise HTTPException(409, str(exc))

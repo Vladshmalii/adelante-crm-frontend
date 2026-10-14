@@ -18,6 +18,8 @@ function useInvalidateFinances() {
       // Чек со счёта / кешбэком и отмена чека меняют счета и карты клиента
       queryClient.invalidateQueries({ queryKey: ['loyalty'] }),
       queryClient.invalidateQueries({ queryKey: ['clients'] }),
+      // Продажа и погашение сертификатов
+      queryClient.invalidateQueries({ queryKey: ['certificates'] }),
     ]);
 }
 

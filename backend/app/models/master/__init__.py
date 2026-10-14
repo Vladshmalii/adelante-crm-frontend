@@ -5,6 +5,14 @@ from app.models.master.account import (
     ClientAccount,
     TransactionType,
 )
+from app.models.master.certificate import (
+    Certificate,
+    CertificateScope,
+    CertificateService,
+    CertificateStatus,
+    CertificateTemplate,
+    CertificateTemplateService,
+)
 from app.models.master.client import Client, ClientCategory, ClientImportance
 from app.models.master.loyalty import (
     BonusOperationKind,
@@ -34,6 +42,12 @@ __all__ = [
     "Administrator",
     "BonusOperationKind",
     "CardStatus",
+    "Certificate",
+    "CertificateScope",
+    "CertificateService",
+    "CertificateStatus",
+    "CertificateTemplate",
+    "CertificateTemplateService",
     "Client",
     "ClientAccount",
     "ClientCategory",

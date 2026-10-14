@@ -4,6 +4,9 @@
 кэш суммы журнала: меняется только вместе с INSERT в account_transactions
 под SELECT … FOR UPDATE строки счёта (app.services.ledger). Журнал
 неизменяем: ошибки исправляются сторно (reversal) или корректировкой.
+
+Счёт вида certificate — остаток подарочного сертификата (certificates.md, 3.1):
+один на сертификат, владельца до активации нет (client_id = NULL).
 """
 
 import enum
@@ -11,7 +14,17 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import DateTime, ForeignKey, Index, Numeric, String, Uuid, func, text
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Numeric,
+    String,
+    Uuid,
+    func,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import MasterBase, str_enum
@@ -20,6 +33,7 @@ from app.models.base import MasterBase, str_enum
 class AccountKind(enum.StrEnum):
     MONEY = "money"  # особовий рахунок: плюс — депозит, минус — долг
     CASHBACK = "cashback"  # кешбек-рахунок карты лояльности
+    CERTIFICATE = "certificate"  # остаток подарочного сертификата
 
 
 class TransactionType(enum.StrEnum):
@@ -33,7 +47,10 @@ class TransactionType(enum.StrEnum):
 
 
 class ClientAccount(MasterBase):
-    """Счёт клиента. money-счёт — один на клиента, создаётся лениво при первой операции."""
+    """Счёт клиента. money-счёт — один на клиента, создаётся лениво при первой операции.
+
+    client_id обязателен для money и cashback; у certificate — NULL до активации.
+    """
 
     __tablename__ = "client_accounts"
     __table_args__ = (
@@ -43,14 +60,22 @@ class ClientAccount(MasterBase):
             unique=True,
             postgresql_where=text("kind = 'money'"),
         ),
+        CheckConstraint("kind = 'certificate' OR client_id IS NOT NULL", name="client_required"),
+        CheckConstraint(
+            "(kind = 'certificate') = (certificate_id IS NOT NULL)", name="certificate_kind"
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    client_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("clients.id"), index=True)
+    client_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("clients.id"), index=True)
     kind: Mapped[AccountKind] = mapped_column(str_enum(AccountKind, 16))
     # Для cashback — карта, к которой привязан счёт (один счёт на карту)
     loyalty_card_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("loyalty_cards.id"), unique=True
+    )
+    # Для certificate — сертификат, чей это остаток (один счёт на сертификат)
+    certificate_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("certificates.id"), unique=True
     )
     balance: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal(0), server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

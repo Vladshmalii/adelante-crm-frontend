@@ -89,6 +89,9 @@ describe('права доступа (docs/ACCESS.md)', () => {
     expect(master.loyalty).toEqual({ manage: false, adjust: false, settings: false });
     expect(admin.loyalty).toEqual({ manage: true, adjust: false, settings: false });
     expect(su.loyalty).toEqual({ manage: true, adjust: true, settings: true });
+    expect(master.certificates.settings).toBe(false);
+    expect(admin.certificates.settings).toBe(false);
+    expect(su.certificates.settings).toBe(true);
   });
 
   it('флаг суперюзера у мастера игнорируется', () => {

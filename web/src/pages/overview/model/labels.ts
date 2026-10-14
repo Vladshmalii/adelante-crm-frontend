@@ -23,4 +23,5 @@ export const auditEntityLabels: Record<string, string> = {
   staff: 'Співробітник',
   service: 'Послуга',
   finance: 'Фінанси',
+  certificate: 'Сертифікати',
 };

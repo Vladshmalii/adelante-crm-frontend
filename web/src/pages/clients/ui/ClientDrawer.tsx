@@ -21,6 +21,7 @@ import { useState } from 'react';
 import { errorMessage, type Schema } from '@/shared/api';
 import { useViewer } from '@/shared/auth';
 import { formatDate, formatDateTime, formatMoney, formatPhone, genderLabels } from '@/shared/lib';
+import { ClientCertificatesBlock } from '@/widgets/certificates';
 import {
   AccountBalance,
   ClientAccountBlock,
@@ -125,6 +126,7 @@ export function ClientDrawer({ clientId, onClose, onEdit }: ClientDrawerProps) {
                 <Space orientation="vertical" size="middle" style={{ display: 'flex' }}>
                   <ClientAccountBlock clientId={client.id} />
                   <LoyaltyCardsBlock clientId={client.id} />
+                  <ClientCertificatesBlock clientId={client.id} />
                 </Space>
               ),
             },

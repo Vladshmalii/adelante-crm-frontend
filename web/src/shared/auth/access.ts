@@ -98,6 +98,10 @@ export const permissions = (v: Viewer) => ({
     /** Типы карт, уровни и бонусные правила (Налаштування → Лояльність). */
     settings: v.isSuperuser,
   },
+  certificates: {
+    /** Шаблоны подарочных сертификатов (Налаштування → Сертифікати) — один раз на сеть. */
+    settings: v.isSuperuser,
+  },
 });
 
 export type Permissions = ReturnType<typeof permissions>;

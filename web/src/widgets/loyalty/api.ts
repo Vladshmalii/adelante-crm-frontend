@@ -17,10 +17,10 @@ export const loyaltyKeys = {
   cardTxns: (cardId: string) => [...loyaltyKeys.all, 'card-txns', cardId] as const,
   cardVisits: (cardId: string) => [...loyaltyKeys.all, 'card-visits', cardId] as const,
   cardTypes: () => [...loyaltyKeys.all, 'card-types'] as const,
-  checkout: (recordId: string, bonusIds: string[]) =>
-    [...loyaltyKeys.all, 'checkout', recordId, bonusIds] as const,
-  saleCheckout: (clientId: string | undefined, subtotal: number) =>
-    [...loyaltyKeys.all, 'sale-checkout', clientId, subtotal] as const,
+  checkout: (recordId: string, bonusIds: string[], certificateIds: string[]) =>
+    [...loyaltyKeys.all, 'checkout', recordId, bonusIds, certificateIds] as const,
+  saleCheckout: (clientId: string | undefined, subtotal: number, certificateIds: string[]) =>
+    [...loyaltyKeys.all, 'sale-checkout', clientId, subtotal, certificateIds] as const,
 };
 
 export const TXNS_PER_PAGE = 10;
@@ -93,15 +93,23 @@ export const cardTypesQueryOptions = () =>
       unwrap(await api.GET('/api/admin/v1/loyalty/card-types', { signal })).data,
   });
 
-export const recordCheckoutQueryOptions = (recordId: string, bonusIds: string[]) =>
+/** certificateIds — продаваемые в чеке сертификаты: id шаблона по одному на штуку. */
+export const recordCheckoutQueryOptions = (
+  recordId: string,
+  bonusIds: string[],
+  certificateIds: string[] = [],
+) =>
   queryOptions({
-    queryKey: loyaltyKeys.checkout(recordId, bonusIds),
+    queryKey: loyaltyKeys.checkout(recordId, bonusIds, certificateIds),
     queryFn: async ({ signal }) =>
       unwrap(
         await api.GET('/api/admin/v1/records/{record_id}/checkout', {
           params: {
             path: { record_id: recordId },
-            query: bonusIds.length ? { bonusRecordServiceIds: bonusIds } : {},
+            query: {
+              ...(bonusIds.length ? { bonusRecordServiceIds: bonusIds } : {}),
+              ...(certificateIds.length ? { certificateTemplateIds: certificateIds } : {}),
+            },
           },
           signal,
         }),
@@ -109,13 +117,23 @@ export const recordCheckoutQueryOptions = (recordId: string, bonusIds: string[])
     placeholderData: keepPreviousData,
   });
 
-export const saleCheckoutQueryOptions = (clientId: string | undefined, subtotal: number) =>
+export const saleCheckoutQueryOptions = (
+  clientId: string | undefined,
+  subtotal: number,
+  certificateIds: string[] = [],
+) =>
   queryOptions({
-    queryKey: loyaltyKeys.saleCheckout(clientId, subtotal),
+    queryKey: loyaltyKeys.saleCheckout(clientId, subtotal, certificateIds),
     queryFn: async ({ signal }) =>
       unwrap(
         await api.GET('/api/admin/v1/finances/receipts/checkout', {
-          params: { query: { subtotal, clientId } },
+          params: {
+            query: {
+              subtotal,
+              clientId,
+              ...(certificateIds.length ? { certificateTemplateIds: certificateIds } : {}),
+            },
+          },
           signal,
         }),
       ).data,

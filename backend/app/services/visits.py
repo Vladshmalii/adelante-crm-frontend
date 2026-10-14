@@ -34,6 +34,7 @@ from app.models.shard import (
     PaymentMethodType,
     PaymentStatus,
     Receipt,
+    ReceiptCertificateLine,
     ReceiptPayment,
     ReceiptSource,
     ReceiptStatus,
@@ -46,7 +47,7 @@ from app.notifications.outbox import (
     LOYALTY_RECEIPT_PAID,
     add_outbox_event,
 )
-from app.services import checkout, loyalty
+from app.services import certificates, checkout, loyalty
 from app.services import payments as payments_service
 from app.services.audit import write_audit
 from app.services.ledger import money
@@ -68,6 +69,8 @@ class StaleCheckout(PaymentError):
 class PaymentPart(BaseModel):
     payment_method_id: uuid.UUID
     amount: Decimal
+    # Для способа «Сертифікат» — код сертификата (certificates.md, раздел 5)
+    certificate_code: str | None = None
 
 
 def receipt_number() -> str:
@@ -165,15 +168,23 @@ async def load_methods(
 def charges_for(
     payments: list[PaymentPart], methods: dict[uuid.UUID, PaymentMethod]
 ) -> payments_service.Charges:
-    """Суммы частей, которые списываются со счетов клиента в Master DB."""
+    """Суммы частей, которые списываются со счетов клиента и сертификатов в Master DB."""
     by_type: dict[PaymentMethodType, Decimal] = {}
+    redemptions = []
     for part in payments:
         method_type = methods[part.payment_method_id].type
         by_type[method_type] = by_type.get(method_type, Decimal(0)) + part.amount
+        if method_type == PaymentMethodType.CERTIFICATE:
+            if not (part.certificate_code or "").strip():
+                raise PaymentError("Вкажіть код сертифіката")
+            redemptions.append(
+                certificates.Redemption(code=part.certificate_code or "", amount=part.amount)
+            )
     return payments_service.Charges(
         account=by_type.get(PaymentMethodType.ACCOUNT, Decimal(0)),
         bonus=by_type.get(PaymentMethodType.BONUS, Decimal(0)),
         total=sum((p.amount for p in payments), Decimal(0)),
+        redemptions=tuple(redemptions),
     )
 
 
@@ -192,12 +203,22 @@ async def create_receipt(
     methods: dict[uuid.UUID, PaymentMethod] | None = None,
     loyalty_card_id: uuid.UUID | None = None,
     quote: "checkout.Quote | None" = None,
+    issued: "payments_service.ChargeResult | None" = None,
+    issues: "list[certificates.Issue] | None" = None,
 ) -> Receipt:
     """Чек + разбивка по способам оплаты + приходные операции по каждой оплате.
 
     Операция способа без кассы (account, bonus) пишется с cash_register_id = NULL:
     выручка признаётся (доход на дашборде), но в баланс кассы не попадает — денег
     в кассе нет. Чек без единого способа с кассой не имеет кассы.
+
+    Часть способом «Сертифікат» — только в receipt_payments, без income: выручка
+    признана при продаже сертификата (certificates.md, решение 10).
+
+    Проданные сертификаты (issues) — строки receipt_certificate_lines. Их сумма
+    забирается из кассовых частей по порядку: кассовая часть, покрывающая и
+    сертификат, и остальное, делится на две операции — «certificates» и обычную
+    (certificates.md, 4.3). Сумма income по-прежнему = сумме частей.
     """
     if methods is None:
         methods = await load_methods(tenant_session, payments)
@@ -231,19 +252,26 @@ async def create_receipt(
     tenant_session.add(receipt)
     await tenant_session.flush()
 
-    for part in payments:
-        method = methods[part.payment_method_id]
+    for item in issues or []:
         tenant_session.add(
-            ReceiptPayment(receipt_id=receipt.id, payment_method_id=method.id, amount=part.amount)
+            ReceiptCertificateLine(
+                receipt_id=receipt.id,
+                template_id=item.template_id,
+                name=item.name,
+                amount=item.amount,
+                certificate_id=issued.certificate_id(item.line, item.n) if issued else None,
+            )
         )
+    # Сертификаты оплачиваются только кассовыми способами (check_certificate_parts)
+    certificates_left = sum((i.amount for i in issues or []), Decimal(0))
+
+    def income(method: PaymentMethod, amount: Decimal, category: str, description: str) -> None:
         tenant_session.add(
             FinanceOperation(
                 type=OperationType.INCOME,
-                amount=part.amount,
-                category="services" if record else "sales",
-                description=(
-                    f"Оплата візиту: {record.client_name}" if record else f"Чек {receipt.number}"
-                ),
+                amount=amount,
+                category=category,
+                description=description,
                 date=date,
                 payment_method_id=method.id,
                 cash_register_id=method.cash_register_id,
@@ -254,6 +282,27 @@ async def create_receipt(
                 author_name=author_name,
             )
         )
+
+    for part in payments:
+        method = methods[part.payment_method_id]
+        tenant_session.add(
+            ReceiptPayment(receipt_id=receipt.id, payment_method_id=method.id, amount=part.amount)
+        )
+        if method.type == PaymentMethodType.CERTIFICATE:
+            continue
+        rest = part.amount
+        if certificates_left > 0 and not method.is_system:
+            share = min(certificates_left, rest)
+            certificates_left -= share
+            rest -= share
+            income(method, share, "certificates", f"Продаж сертифікатів: чек {receipt.number}")
+        if rest > 0:
+            income(
+                method,
+                rest,
+                "services" if record else "sales",
+                f"Оплата візиту: {record.client_name}" if record else f"Чек {receipt.number}",
+            )
     await tenant_session.flush()
     # receipt.payments — lazy="selectin"; на только что созданном объекте
     # коллекция не загружена, синхронное обращение под AsyncSession падает
@@ -276,11 +325,13 @@ async def pay_record(
     idempotency_key: str | None = None,
     bonus_record_service_ids: list[uuid.UUID] | None = None,
     expected_total: Decimal | None = None,
+    certificate_sales: list[certificates.CertificateSale] | None = None,
 ) -> Receipt:
     """Оплата визита (раздел 6). Итог считает сервер: бонусные услуги, наибольшая скидка.
 
-    Части account/bonus списываются в Master до записи чека. Коммитит обе сессии
-    сама. Повтор с тем же Idempotency-Key возвращает тот же чек.
+    Части account/bonus списываются в Master до записи чека, там же выпускаются
+    проданные сертификаты. Коммитит обе сессии сама. Повтор с тем же
+    Idempotency-Key возвращает тот же чек.
     """
     receipt_id = payments_service.receipt_id_for(salon_id, idempotency_key)
     existing = await payments_service.lock_receipt(tenant_session, receipt_id)
@@ -302,13 +353,18 @@ async def pay_record(
         raise PaymentError("Бонусна послуга не належить цьому запису")
     if bonus_ids and ctx.card is None:
         raise PaymentError("Бонусні послуги доступні лише з карткою, що діє в цьому салоні")
-    q = ctx.quote(checkout.record_lines(record, bonus_ids))
+    issues = await _certificate_issues(master_session, certificate_sales)
+    q = ctx.quote(checkout.record_lines(record, bonus_ids) + checkout.certificate_lines(issues))
     check_total(q, payments, expected_total)
     methods = await load_methods(tenant_session, payments)
+    check_certificate_parts(q, payments, methods)
     card_id = ctx.card.id if ctx.card else None
     charges = replace(
         charges_for(payments, methods),
         card_id=card_id,
+        total=q.rest,
+        issues=tuple(issues),
+        service_lines=tuple(q.service_amounts()),
         bonus_lines=tuple(
             loyalty.BonusLine(record_service_id=s.id, service_id=s.service_id, is_bonus=True)
             for s in record.services
@@ -337,6 +393,8 @@ async def pay_record(
             methods=methods,
             loyalty_card_id=card_id,
             quote=q,
+            issued=result,
+            issues=issues,
         )
         emit_receipt_paid(
             tenant_session,
@@ -407,6 +465,39 @@ def check_total(
         raise PaymentError(f"Сума оплати {paid} не збігається з сумою до сплати {q.total}")
 
 
+def sale_lines(subtotal: Decimal, issues: list[certificates.Issue]) -> list[checkout.Line]:
+    """Строки продажи: «Товари» (если есть) и сертификаты."""
+    products = checkout.sale_lines(subtotal) if subtotal > 0 or not issues else []
+    return products + checkout.certificate_lines(issues)
+
+
+async def _certificate_issues(
+    master_session: AsyncSession, sales: list[certificates.CertificateSale] | None
+) -> list[certificates.Issue]:
+    try:
+        return await checkout.certificate_issues(master_session, sales or [])
+    except certificates.CertificateError as exc:
+        raise PaymentError(str(exc))
+
+
+def check_certificate_parts(
+    q: checkout.Quote, payments: list[PaymentPart], methods: dict[uuid.UUID, PaymentMethod]
+) -> None:
+    """Сертификат покупают только деньгами в кассу (certificates.md, 4.2).
+
+    Счёт, кешбэк и другой сертификат покрывают лишь остальную часть чека —
+    иначе долг или кешбэк превратились бы в сертификат.
+    """
+    if q.certificates <= 0:
+        return
+    system = sum((p.amount for p in payments if methods[p.payment_method_id].is_system), Decimal(0))
+    if system > q.rest:
+        raise PaymentError(
+            f"Сертифікати ({q.certificates} ₴) оплачуються лише касовими способами: "
+            f"з рахунку чи кешбеком — не більше {q.rest} ₴"
+        )
+
+
 async def sell(
     tenant_session: AsyncSession,
     master_session: AsyncSession,
@@ -422,11 +513,13 @@ async def sell(
     idempotency_key: str | None = None,
     subtotal: Decimal | None = None,
     expected_total: Decimal | None = None,
+    certificate_sales: list[certificates.CertificateSale] | None = None,
 ) -> Receipt:
     """Чек без записи (продажа товаров) — те же способы оплаты и скидки, что у визита.
 
-    subtotal — «Продано»: скидка считается от него, части оплаты = итог. Без
-    subtotal — как раньше: сумма чека = сумма частей, без скидки. Коммитит сам.
+    subtotal — «Продано» товаров: скидка считается от него, части оплаты = итог.
+    Без subtotal — как раньше: сумма чека = сумма частей, без скидки. Сертификаты —
+    отдельные строки вне скидки; чек может состоять из одних сертификатов. Коммитит сам.
     """
     receipt_id = payments_service.receipt_id_for(salon_id, idempotency_key)
     existing = await payments_service.lock_receipt(tenant_session, receipt_id)
@@ -438,15 +531,26 @@ async def sell(
             raise PaymentError("Клієнта не знайдено")
         client_name = client_name or client.full_name
     ctx = await checkout.load_context(master_session, client_id, salon_id)
-    if subtotal is None:
+    issues = await _certificate_issues(master_session, certificate_sales)
+    if subtotal is None and not issues:
         q = checkout.quote(checkout.sale_lines(sum((p.amount for p in payments), Decimal(0))))
     else:
-        q = ctx.quote(checkout.sale_lines(subtotal))
+        q = ctx.quote(sale_lines(subtotal or Decimal(0), issues))
     check_total(q, payments, expected_total)
     methods = await load_methods(tenant_session, payments)
-    card_id = ctx.card.id if ctx.card else None
-    charges = replace(charges_for(payments, methods), card_id=card_id)
-    if client_id is None and charges.any:
+    check_certificate_parts(q, payments, methods)
+    # Чек из одних сертификатов карту не затрагивает: ни скидки, ни кешбэка, ни факта визита
+    card_id = ctx.card.id if ctx.card and q.rest > 0 else None
+    charges = replace(
+        charges_for(payments, methods),
+        card_id=card_id,
+        total=q.rest,
+        issues=tuple(issues),
+        service_lines=tuple(q.service_amounts()),
+    )
+    if client_id is None and charges.redemptions:
+        raise PaymentError("Для оплати сертифікатом оберіть клієнта")
+    if client_id is None and charges.needs_client:
         raise PaymentError("Для оплати з рахунку оберіть клієнта")
 
     async def write_shard(result: payments_service.ChargeResult) -> Receipt:
@@ -463,6 +567,8 @@ async def sell(
             methods=methods,
             loyalty_card_id=card_id,
             quote=q,
+            issued=result,
+            issues=issues,
         )
         emit_receipt_paid(
             tenant_session,
@@ -501,7 +607,12 @@ def emit_receipt_paid(
     result: payments_service.ChargeResult,
     quote: checkout.Quote,
 ) -> None:
-    """loyalty.receipt_paid — только для чека с картой: воркер пишет факт визита и начисления."""
+    """loyalty.receipt_paid — только для чека с картой: воркер пишет факт визита и начисления.
+
+    Строки-сертификаты в событие не попадают (certificates.md, решение 11): ни в
+    «Продано», ни в итог, ни в базу кешбэка. Они оплачены кассовыми способами —
+    их сумма вычитается из части «other». Кешбэк начислится при погашении.
+    """
     if receipt.loyalty_card_id is None:
         return
     parts: dict[str, Decimal] = {}
@@ -509,6 +620,8 @@ def emit_receipt_paid(
         method_type = methods[p.payment_method_id].type
         key = method_type.value if method_type in SYSTEM_METHOD_TYPES else "other"
         parts[key] = parts.get(key, Decimal(0)) + p.amount
+    if quote.certificates > 0:
+        parts["other"] = parts.get("other", Decimal(0)) - quote.certificates
     add_outbox_event(
         tenant_session,
         event_type=LOYALTY_RECEIPT_PAID,
@@ -520,16 +633,16 @@ def emit_receipt_paid(
             "client_id": str(receipt.client_id),
             "card_id": str(receipt.loyalty_card_id),
             "happened_at": receipt.date.isoformat(),
-            "sold": str(quote.sold),
+            "sold": str(quote.sold - quote.certificates),
             "discount": str(quote.discount),
-            "total": str(receipt.amount),
+            "total": str(receipt.amount - quote.certificates),
             "parts": {k: str(v) for k, v in parts.items()},
             "account_balance_before": (
                 str(result.account_balance_before)
                 if result.account_balance_before is not None
                 else None
             ),
-            "lines": [line.payload() for line in quote.lines],
+            "lines": [line.payload() for line in quote.lines if not line.is_certificate],
         },
     )
 

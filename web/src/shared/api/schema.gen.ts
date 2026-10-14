@@ -29,9 +29,9 @@ export interface paths {
         put?: never;
         /**
          * Forgot Password
-         * @description ����� ����������� ����� ������ (TTL 1 ���) � ���������� ������ �� �������.
+         * @description Выдаёт одноразовый токен сброса (TTL 1 час) и отправляет письмо со ссылкой.
          *
-         *     ����� ������ 204, ����� �� ����������, ���������� �� email.
+         *     Ответ всегда 204, чтобы не раскрывать, существует ли email.
          */
         post: operations["forgot_password_api_admin_v1_auth_forgot_password_post"];
         delete?: never;
@@ -86,8 +86,8 @@ export interface paths {
         put?: never;
         /**
          * Refresh
-         * @description ����� ���� �������. ����, ������ � is_superuser �������������� �� �� �
-         *     ���������� � ������ ���� �������� � ���� �� ����� ����� ����� access-������.
+         * @description Новая пара токенов. Роль, салоны и is_superuser перечитываются из БД —
+         *     увольнение и снятие прав вступают в силу не позже срока жизни access-токена.
          */
         post: operations["refresh_api_admin_v1_auth_refresh_post"];
         delete?: never;
@@ -111,6 +111,149 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/certificates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Certificates
+         * @description Реестр сертификатов сети (раздел 8, п. 4): поиск по коду (часть кода), статус, салон.
+         */
+        get: operations["list_certificates_api_admin_v1_certificates_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/certificates/{certificate_id}/activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Activate Certificate
+         * @description Привязать сертификат к клиенту (решение 6). Один раз — передать потом нельзя.
+         */
+        post: operations["activate_certificate_api_admin_v1_certificates__certificate_id__activate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/certificates/{certificate_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Certificate
+         * @description Аннулирование (раздел 6): остаток в ноль, статус cancelled. Деньги не возвращаются.
+         */
+        post: operations["cancel_certificate_api_admin_v1_certificates__certificate_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/certificates/{certificate_id}/transactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Certificate Transactions
+         * @description История сертификата: продажа, погашения (салон и чек), сторно, сгорание.
+         */
+        get: operations["certificate_transactions_api_admin_v1_certificates__certificate_id__transactions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/certificates/lookup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Lookup Certificate
+         * @description Проверка кода в окне оплаты (раздел 5). POST — код не попадает в URL и логи прокси.
+         *
+         *     Окончательно всё проверяется при оплате, под блокировкой счёта сертификата.
+         */
+        post: operations["lookup_certificate_api_admin_v1_certificates_lookup_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/certificates/templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Templates
+         * @description Все шаблоны, включая скрытые: продажа предлагает только активные.
+         */
+        get: operations["list_templates_api_admin_v1_certificates_templates_get"];
+        put?: never;
+        /** Create Template */
+        post: operations["create_template_api_admin_v1_certificates_templates_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/certificates/templates/{template_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Patch Template
+         * @description Действует на следующие продажи; проданные сертификаты хранят снимок шаблона.
+         */
+        patch: operations["patch_template_api_admin_v1_certificates_templates__template_id__patch"];
         trace?: never;
     };
     "/api/admin/v1/clients": {
@@ -144,7 +287,7 @@ export interface paths {
         post?: never;
         /**
          * Delete Client
-         * @description Soft-delete: �� ������� ��������� ����-�� ���� �������.
+         * @description Soft-delete: на клиента ссылаются шард-БД всех салонов.
          */
         delete: operations["delete_client_api_admin_v1_clients__client_id__delete"];
         options?: never;
@@ -181,7 +324,7 @@ export interface paths {
         put?: never;
         /**
          * Adjust Account
-         * @description ������ ������������� ��������� ������� � ����� ������ � ������ ���������.
+         * @description Ручная корректировка особового рахунку с любым знаком — только суперюзер.
          */
         post: operations["adjust_account_api_admin_v1_clients__client_id__account_adjustments_post"];
         delete?: never;
@@ -201,7 +344,7 @@ export interface paths {
         put?: never;
         /**
          * Refund
-         * @description ������� �������� ������� � �� ������ �������������� �������; ����� �� �������������.
+         * @description Возврат депозита клиенту — не больше положительного баланса; кассы не затрагиваются.
          */
         post: operations["refund_api_admin_v1_clients__client_id__account_refunds_post"];
         delete?: never;
@@ -221,7 +364,7 @@ export interface paths {
         put?: never;
         /**
          * Topup
-         * @description ���������� (������� ��� ��������� �����). ���� � ����� �� �������������.
+         * @description Пополнение (депозит или погашение долга). Шард и кассы не затрагиваются.
          */
         post: operations["topup_api_admin_v1_clients__client_id__account_topups_post"];
         delete?: never;
@@ -239,6 +382,26 @@ export interface paths {
         };
         /** Get Account Transactions */
         get: operations["get_account_transactions_api_admin_v1_clients__client_id__account_transactions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/clients/{client_id}/certificates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Client Certificates
+         * @description Сертификаты клиента: активированные на него и купленные им (подсказка в окне оплаты).
+         */
+        get: operations["client_certificates_api_admin_v1_clients__client_id__certificates_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -274,7 +437,7 @@ export interface paths {
         };
         /**
          * Client Visits
-         * @description ������� ������� ������� � ������ (������� � ������ �� ����� ��������).
+         * @description История визитов клиента в салоне (мастеру — только по своим клиентам).
          */
         get: operations["client_visits_api_admin_v1_clients__client_id__visits_get"];
         put?: never;
@@ -294,7 +457,7 @@ export interface paths {
         };
         /**
          * Export Clients
-         * @description Excel-�������� ���������� ���� (+ ������ � ������� ������).
+         * @description Excel-выгрузка клиентской базы (+ визиты в текущем салоне).
          */
         get: operations["export_clients_api_admin_v1_clients_export_get"];
         put?: never;
@@ -316,10 +479,10 @@ export interface paths {
         put?: never;
         /**
          * Import Clients
-         * @description ������ �� Excel. ������� �����: ��� | ������� | ������� | Email.
+         * @description Импорт из Excel. Колонки листа: Имя | Фамилия | Телефон | Email.
          *
-         *     ������ ���������������� ���������: ������������ � �����������, ����� �
-         *     ��������. ������ ������ ��������� ���������� � ������������.
+         *     Клиент идентифицируется телефоном: существующий — обновляется, новый —
+         *     создаётся. Первая строка считается заголовком и пропускается.
          */
         post: operations["import_clients_api_admin_v1_clients_import_post"];
         delete?: never;
@@ -372,9 +535,9 @@ export interface paths {
         };
         /**
          * Client Balances
-         * @description ������ ������� �� ���� ����: ����� ��������� � ������, ������ ��������� ��������.
+         * @description Особові рахунки по всей сети: суммы депозитов и долгов, список ненулевых балансов.
          *
-         *     �������� ������� ���� ������: ���� ��� �������� ������� �����������.
+         *     Удалённые клиенты тоже входят: счёт при удалении клиента сохраняется.
          */
         get: operations["client_balances_api_admin_v1_finances_client_balances_get"];
         put?: never;
@@ -467,14 +630,14 @@ export interface paths {
         post?: never;
         /**
          * Delete Expense Category
-         * @description �������� ������� ��������� �� ������; ���������� ������� ��������� � ��������.
+         * @description Удаление убирает категорию из списка; проведённые расходы сохраняют её название.
          */
         delete: operations["delete_expense_category_api_admin_v1_finances_expense_categories__category_id__delete"];
         options?: never;
         head?: never;
         /**
          * Rename Expense Category
-         * @description �������������� ������������ ��������� � ��� ���������� ��������.
+         * @description Переименование переписывает категорию в уже проведённых расходах.
          */
         patch: operations["rename_expense_category_api_admin_v1_finances_expense_categories__category_id__patch"];
         trace?: never;
@@ -488,7 +651,7 @@ export interface paths {
         };
         /**
          * Export Operations
-         * @description Excel-����� �� ��������� �� ������.
+         * @description Excel-отчёт по операциям за период.
          */
         get: operations["export_operations_api_admin_v1_finances_export_get"];
         put?: never;
@@ -508,7 +671,7 @@ export interface paths {
         };
         /**
          * List Locations
-         * @description ������� �������� ���� � ��� ������� ���������.
+         * @description Локации активных касс — для фильтра «Локація».
          */
         get: operations["list_locations_api_admin_v1_finances_locations_get"];
         put?: never;
@@ -601,10 +764,10 @@ export interface paths {
         put?: never;
         /**
          * Create Receipt
-         * @description ���: ������� ��� ������ ��� (� recordId) ������ ������. �������� � �� ������ ������.
+         * @description Чек: продажа без записи или (с recordId) оплата визита. Операции — на каждую оплату.
          *
-         *     ������� � ��� � ������ ������, ������� ��������� ������� (����� clientId).
-         *     ������ � ��� �� Idempotency-Key ���������� ��� �� ���.
+         *     Способы — как у оплаты визита, включая «Особовий рахунок» (нужен clientId).
+         *     Повтор с тем же Idempotency-Key возвращает тот же чек.
          */
         post: operations["create_receipt_api_admin_v1_finances_receipts_post"];
         delete?: never;
@@ -624,7 +787,10 @@ export interface paths {
         put?: never;
         /**
          * Cancel Receipt
-         * @description ������ ����: ��� � ��������� �������� � cancelled; ������ ���� ����� �� ��������.
+         * @description Отмена чека: чек и связанные операции — cancelled; запись чека снова не оплачена.
+         *
+         *     Чек продажи сертификатов отменяется, только пока ими не расплачивались
+         *     (certificates.md, раздел 6); сертификаты аннулирует воркер вместе со сторно.
          */
         post: operations["cancel_receipt_api_admin_v1_finances_receipts__receipt_id__cancel_post"];
         delete?: never;
@@ -642,7 +808,7 @@ export interface paths {
         };
         /**
          * Sale Checkout
-         * @description ������������ ������� ��� ������: subtotal � ��������, ������ � ����������.
+         * @description Предпросмотр продажи без записи: subtotal — «Продано» товаров, скидка — наибольшая.
          */
         get: operations["sale_checkout_api_admin_v1_finances_receipts_checkout_get"];
         put?: never;
@@ -683,8 +849,8 @@ export interface paths {
         post?: never;
         /**
          * Delete Category
-         * @description �������� ���������. ������ ����������� � ���� ������𳿻; ���
-         *     mode=delete_products ��� ��� � ��������� (����� � ������� �������� �������).
+         * @description Удаление категории. Товары переносятся в «Без категорії»; при
+         *     mode=delete_products они ещё и удаляются (мягко — история движений остаётся).
          */
         delete: operations["delete_category_api_admin_v1_inventory_categories__category_id__delete"];
         options?: never;
@@ -702,7 +868,7 @@ export interface paths {
         };
         /**
          * Export Products
-         * @description Excel-�������� ������; blocks � ����� ������� �� main, stock, finance, description.
+         * @description Excel-выгрузка склада; blocks — через запятую из main, stock, finance, description.
          */
         get: operations["export_products_api_admin_v1_inventory_export_get"];
         put?: never;
@@ -724,12 +890,12 @@ export interface paths {
         put?: never;
         /**
          * Import Products
-         * @description ������ �� Excel: ������ ������ � ��������� (IMPORT_COLUMNS, ������� �����).
+         * @description Импорт из Excel: первая строка — заголовки (IMPORT_COLUMNS, порядок любой).
          *
-         *     ����� ������ �� ��������: ����� � ��������, ������������ � �����������;
-         *     ������� ������� ����������� ������������. ����������� ��������� ��������.
-         *     �������� ������������; ������� ������ ������� � ������ ������, ������
-         *     ������������; ������ ������ � ������������� ������ �������� �� �������.
+         *     Товар ищется по артикулу: новый — создаётся, существующий — обновляется;
+         *     отличие остатка оформляется коригуванням. Неизвестная категория создаётся.
+         *     Штрихкод необязателен; занятый другим товаром — ошибка строки, строка
+         *     пропускается; пустая ячейка у существующего товара штрихкод не стирает.
          */
         post: operations["import_products_api_admin_v1_inventory_import_post"];
         delete?: never;
@@ -747,7 +913,7 @@ export interface paths {
         };
         /**
          * List Products
-         * @description ������ �������. ������� � ������ �������� � ������ ��������, �������, �������.
+         * @description Список товаров. Мастеру — только активные и только название, единица, остаток.
          */
         get: operations["list_products_api_admin_v1_inventory_products_get"];
         put?: never;
@@ -772,7 +938,7 @@ export interface paths {
         post?: never;
         /**
          * Delete Product
-         * @description ������ ��������: �� ����� ��������� ������� ��������.
+         * @description Мягкое удаление: на товар ссылается история движений.
          */
         delete: operations["delete_product_api_admin_v1_inventory_products__product_id__delete"];
         options?: never;
@@ -828,7 +994,7 @@ export interface paths {
         post?: never;
         /**
          * Delete Card
-         * @description ��������: ������ �������; ����� ����� �������� � ����, ������� ���� ���������.
+         * @description Удаление: кешбэк сгорает; новая карта начнётся с нуля, уровень тоже сбросится.
          */
         delete: operations["delete_card_api_admin_v1_loyalty_cards__card_id__delete"];
         options?: never;
@@ -847,7 +1013,7 @@ export interface paths {
         put?: never;
         /**
          * Adjust Cashback
-         * @description ������ ������������� ������� � ����� ������ � ������ ���������, ����������� ����������.
+         * @description Ручная корректировка кешбэка с любым знаком — только суперюзер, комментарий обязателен.
          */
         post: operations["adjust_cashback_api_admin_v1_loyalty_cards__card_id__cashback_adjustments_post"];
         delete?: never;
@@ -865,7 +1031,7 @@ export interface paths {
         };
         /**
          * Card Transactions
-         * @description ������� ������-������� �����.
+         * @description История кешбек-рахунку карты.
          */
         get: operations["card_transactions_api_admin_v1_loyalty_cards__card_id__transactions_get"];
         put?: never;
@@ -885,7 +1051,7 @@ export interface paths {
         };
         /**
          * Card Visits
-         * @description ����� ������� �� ����� �� ���� ������� ����, ���������� � � reversedAt.
+         * @description Факты визитов по карте во всех салонах сети, отменённые — с reversedAt.
          */
         get: operations["card_visits_api_admin_v1_loyalty_cards__card_id__visits_get"];
         put?: never;
@@ -905,7 +1071,7 @@ export interface paths {
         };
         /**
          * Generate Number
-         * @description ��������� ����� ��� ����� ������; ��������� ������������ ����������� ��� ������.
+         * @description Свободный номер для формы выдачи; занятость окончательно проверяется при выдаче.
          */
         get: operations["generate_number_api_admin_v1_loyalty_cards_generate_number_get"];
         put?: never;
@@ -950,7 +1116,7 @@ export interface paths {
         head?: never;
         /**
          * Patch Card Type
-         * @description ����� �������� � ������ ����������� � ��������� �����; ����������� �� ���������������.
+         * @description Новые проценты и уровни применяются к следующим чекам; начисленное не пересчитывается.
          */
         patch: operations["patch_card_type_api_admin_v1_loyalty_card_types__type_id__patch"];
         trace?: never;
@@ -985,14 +1151,14 @@ export interface paths {
         post?: never;
         /**
          * Delete Bonus Rule
-         * @description ������� ����� ������ ���������������� �������; �� ��������������� � isActive=false.
+         * @description Удалить можно только неиспользованное правило; по использованному — isActive=false.
          */
         delete: operations["delete_bonus_rule_api_admin_v1_loyalty_card_types__type_id__bonus_rules__rule_id__delete"];
         options?: never;
         head?: never;
         /**
          * Patch Bonus Rule
-         * @description ����� N ��������� �� ��������� �������; ����������� �� ���������������.
+         * @description Новый N действует со следующих визитов; накопленное не пересчитывается.
          */
         patch: operations["patch_bonus_rule_api_admin_v1_loyalty_card_types__type_id__bonus_rules__rule_id__patch"];
         trace?: never;
@@ -1006,7 +1172,7 @@ export interface paths {
         };
         /**
          * Master Slots
-         * @description ��������� ����� ������� �� ���� ��� ����� ����� (������������ � �����).
+         * @description Свободное время мастера на дату под набор услуг (длительность — сумма).
          */
         get: operations["master_slots_api_admin_v1_masters__master_id__slots_get"];
         put?: never;
@@ -1026,13 +1192,33 @@ export interface paths {
         };
         /**
          * List Payment Methods
-         * @description ������� ������ ��� ����� ������ ������ (�������������).
+         * @description Способы оплаты для приёма оплаты визита (администратор).
          *
-         *     ������ ��, ����� ������� ������ ������: ������ �������, � ���� ����
-         *     ����� � ��� �� ���������; ��������� ��������� ������� � ������� � ���
-         *     �����. ���������� ��������� � � /finances/payment-methods.
+         *     Только те, через которые оплата пройдёт: способ активен, у него есть
+         *     касса и она не выключена; системные «Особовий рахунок», «Кешбек» и
+         *     «Сертифікат» — без кассы. Финансовые настройки — в /finances/payment-methods.
          */
         get: operations["list_payment_methods_api_admin_v1_payment_methods_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/receipts/{receipt_id}/certificates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Receipt Certificates
+         * @description Сертификаты, проданные чеком салона: коды для показа, печати и активации.
+         */
+        get: operations["receipt_certificates_api_admin_v1_receipts__receipt_id__certificates_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1086,9 +1272,9 @@ export interface paths {
         };
         /**
          * Record Checkout
-         * @description ������������ ������ ������: ����� � �������, �������� ������, ������, ����, �������.
+         * @description Предпросмотр оплаты визита: карта и уровень, бонусные услуги, скидки, итог, балансы.
          *
-         *     bonusRecordServiceIds � ������, ���������� �����������: ���� ��������� � ����.
+         *     bonusRecordServiceIds — строки, отмеченные бесплатными: итог считается с ними.
          */
         get: operations["record_checkout_api_admin_v1_records__record_id__checkout_get"];
         put?: never;
@@ -1110,7 +1296,7 @@ export interface paths {
         put?: never;
         /**
          * Complete Record
-         * @description ���������� ������ � ��� ������: ������ �������� completed + unpaid.
+         * @description Завершение визита — без оплаты: запись получает completed + unpaid.
          */
         post: operations["complete_record_api_admin_v1_records__record_id__complete_post"];
         delete?: never;
@@ -1131,7 +1317,7 @@ export interface paths {
         put?: never;
         /**
          * Write Off Consumables
-         * @description �������� ����������� �� ������ (������ � �� ����� ������, ������������� � �� �����).
+         * @description Списание расходников по записи (мастер — по своей записи, администратор — по любой).
          */
         post: operations["write_off_consumables_api_admin_v1_records__record_id__consumables_post"];
         delete?: never;
@@ -1152,11 +1338,11 @@ export interface paths {
         post?: never;
         /**
          * Cancel Consumable
-         * @description ������ ���������� ��������: �������� �������� ������������� � record_id.
+         * @description Отмена ошибочного списания: обратное движение «надходження» с record_id.
          *
-         *     �������� �������� �� ���������. ����� �� ����� ������, � ��� �����
-         *     �����������, ���������� � � �������� ������� (������ ������� ����� ������).
-         *     ����� � ���������� ������ ����������� ������.
+         *     Исходное движение не удаляется. Можно по любой записи, в том числе
+         *     завершённой, оплаченной и с удалённым товаром (ошибки находят после визита).
+         *     Ответ — обновлённый список расходников записи.
          */
         delete: operations["cancel_consumable_api_admin_v1_records__record_id__consumables__movement_id__delete"];
         options?: never;
@@ -1175,10 +1361,10 @@ export interface paths {
         put?: never;
         /**
          * Pay Record
-         * @description ������ ������������ ������: ��� � recordId �� ������ ����� (�������������).
+         * @description Оплата завершённого визита: чек с recordId на полную сумму (администратор).
          *
-         *     ����� ��������� ������� ����������� �� ����� �������, ��� �������� � � ����.
-         *     ������ � ��� �� Idempotency-Key ���������� ��� �� ���.
+         *     Часть «Особовий рахунок» списывается со счёта клиента, при нехватке — в долг.
+         *     Повтор с тем же Idempotency-Key возвращает тот же чек.
          */
         post: operations["pay_record_api_admin_v1_records__record_id__payment_post"];
         delete?: never;
@@ -1213,10 +1399,10 @@ export interface paths {
         };
         /**
          * Daily Summary
-         * @description ����� � ������������ ������� �� ���� � ��� �̳����� � ����-���������.
+         * @description Число и длительность записей по дням — вид «Місяць» и мини-календарь.
          *
-         *     ���������� �� ���������, ��� ������� � ��������� (����� ������� ���� ������).
-         *     ������ ��������� � ��� ������ ������.
+         *     Отменённые не считаются, «Не прийшов» — считаются (время мастера было занято).
+         *     Запись относится к дню своего начала.
          */
         get: operations["daily_summary_api_admin_v1_records_daily_summary_get"];
         put?: never;
@@ -1253,7 +1439,7 @@ export interface paths {
         };
         /**
          * Export Reports
-         * @description ��� ������ ����� ������; �������������� � ��� �������� ������� � ����� �������.
+         * @description Все отчёты одним файлом; администратору — без денежных колонок и листа выручки.
          */
         get: operations["export_reports_api_admin_v1_reports_export_get"];
         put?: never;
@@ -1358,7 +1544,7 @@ export interface paths {
         };
         /**
          * Schedule
-         * @description ������� ����� �������� �� ���� (���� ������������) � ����� ��������.
+         * @description Рабочее время мастеров по дням (даты включительно) — сетка Розкладу.
          */
         get: operations["schedule_api_admin_v1_schedule_get"];
         put?: never;
@@ -1399,7 +1585,7 @@ export interface paths {
         post?: never;
         /**
          * Archive Service
-         * @description ������������� ������ �������� � �� ������ ��������� ������.
+         * @description Архивирование вместо удаления — на услугу ссылаются записи.
          */
         delete: operations["archive_service_api_admin_v1_services__service_id__delete"];
         options?: never;
@@ -1438,7 +1624,7 @@ export interface paths {
         post?: never;
         /**
          * Delete Category
-         * @description ��������: ��� ������ ��������� (������� ��������) ��������� � �����.
+         * @description Удаление: все услуги категории (включая архивные) переходят в «Інше».
          */
         delete: operations["delete_category_api_admin_v1_services_categories__category_id__delete"];
         options?: never;
@@ -1476,10 +1662,10 @@ export interface paths {
         get: operations["get_salon_schedule_api_admin_v1_settings_schedule_get"];
         /**
          * Put Salon Schedule
-         * @description ���� ������ �������: ��� ���� ���� ������.
+         * @description Весь график целиком: все семь дней недели.
          *
-         *     ������� ����� ����������� ���������� �� ����� �����, ����� ����, � �������
-         *     �� ���������� ����� ���� ������ (backend/docs/shifts.md).
+         *     Будущие смены сотрудников обрезаются по новым часам, кроме смен, у которых
+         *     на обрезаемое время есть записи (backend/docs/shifts.md).
          */
         put: operations["put_salon_schedule_api_admin_v1_settings_schedule_put"];
         post?: never;
@@ -1498,7 +1684,7 @@ export interface paths {
         };
         /**
          * Shift Grid
-         * @description ����� �������: �������, ����� ��������������; ������� � ������ ��� ������.
+         * @description Сетка графика: мастера, потом администраторы; мастеру — только его строка.
          */
         get: operations["shift_grid_api_admin_v1_shifts_get"];
         put?: never;
@@ -1522,7 +1708,7 @@ export interface paths {
         post?: never;
         /**
          * Delete Shift
-         * @description ������ ����� ��� ������� (���� ���������� ��������).
+         * @description Убрать смену или отметку (день становится выходным).
          */
         delete: operations["delete_shift_api_admin_v1_shifts__staffId___date__delete"];
         options?: never;
@@ -1541,7 +1727,7 @@ export interface paths {
         put?: never;
         /**
          * Fill Shifts
-         * @description ��������� ����� ��� ������� �� ������ ��� ���������� �����������.
+         * @description Заполнить смены или отметки на период для нескольких сотрудников.
          */
         post: operations["fill_shifts_api_admin_v1_shifts_fill_post"];
         delete?: never;
@@ -1581,7 +1767,7 @@ export interface paths {
         post?: never;
         /**
          * Fire Staff
-         * @description ���������� �� ������. 409, ���� � ������� ���� ������� ������.
+         * @description Увольнение из салона. 409, если у мастера есть будущие записи.
          */
         delete: operations["fire_staff_api_admin_v1_staff__staff_id__delete"];
         options?: never;
@@ -1616,7 +1802,7 @@ export interface paths {
         };
         /**
          * Export Staff
-         * @description Excel-�������� ����������� ������ (���������).
+         * @description Excel-выгрузка сотрудников салона (суперюзер).
          */
         get: operations["export_staff_api_admin_v1_staff_export_get"];
         put?: never;
@@ -1706,7 +1892,7 @@ export interface paths {
         put?: never;
         /**
          * Create Review
-         * @description ����� �� ������������ review_token �� ����������� � ����������� ������.
+         * @description Отзыв по одноразовому review_token из уведомления о завершённом визите.
          */
         post: operations["create_review_api_booking__salon_slug__reviews_post"];
         delete?: never;
@@ -1724,7 +1910,7 @@ export interface paths {
         };
         /**
          * Review Context
-         * @description ������ ������ �� ������ �� ������; �������������� ��� ����� ����� � 404.
+         * @description Данные визита по токену из ссылки; использованный или чужой токен — 404.
          */
         get: operations["review_context_api_booking__salon_slug__reviews__token__get"];
         put?: never;
@@ -1744,7 +1930,7 @@ export interface paths {
         };
         /**
          * Get Salon
-         * @description �������� ������ ��� ����� ������: �������� � ������ (��� ������������ ��������).
+         * @description Карточка салона для сайта записи: контакты и график (без юридического названия).
          */
         get: operations["get_salon_api_booking__salon_slug__salon_get"];
         put?: never;
@@ -1764,10 +1950,10 @@ export interface paths {
         };
         /**
          * List Services
-         * @description �������� ������, ������� ��������� ���� �� ���� ������.
+         * @description Активные услуги, которые выполняет хотя бы один мастер.
          *
-         *     �������: �� �������� ��������� (���������� �������, ����� � ���������),
-         *     ������ � �� �������� ������.
+         *     Порядок: по названию категории (украинский алфавит, «Інше» — последней),
+         *     внутри — по названию услуги.
          */
         get: operations["list_services_api_booking__salon_slug__services_get"];
         put?: never;
@@ -1804,7 +1990,7 @@ export interface paths {
         };
         /**
          * List Salons
-         * @description �������� ������ ����, �� �������� (���������� �������).
+         * @description Активные салоны сети, по названию (украинский алфавит).
          */
         get: operations["list_salons_api_booking_salons_get"];
         put?: never;
@@ -1824,7 +2010,7 @@ export interface paths {
         };
         /**
          * Client Loyalty
-         * @description ������ �����, �����, ������ � ������� ������� � ������ ��������. 404 � ������� ���.
+         * @description Баланс счёта, карта, кешбэк и уровень клиента — только просмотр. 404 — клиента нет.
          */
         get: operations["client_loyalty_api_bot_clients_by_telegram__tg_user_id__loyalty_get"];
         put?: never;
@@ -1847,7 +2033,7 @@ export interface paths {
         /**
          * Link Client Telegram
          * @deprecated
-         * @description ��������: ����������� POST /api/bot/link-telegram.
+         * @description Устарело: используйте POST /api/bot/link-telegram.
          */
         post: operations["link_client_telegram_api_bot_clients_link_telegram_post"];
         delete?: never;
@@ -1865,7 +2051,7 @@ export interface paths {
         };
         /**
          * Identify
-         * @description ����������, ��� ����� ����, �� telegram_user_id (������ Master DB).
+         * @description Определяет, кто пишет боту, по telegram_user_id (только Master DB).
          */
         get: operations["identify_api_bot_identify_get"];
         put?: never;
@@ -1887,11 +2073,11 @@ export interface paths {
         put?: never;
         /**
          * Link Telegram
-         * @description ����������� Telegram �� �������� �� �������� (��� ���������, ��� ������� ����).
+         * @description Привязывает Telegram по телефону из контакта (бот проверяет, что контакт свой).
          *
-         *     ������������� ��� ���������� � �������������, ������, ������: ������,
-         *     ������� ��� ������������ ��� ������, �������� � ����������� �������, �
-         *     �����������. ����� � ��� � /identify (������� ����).
+         *     Привязываются все совпадения — администратор, мастер, клиент: мастер,
+         *     который сам записывается как клиент, получает и уведомления мастера, и
+         *     напоминания. Ответ — как у /identify (старшая роль).
          */
         post: operations["link_telegram_api_bot_link_telegram_post"];
         delete?: never;
@@ -1909,7 +2095,7 @@ export interface paths {
         };
         /**
          * Master Records
-         * @description ������ ������� �� ���� (�� �����) �� ���� ��� �������, ����� ����������.
+         * @description Записи мастера на дату (по Киеву) во всех его салонах, кроме отменённых.
          */
         get: operations["master_records_api_bot_masters_records_get"];
         put?: never;
@@ -1929,7 +2115,7 @@ export interface paths {
         };
         /**
          * List Salons
-         * @description �������� ������ �� �������� �� ���� ������ � ��� ���� ���� ��������.
+         * @description Активные салоны со ссылками на сайт записи — бот ведёт туда клиентов.
          */
         get: operations["list_salons_api_bot_salons_get"];
         put?: never;
@@ -2542,7 +2728,7 @@ export interface components {
         };
         /**
          * CashRegisterPatchIn
-         * @description ������ �� ������������� � ������ ����������. �������� ��� � isActive=false.
+         * @description Баланс не редактируется — только операциями. Удаления нет — isActive=false.
          */
         CashRegisterPatchIn: {
             /** Isactive */
@@ -2586,6 +2772,218 @@ export interface components {
             count: number;
             /** Revenue */
             revenue: string | null;
+        };
+        /** CertificateActivateIn */
+        CertificateActivateIn: {
+            /**
+             * Clientid
+             * Format: uuid
+             */
+            clientId: string;
+        };
+        /** CertificateCancelIn */
+        CertificateCancelIn: {
+            /** Reason */
+            reason: string;
+        };
+        /** CertificateLookupIn */
+        CertificateLookupIn: {
+            /** Bonusrecordserviceids */
+            bonusRecordServiceIds?: string[];
+            /** Clientid */
+            clientId?: string | null;
+            /** Code */
+            code: string;
+            /** Recordid */
+            recordId?: string | null;
+        };
+        /** CertificateLookupOut */
+        CertificateLookupOut: {
+            certificate: components["schemas"]["CertificateOut"];
+            /** Error */
+            error: string | null;
+            /** Maxpayment */
+            maxPayment: string;
+        };
+        /** CertificateOut */
+        CertificateOut: {
+            /** Activatedat */
+            activatedAt: string | null;
+            /** Amount */
+            amount: string;
+            /** Balance */
+            balance: string;
+            buyer: components["schemas"]["PersonRef"] | null;
+            /** Cancelledat */
+            cancelledAt: string | null;
+            /** Cancelledbyname */
+            cancelledByName: string | null;
+            /** Cancelreason */
+            cancelReason: string | null;
+            /** Code */
+            code: string;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Expiresat */
+            expiresAt: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            owner: components["schemas"]["PersonRef"] | null;
+            scope: components["schemas"]["CertificateScope"];
+            /**
+             * Soldreceiptid
+             * Format: uuid
+             */
+            soldReceiptId: string;
+            /**
+             * Soldsalonid
+             * Format: uuid
+             */
+            soldSalonId: string;
+            status: components["schemas"]["CertificateStatus"];
+        };
+        /**
+         * CertificateSaleIn
+         * @description Позиция продажи в чеке: шаблон и количество (2 шт. — два кода).
+         */
+        CertificateSaleIn: {
+            /**
+             * Quantity
+             * @default 1
+             */
+            quantity: number;
+            /**
+             * Templateid
+             * Format: uuid
+             */
+            templateId: string;
+        };
+        /**
+         * CertificateScope
+         * @enum {string}
+         */
+        CertificateScope: "any" | "services";
+        /**
+         * CertificateStatus
+         * @enum {string}
+         */
+        CertificateStatus: "issued" | "active" | "spent" | "expired" | "cancelled";
+        /** CertificateTemplateIn */
+        CertificateTemplateIn: {
+            /** Amount */
+            amount: number | string;
+            /**
+             * Isactive
+             * @default true
+             */
+            isActive: boolean;
+            /** Name */
+            name: string;
+            /** @default any */
+            scope: components["schemas"]["CertificateScope"];
+            /** Services */
+            services?: components["schemas"]["CertificateTemplateServiceRef"][];
+            /**
+             * Sortorder
+             * @default 0
+             */
+            sortOrder: number;
+            /** Validdays */
+            validDays?: number | null;
+        };
+        /** CertificateTemplateOut */
+        CertificateTemplateOut: {
+            /** Amount */
+            amount: string;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Isactive */
+            isActive: boolean;
+            /** Name */
+            name: string;
+            scope: components["schemas"]["CertificateScope"];
+            /** Services */
+            services: components["schemas"]["CertificateTemplateServiceRef"][];
+            /** Sortorder */
+            sortOrder: number;
+            /**
+             * Updatedat
+             * Format: date-time
+             */
+            updatedAt: string;
+            /** Validdays */
+            validDays: number | null;
+        };
+        /** CertificateTemplatePatchIn */
+        CertificateTemplatePatchIn: {
+            /** Amount */
+            amount?: number | string | null;
+            /** Isactive */
+            isActive?: boolean | null;
+            /** Name */
+            name?: string | null;
+            scope?: components["schemas"]["CertificateScope"] | null;
+            /** Services */
+            services?: components["schemas"]["CertificateTemplateServiceRef"][] | null;
+            /** Sortorder */
+            sortOrder?: number | null;
+            /** Validdays */
+            validDays?: number | null;
+        };
+        /** CertificateTemplateServiceRef */
+        CertificateTemplateServiceRef: {
+            /**
+             * Salonid
+             * Format: uuid
+             */
+            salonId: string;
+            /**
+             * Serviceid
+             * Format: uuid
+             */
+            serviceId: string;
+        };
+        /** CertificateTransactionOut */
+        CertificateTransactionOut: {
+            /** Amount */
+            amount: string;
+            /** Authorname */
+            authorName: string | null;
+            /** Balanceafter */
+            balanceAfter: string;
+            /** Comment */
+            comment: string | null;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Receiptid */
+            receiptId: string | null;
+            /** Salonid */
+            salonId: string | null;
+            type: components["schemas"]["TransactionType"];
         };
         /** CheckoutCardOut */
         CheckoutCardOut: {
@@ -2634,6 +3032,8 @@ export interface components {
             recordServiceId: string | null;
             /** Serviceid */
             serviceId: string | null;
+            /** Templateid */
+            templateId?: string | null;
         };
         /** CheckoutOut */
         CheckoutOut: {
@@ -2643,6 +3043,8 @@ export interface components {
             bonusAmount: string;
             card: components["schemas"]["CheckoutCardOut"] | null;
             cashback: components["schemas"]["CashbackOut"] | null;
+            /** Certificatesamount */
+            certificatesAmount: string;
             /** Clientid */
             clientId: string | null;
             /** Discountamount */
@@ -3023,7 +3425,7 @@ export interface components {
         };
         /**
          * DiscountSource
-         * @description �������� ����������� ������: ����, ���������� � ������� (loyalty-accounts.md, ������ 6).
+         * @description Источник применённой скидки: одна, наибольшая в гривнах (loyalty-accounts.md, раздел 6).
          * @enum {string}
          */
         DiscountSource: "none" | "client" | "card_percent" | "card_fixed";
@@ -3126,6 +3528,21 @@ export interface components {
             data: components["schemas"]["CashRegisterOut"];
             meta?: components["schemas"]["PageMeta"] | null;
         };
+        /** Envelope[CertificateLookupOut] */
+        Envelope_CertificateLookupOut_: {
+            data: components["schemas"]["CertificateLookupOut"];
+            meta?: components["schemas"]["PageMeta"] | null;
+        };
+        /** Envelope[CertificateOut] */
+        Envelope_CertificateOut_: {
+            data: components["schemas"]["CertificateOut"];
+            meta?: components["schemas"]["PageMeta"] | null;
+        };
+        /** Envelope[CertificateTemplateOut] */
+        Envelope_CertificateTemplateOut_: {
+            data: components["schemas"]["CertificateTemplateOut"];
+            meta?: components["schemas"]["PageMeta"] | null;
+        };
         /** Envelope[CheckoutOut] */
         Envelope_CheckoutOut_: {
             data: components["schemas"]["CheckoutOut"];
@@ -3209,6 +3626,24 @@ export interface components {
         Envelope_list_CashRegisterOut__: {
             /** Data */
             data: components["schemas"]["CashRegisterOut"][];
+            meta?: components["schemas"]["PageMeta"] | null;
+        };
+        /** Envelope[list[CertificateOut]] */
+        Envelope_list_CertificateOut__: {
+            /** Data */
+            data: components["schemas"]["CertificateOut"][];
+            meta?: components["schemas"]["PageMeta"] | null;
+        };
+        /** Envelope[list[CertificateTemplateOut]] */
+        Envelope_list_CertificateTemplateOut__: {
+            /** Data */
+            data: components["schemas"]["CertificateTemplateOut"][];
+            meta?: components["schemas"]["PageMeta"] | null;
+        };
+        /** Envelope[list[CertificateTransactionOut]] */
+        Envelope_list_CertificateTransactionOut__: {
+            /** Data */
+            data: components["schemas"]["CertificateTransactionOut"][];
             meta?: components["schemas"]["PageMeta"] | null;
         };
         /** Envelope[list[ClientOut]] */
@@ -3864,7 +4299,7 @@ export interface components {
         };
         /**
          * MePatchIn
-         * @description ���� ��������. ���, ���������, ����� � ������ ������ �������������.
+         * @description Свои контакты. Имя, должность, оклад и прочее меняет администратор.
          */
         MePatchIn: {
             /** Additionalphone */
@@ -4044,6 +4479,8 @@ export interface components {
         PaymentIn: {
             /** Amount */
             amount: number | string;
+            /** Certificatecode */
+            certificateCode?: string | null;
             /**
              * Paymentmethodid
              * Format: uuid
@@ -4174,7 +4611,7 @@ export interface components {
         PaymentStatus: "unpaid" | "partial" | "paid";
         /**
          * PersonRef
-         * @description �������� ������ �� �������� � �������: {id, name}.
+         * @description Короткая ссылка на человека в ответах: {id, name}.
          */
         PersonRef: {
             /** Id */
@@ -4261,7 +4698,7 @@ export interface components {
         };
         /**
          * ProductPatchIn
-         * @description ������� ����� �� �������� � ������ ����������.
+         * @description Остаток здесь не меняется — только движениями.
          */
         ProductPatchIn: {
             /** Barcode */
@@ -4295,6 +4732,8 @@ export interface components {
         ReceiptCreateIn: {
             /** Bonusrecordserviceids */
             bonusRecordServiceIds?: string[];
+            /** Certificates */
+            certificates?: components["schemas"]["CertificateSaleIn"][];
             /** Clientid */
             clientId?: string | null;
             /** Clientname */
@@ -4349,6 +4788,8 @@ export interface components {
         ReceiptPaymentIn: {
             /** Amount */
             amount: number | string;
+            /** Certificatecode */
+            certificateCode?: string | null;
             /**
              * Paymentmethodid
              * Format: uuid
@@ -4570,6 +5011,8 @@ export interface components {
         RecordPaymentIn: {
             /** Bonusrecordserviceids */
             bonusRecordServiceIds?: string[];
+            /** Certificates */
+            certificates?: components["schemas"]["CertificateSaleIn"][];
             /** Expectedtotal */
             expectedTotal?: number | string | null;
             /** Payments */
@@ -4582,7 +5025,7 @@ export interface components {
         };
         /**
          * RecordServiceOut
-         * @description ������ � ������: ������� ��������/����/������������ + ������� ��������� � ����.
+         * @description Услуга в записи: снапшот названия/цены/длительности + текущие категория и цвет.
          */
         RecordServiceOut: {
             category?: components["schemas"]["CategoryRef"] | null;
@@ -4651,7 +5094,7 @@ export interface components {
         };
         /**
          * ReviewContextOut
-         * @description ��� �������� �� ����� ������: � ���� � ����� ��� �����.
+         * @description Что показать на форме отзыва: к кому и когда был визит.
          */
         ReviewContextOut: {
             /** Master Name */
@@ -4788,7 +5231,7 @@ export interface components {
         };
         /**
          * SalonInfoPatchIn
-         * @description ���������� ������ ���������� ����; null � �������� (����� name).
+         * @description Передаются только изменённые поля; null — очистить (кроме name).
          */
         SalonInfoPatchIn: {
             /** Address */
@@ -4835,7 +5278,7 @@ export interface components {
         };
         /**
          * SalonProfileOut
-         * @description ������� ������ � ������� ������ (��������� X-Salon-Id). ���� ����� ����� ������.
+         * @description Условия работы в текущем салоне (заголовок X-Salon-Id). Свой оклад видит каждый.
          */
         SalonProfileOut: {
             /** Commissionpercent */
@@ -5045,7 +5488,7 @@ export interface components {
         };
         /**
          * ShiftIn
-         * @description ����� (`kind: shift` + �����) ��� ������� (`vacation` / `sick`).
+         * @description Смена (`kind: shift` + время) или отметка (`vacation` / `sick`).
          */
         ShiftIn: {
             /** Breakend */
@@ -5311,7 +5754,7 @@ export interface components {
         };
         /**
          * StaffStatus
-         * @description ������ � ������. ������ � ���������� � ������� � ������� (StaffShift).
+         * @description Статус в салоне. Отпуск и больничный — отметки в графике (StaffShift).
          * @enum {string}
          */
         StaffStatus: "active" | "fired";
@@ -5736,6 +6179,272 @@ export interface operations {
             };
         };
     };
+    list_certificates_api_admin_v1_certificates_get: {
+        parameters: {
+            query?: {
+                code?: string | null;
+                page?: number;
+                perPage?: number;
+                soldSalonId?: string | null;
+                status?: components["schemas"]["CertificateStatus"] | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_list_CertificateOut__"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    activate_certificate_api_admin_v1_certificates__certificate_id__activate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                certificate_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CertificateActivateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_CertificateOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_certificate_api_admin_v1_certificates__certificate_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                certificate_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CertificateCancelIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_CertificateOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    certificate_transactions_api_admin_v1_certificates__certificate_id__transactions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                certificate_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_list_CertificateTransactionOut__"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    lookup_certificate_api_admin_v1_certificates_lookup_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CertificateLookupIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_CertificateLookupOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_templates_api_admin_v1_certificates_templates_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_list_CertificateTemplateOut__"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_template_api_admin_v1_certificates_templates_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CertificateTemplateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_CertificateTemplateOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_template_api_admin_v1_certificates_templates__template_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                template_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CertificateTemplatePatchIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_CertificateTemplateOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_clients_api_admin_v1_clients_get: {
         parameters: {
             query?: {
@@ -6067,6 +6776,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_list_TransactionOut__"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    client_certificates_api_admin_v1_clients__client_id__certificates_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_list_CertificateOut__"];
                 };
             };
             /** @description Validation Error */
@@ -7014,6 +7754,7 @@ export interface operations {
     sale_checkout_api_admin_v1_finances_receipts_checkout_get: {
         parameters: {
             query: {
+                certificateTemplateIds?: string[] | null;
                 clientId?: string | null;
                 subtotal: number | string;
             };
@@ -7991,6 +8732,37 @@ export interface operations {
             };
         };
     };
+    receipt_certificates_api_admin_v1_receipts__receipt_id__certificates_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                receipt_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_list_CertificateOut__"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_records_api_admin_v1_records_get: {
         parameters: {
             query?: {
@@ -8137,6 +8909,7 @@ export interface operations {
         parameters: {
             query?: {
                 bonusRecordServiceIds?: string[] | null;
+                certificateTemplateIds?: string[] | null;
             };
             header?: never;
             path: {

@@ -44,6 +44,8 @@ export const cents = (value: string | number | null | undefined) => Math.round(n
 export interface PaymentPart {
   paymentMethodId?: string;
   amount?: number;
+  /** Для способа «Сертифікат». */
+  certificateCode?: string;
 }
 
 export interface PaymentCheck {
@@ -55,26 +57,37 @@ export interface PaymentCheck {
   bonusPart: number;
   /** Кешбэком больше, чем можно в этом чеке. */
   bonusOverLimit: boolean;
+  /**
+   * Счётом, кешбэком и сертификатом оплачено больше, чем итог без продаваемых сертификатов:
+   * сертификат покупают
+   * только кассовыми способами (certificates.md, 4.2).
+   */
+  certificatesNotByRegister: boolean;
 }
 
 /**
  * Проверка частей оплаты против предпросмотра сервера (раздел 6, шаг 3): сумма = итог,
- * кешбэк ≤ максимума, долг — часть счёта сверх положительного баланса.
+ * кешбэк ≤ максимума, долг — часть счёта сверх положительного баланса, сертификаты — кассой.
  */
 export function checkPayments(
   parts: PaymentPart[] | undefined,
   methodType: (id: string | undefined) => Schema<'PaymentMethodType'> | undefined,
-  checkout: Pick<Schema<'CheckoutOut'>, 'total' | 'accountBalance' | 'cashback'>,
+  checkout: Pick<
+    Schema<'CheckoutOut'>,
+    'total' | 'accountBalance' | 'cashback' | 'certificatesAmount'
+  >,
 ): PaymentCheck {
   let total = 0;
   let account = 0;
   let bonus = 0;
+  let certificate = 0;
   for (const part of parts ?? []) {
     const amount = cents(part.amount);
     total += amount;
     const type = methodType(part.paymentMethodId);
     if (type === 'account') account += amount;
     if (type === 'bonus') bonus += amount;
+    if (type === 'certificate') certificate += amount;
   }
   const available = Math.max(cents(checkout.accountBalance), 0);
   return {
@@ -83,6 +96,9 @@ export function checkPayments(
     accountPart: account / 100,
     bonusPart: bonus / 100,
     bonusOverLimit: bonus > cents(checkout.cashback?.maxPayment),
+    certificatesNotByRegister:
+      cents(checkout.certificatesAmount) > 0 &&
+      account + bonus + certificate > cents(checkout.total) - cents(checkout.certificatesAmount),
   };
 }
 
@@ -106,6 +122,10 @@ export function methodOptionLabel(method: Method, checkout: Checkout | undefined
   return method.name;
 }
 
-/** Кешбэком без карты, действующей в салоне, платить нельзя — способ скрываем. */
+/**
+ * Кешбэком без карты, действующей в салоне, платить нельзя — способ скрываем. «Сертифікат» —
+ * только с клиентом в чеке: неактивированный сертификат активируется на него.
+ */
 export const methodAvailable = (method: Method, checkout: Checkout | undefined) =>
-  method.type !== 'bonus' || (!!checkout?.cashback && Number(checkout.cashback.maxPayment) > 0);
+  (method.type !== 'certificate' || !!checkout?.clientId) &&
+  (method.type !== 'bonus' || (!!checkout?.cashback && Number(checkout.cashback.maxPayment) > 0));

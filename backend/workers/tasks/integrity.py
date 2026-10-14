@@ -5,7 +5,8 @@
    сигнал о баге и повод для алерта.
 2. Списания со счетов клиента (Master) без живого чека в шарде: процесс упал
    между записью в Master и коммитом шарда, или событие отмены чека потерялось.
-   Такие списания сторнируются (loyalty-accounts.md, раздел 3).
+   Такие списания сторнируются (loyalty-accounts.md, раздел 3), выпущенные
+   таким чеком сертификаты отменяются (certificates.md, 4.4).
 3. Оплаченные чеки с картой без факта визита в Master: событие
    loyalty.receipt_paid переотправляется (published_at сбрасывается).
 """
@@ -19,7 +20,7 @@ from sqlalchemy import select, update
 from app.models.master import Client, LoyaltyCardVisit, Master
 from app.models.shard import OutboxEvent, Receipt, ReceiptStatus, Record, service_masters
 from app.notifications.outbox import LOYALTY_RECEIPT_PAID
-from app.services import ledger, loyalty, payments
+from app.services import certificates, ledger, loyalty, payments
 from workers import db
 from workers.celery_app import celery
 
@@ -45,6 +46,9 @@ def integrity_check() -> None:
 
 # Сколько дней назад смотреть чеки с картой без факта визита
 VISIT_RESEND_WINDOW = timedelta(days=30)
+# Сколько дней назад смотреть выпущенные сертификаты: их не сторнируют, поэтому без окна
+# сверка каждую ночь перебирала бы все проданные сертификаты салона
+CERTIFICATE_RECONCILE_WINDOW = timedelta(days=30)
 
 
 def resend_missing_visits(salon_id: UUID, *, now: datetime | None = None) -> int:
@@ -89,18 +93,26 @@ def resend_missing_visits(salon_id: UUID, *, now: datetime | None = None) -> int
     return len(missing)
 
 
-def reconcile_payments(salon_id: UUID) -> int:
-    """Сторно «висящих» списаний салона: чека нет в шарде или он отменён. Возвращает число чеков."""
+def reconcile_payments(salon_id: UUID, *, now: datetime | None = None) -> int:
+    """Сторно «висящих» списаний и выпусков салона: чека нет в шарде или он отменён.
+
+    Возвращает число чеков.
+    """
+    now = now or datetime.now(UTC)
     with db.master_session() as session:
         hanging = {
             receipt_id: txns[0].record_id
-            for receipt_id, txns in payments.hanging_payments(session, salon_id).items()
+            for receipt_id, txns in payments.hanging_payments(session, salon_id, now=now).items()
         }
-        border = datetime.now(UTC) - payments.RECONCILE_GRACE
+        border = now - payments.RECONCILE_GRACE
         for receipt_id, record_id in loyalty.hanging_bonus_receipts(
             session, salon_id, border
         ).items():
             hanging.setdefault(receipt_id, record_id)
+        for receipt_id in certificates.hanging_receipts(
+            session, salon_id, border, now - CERTIFICATE_RECONCILE_WINDOW
+        ):
+            hanging.setdefault(receipt_id, None)
     if not hanging:
         return 0
     with db.shard_session(salon_id) as shard:

@@ -9,6 +9,7 @@ export const FINANCE_TABS = [
   'receipts',
   'methods',
   'balances',
+  'certificates',
 ] as const;
 export type FinanceTab = (typeof FINANCE_TABS)[number];
 

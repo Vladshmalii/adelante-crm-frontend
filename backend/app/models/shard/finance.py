@@ -8,6 +8,10 @@
 по одному в салоне, без кассы: деньги по ним лежат на счетах клиента в
 Master DB, операции по ним пишутся с cash_register_id = NULL и в балансы
 касс не входят (backend/docs/loyalty-accounts.md, раздел 4.3).
+
+Системный «Сертифікат» (certificate) — погашение подарочного сертификата: остаток
+на счёте сертификата в Master DB, без кассы; выручка признана при продаже, поэтому
+приходной операции у этой части чека нет (backend/docs/certificates.md, раздел 5).
 """
 
 import enum
@@ -26,7 +30,7 @@ class PaymentMethodType(enum.StrEnum):
     CASH = "cash"
     CARD = "card"
     ONLINE = "online"
-    CERTIFICATE = "certificate"
+    CERTIFICATE = "certificate"  # системный «Сертифікат» — погашение подарочного сертификата
     BONUS = "bonus"  # системный «Кешбек» — оплата с кешбек-рахунку карты
     ACCOUNT = "account"  # системный «Особовий рахунок» — депозит или долг клиента
     TIPS = "tips"
@@ -34,7 +38,11 @@ class PaymentMethodType(enum.StrEnum):
 
 
 # Системные способы оплаты: по одному в салоне, без кассы, не редактируются
-SYSTEM_METHOD_TYPES = (PaymentMethodType.ACCOUNT, PaymentMethodType.BONUS)
+SYSTEM_METHOD_TYPES = (
+    PaymentMethodType.ACCOUNT,
+    PaymentMethodType.BONUS,
+    PaymentMethodType.CERTIFICATE,
+)
 
 
 class CommissionType(enum.StrEnum):
@@ -130,7 +138,7 @@ class PaymentMethod(ShardBase):
             "uq_payment_methods_system_type",
             "type",
             unique=True,
-            postgresql_where=text("type IN ('account', 'bonus')"),
+            postgresql_where=text("type IN ('account', 'bonus', 'certificate')"),
         ),
     )
 
@@ -233,6 +241,25 @@ class ReceiptPayment(ShardBase):
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
 
     receipt: Mapped[Receipt] = relationship(back_populates="payments")
+
+
+class ReceiptCertificateLine(ShardBase):
+    """Строка чека — проданный подарочный сертификат (certificates.md, 3.2).
+
+    Одна строка — один сертификат: «2 шт.» — две строки и два кода. Шаблон и
+    сертификат живут в Master DB — ссылки без FK; certificate_id заполняется
+    выпуском при оплате чека.
+    """
+
+    __tablename__ = "receipt_certificate_lines"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    receipt_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("receipts.id"), index=True)
+    template_id: Mapped[uuid.UUID] = mapped_column(Uuid)
+    name: Mapped[str] = mapped_column(String(255))
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    certificate_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class FinanceOperation(ShardBase):

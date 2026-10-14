@@ -49,7 +49,7 @@ export function CheckoutSummary({
       {checkout.lines.length > 1 || hasBonusColumn ? (
         <Table<Line>
           size="small"
-          rowKey={(l) => l.recordServiceId ?? l.name}
+          rowKey={(l) => l.recordServiceId ?? `${l.kind}-${checkout.lines.indexOf(l)}`}
           pagination={false}
           dataSource={checkout.lines}
           columns={[
@@ -73,13 +73,18 @@ export function CheckoutSummary({
                 ]
               : []),
             {
-              title: 'Послуга',
+              title: 'Позиція',
               key: 'name',
               render: (_, l) =>
                 l.isBonus ? (
                   <Space size={4}>
                     {l.name}
                     <Tag color="green">безкоштовно</Tag>
+                  </Space>
+                ) : l.kind === 'certificate' ? (
+                  <Space size={4}>
+                    {l.name}
+                    <Tag color="purple">сертифікат</Tag>
                   </Space>
                 ) : (
                   l.name
@@ -116,6 +121,14 @@ export function CheckoutSummary({
                 ? '—'
                 : `−${formatMoney(checkout.discountAmount)} · ${discountSourceLabels[checkout.discountSource]}`,
           },
+          ...(Number(checkout.certificatesAmount) > 0
+            ? [
+                {
+                  label: 'Сертифікати',
+                  children: `${formatMoney(checkout.certificatesAmount)} · без знижки й кешбеку, лише касою`,
+                },
+              ]
+            : []),
           {
             label: 'До сплати',
             children: (
@@ -161,6 +174,13 @@ export function PaymentWarnings({
       )}
       {check.bonusOverLimit && (
         <Alert type="error" showIcon title="Кешбеком не можна оплатити стільки в цьому чеку" />
+      )}
+      {check.certificatesNotByRegister && (
+        <Alert
+          type="error"
+          showIcon
+          title="Сертифікати оплачуються лише касовими способами — не з рахунку чи кешбеком"
+        />
       )}
     </Space>
   );

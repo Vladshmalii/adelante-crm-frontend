@@ -38,6 +38,13 @@ export const contentTypeLabels: Record<Schema<'DocumentContentType'>, string> = 
   mixed: 'Змішаний',
 };
 
+/** Системные категории приходов чека; остальные категории — названия как есть. */
+export const incomeCategoryLabels: Record<string, string | undefined> = {
+  services: 'Послуги',
+  sales: 'Продажі',
+  certificates: 'Продаж сертифікатів',
+};
+
 export const receiptStatusLabels: Record<Schema<'ReceiptStatus'>, Label> = {
   paid: { text: 'Оплачено', color: 'green' },
   partial: { text: 'Частково', color: 'orange' },

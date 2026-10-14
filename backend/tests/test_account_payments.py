@@ -336,7 +336,7 @@ def test_system_payment_methods(w: World) -> None:
     api, s = w.s.api, w.s
     methods = api.get("/finances/payment-methods", token=s.su, salon=s.id)
     system = {m["type"]: m for m in methods if m["isSystem"]}
-    assert set(system) == {"account", "bonus"}
+    assert set(system) == {"account", "bonus", "certificate"}
     assert all(m["cashRegisterId"] is None and not m["availableOnline"] for m in system.values())
     api.patch(
         f"/finances/payment-methods/{system['account']['id']}",

@@ -15,7 +15,7 @@ from sqlalchemy import select
 from app.models.master import CardStatus, LoyaltyCard, LoyaltyCardType
 from app.models.shard import Receipt, ReceiptStatus
 from app.notifications.outbox import LOYALTY_RECEIPT_CANCELLED, LOYALTY_RECEIPT_PAID
-from app.services import ledger, loyalty, payments
+from app.services import certificates, ledger, loyalty, payments
 from workers import db
 from workers.celery_app import celery
 
@@ -108,4 +108,25 @@ def burn_expired_cashback() -> int:
                 session.commit()
         except Exception:
             logger.exception("burn_expired_cashback: сбой на карте %s", card_id)
+    return burnt
+
+
+@celery.task
+def burn_expired_certificates() -> int:
+    """Сгорание остатка истёкших сертификатов (certificates.md, раздел 6). Число сертификатов.
+
+    В шарде ничего не меняется: выручка признана при продаже.
+    """
+    now = datetime.now(UTC)
+    with db.master_session() as session:
+        ids = certificates.expired_ids(session, now)
+    burnt = 0
+    for certificate_id in ids:
+        try:
+            with db.master_session() as session:
+                if certificates.burn_expired(session, certificate_id, now=now) > 0:
+                    burnt += 1
+                session.commit()
+        except Exception:
+            logger.exception("burn_expired_certificates: сбой на сертификате %s", certificate_id)
     return burnt

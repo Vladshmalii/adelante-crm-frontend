@@ -6,6 +6,7 @@ from app.api.admin.accounts import router as accounts_router
 from app.api.admin.audit import router as audit_router
 from app.api.admin.auth import router as auth_router
 from app.api.admin.calendar import router as calendar_router
+from app.api.admin.certificates import router as certificates_router
 from app.api.admin.checkout import router as checkout_router
 from app.api.admin.clients import router as clients_router
 from app.api.admin.finances import router as finances_router
@@ -30,6 +31,7 @@ router.include_router(staff_router)
 router.include_router(clients_router)
 router.include_router(accounts_router)
 router.include_router(loyalty_router)
+router.include_router(certificates_router)
 router.include_router(services_router)
 router.include_router(reviews_router)
 router.include_router(audit_router)

@@ -13,7 +13,12 @@ import {
   operationsQueryOptions,
   paymentMethodsQueryOptions,
 } from '../api/finances.queries';
-import { operationStatusLabels, operationTypeLabels, tagOptions } from '../model/labels';
+import {
+  incomeCategoryLabels,
+  operationStatusLabels,
+  operationTypeLabels,
+  tagOptions,
+} from '../model/labels';
 import { type FinancesSearch, operationsParams } from '../model/search';
 import { OperationFormModal } from './OperationFormModal';
 
@@ -52,7 +57,11 @@ export function OperationsTab({ search, setSearch }: TabProps) {
         </Typography.Text>
       ),
     },
-    { title: 'Категорія', dataIndex: 'category' },
+    {
+      title: 'Категорія',
+      key: 'category',
+      render: (_, o) => (o.category ? (incomeCategoryLabels[o.category] ?? o.category) : '—'),
+    },
     { title: 'Опис', dataIndex: 'description', ellipsis: true },
     { title: 'Метод', key: 'method', render: (_, o) => o.paymentMethod?.name ?? '—' },
     {

@@ -83,9 +83,9 @@ export function PaymentMethodFormModal({
         name="type"
         label="Тип"
         allowClear={false}
-        // «Особовий рахунок» и «Кешбек» — системные, по одному в салоне
+        // «Особовий рахунок», «Кешбек» и «Сертифікат» — системные, по одному в салоне
         options={toOptions(methodTypeLabels).filter(
-          (o) => o.value !== 'account' && o.value !== 'bonus',
+          (o) => o.value !== 'account' && o.value !== 'bonus' && o.value !== 'certificate',
         )}
       />
       <ProFormSelect
