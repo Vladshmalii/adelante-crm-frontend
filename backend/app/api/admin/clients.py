@@ -3,6 +3,8 @@
 Права (ACCESS.md): мастер видит только своих клиентов (у кого есть запись к
 нему в этом салоне, в любом статусе) и создаёт их только в записи к себе;
 редактирование, удаление и импорт — администратор; экспорт — суперюзер.
+Канал и история напоминаний (sms-reminders.md, раздел 8) — администратор и
+суперюзер; мастеру канал приходит null, история — 403.
 """
 
 import io
@@ -29,6 +31,7 @@ from app.models.master import (
     ClientCategory,
     ClientImportance,
     LoyaltyCard,
+    ReminderChannel,
 )
 from app.models.shard import AuditAction, Record, RecordService, RecordStatus
 from app.services.audit import diff_fields, write_audit
@@ -64,6 +67,8 @@ class ClientOut(ApiModel):
     no_online_booking: bool
     # Привязан к Telegram-боту — получит напоминания о визитах
     telegram_linked: bool = False
+    # Канал напоминаний; мастеру — null (sms-reminders.md, раздел 8)
+    reminder_channel: ReminderChannel | None = None
     # Агрегаты по текущему салону
     total_visits: int = 0
     total_spent: Decimal = Decimal(0)
@@ -142,9 +147,17 @@ async def _loyalty(master_session, client_ids: list[uuid.UUID]) -> Loyalty:
     return result
 
 
-def _client_out(client: Client, agg: Aggregates, loyalty: Loyalty | None = None) -> ClientOut:
+def _client_out(
+    client: Client,
+    agg: Aggregates,
+    loyalty: Loyalty | None = None,
+    *,
+    hide_reminders: bool = False,
+) -> ClientOut:
     visits, spent, first, last = agg.get(client.id, (0, Decimal(0), None, None))
     out = ClientOut.model_validate(client)
+    if hide_reminders:
+        out.reminder_channel = None
     out.account_balance, out.loyalty_card_number = (loyalty or Loyalty()).get(
         client.id, (Decimal(0), None)
     )
@@ -199,7 +212,7 @@ async def list_clients(
     clients = list(await master_session.scalars(query))
     agg = await _aggregates(tenant_session, [c.id for c in clients])
     loyalty = await _loyalty(master_session, [c.id for c in clients])
-    items = [_client_out(c, agg, loyalty) for c in clients]
+    items = [_client_out(c, agg, loyalty, hide_reminders=user.is_master) for c in clients]
     if segment:
         items = [i for i in items if i.segment == segment]
 
@@ -233,6 +246,7 @@ class ClientCreateIn(ApiModel):
     importance: ClientImportance = ClientImportance.MEDIUM
     discount_percent: int = Field(default=0, ge=0, le=100)
     no_online_booking: bool = False
+    reminder_channel: ReminderChannel = ReminderChannel.AUTO
 
 
 @router.post("", response_model=Envelope[ClientOut], status_code=status.HTTP_201_CREATED)
@@ -417,7 +431,8 @@ async def get_client(
     await ensure_own_client(tenant_session, user, client_id)
     client = await _get_client(master_session, client_id)
     agg = await _aggregates(tenant_session, [client.id])
-    return Envelope(data=_client_out(client, agg, await _loyalty(master_session, [client.id])))
+    loyalty = await _loyalty(master_session, [client.id])
+    return Envelope(data=_client_out(client, agg, loyalty, hide_reminders=user.is_master))
 
 
 class ClientPatchIn(ApiModel):
@@ -436,6 +451,7 @@ class ClientPatchIn(ApiModel):
     importance: ClientImportance | None = None
     discount_percent: int | None = Field(default=None, ge=0, le=100)
     no_online_booking: bool | None = None
+    reminder_channel: ReminderChannel | None = None
 
 
 @router.patch("/{client_id}", response_model=Envelope[ClientOut])
@@ -449,6 +465,8 @@ async def patch_client(
 ) -> Envelope[ClientOut]:
     client = await _get_client(master_session, client_id)
     updates = body.model_dump(exclude_unset=True, by_alias=False)
+    if "reminder_channel" in updates and updates["reminder_channel"] is None:
+        raise HTTPException(422, "Канал нагадувань не може бути порожнім")
     changes = diff_fields(client, updates)
     for field, value in updates.items():
         setattr(client, field, value)

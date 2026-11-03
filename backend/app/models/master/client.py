@@ -21,6 +21,15 @@ class ClientImportance(enum.StrEnum):
     LOW = "low"
 
 
+class ReminderChannel(enum.StrEnum):
+    """Канал напоминаний о визите (backend/docs/sms-reminders.md, раздел 3)."""
+
+    AUTO = "auto"  # Telegram, если подключён бот, иначе SMS
+    TELEGRAM = "telegram"  # без бота ведёт себя как auto
+    SMS = "sms"
+    NONE = "none"  # не отправлять
+
+
 class Client(PersonNameMixin, MasterBase):
     """Клиент сети. База общая: все салоны видят весь список (решение от 25.08.2026).
 
@@ -53,6 +62,9 @@ class Client(PersonNameMixin, MasterBase):
     )
     discount_percent: Mapped[int] = mapped_column(default=0)
     no_online_booking: Mapped[bool] = mapped_column(default=False)
+    reminder_channel: Mapped[ReminderChannel] = mapped_column(
+        str_enum(ReminderChannel, 16), default=ReminderChannel.AUTO, server_default="auto"
+    )
 
     is_active: Mapped[bool] = mapped_column(default=True)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

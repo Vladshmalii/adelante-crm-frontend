@@ -13,7 +13,12 @@ from app.models.master.certificate import (
     CertificateTemplate,
     CertificateTemplateService,
 )
-from app.models.master.client import Client, ClientCategory, ClientImportance
+from app.models.master.client import (
+    Client,
+    ClientCategory,
+    ClientImportance,
+    ReminderChannel,
+)
 from app.models.master.loyalty import (
     BonusOperationKind,
     CardStatus,
@@ -63,6 +68,7 @@ __all__ = [
     "LoyaltyCardVisit",
     "LoyaltyDiscountLevel",
     "Master",
+    "ReminderChannel",
     "Salon",
     "SalonStatus",
     "TransactionType",

@@ -38,6 +38,11 @@ from app.models.shard.record import (
     RecordSource,
     RecordStatus,
 )
+from app.models.shard.reminder import (
+    DeliveryChannel,
+    ReminderDelivery,
+    ReminderDeliveryStatus,
+)
 from app.models.shard.review import Review
 from app.models.shard.service import Service, ServiceCategory, ServiceStatus, service_masters
 from app.models.shard.setting import Setting
@@ -55,6 +60,7 @@ __all__ = [
     "CashRegister",
     "CommissionPayer",
     "CommissionType",
+    "DeliveryChannel",
     "DiscountSource",
     "DocumentContentType",
     "DocumentStatus",
@@ -83,6 +89,8 @@ __all__ = [
     "RecordService",
     "RecordSource",
     "RecordStatus",
+    "ReminderDelivery",
+    "ReminderDeliveryStatus",
     "Review",
     "Service",
     "ServiceCategory",
