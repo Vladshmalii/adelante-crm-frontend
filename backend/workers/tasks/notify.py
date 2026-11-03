@@ -5,8 +5,9 @@
   записи другому мастеру; изменение его смен, если менял не он сам;
 - администраторам салона — новая запись, перенос и отмена, но только тем,
   кто сейчас на смене; суперюзерам — всегда (backend/docs/shifts.md);
-- клиенту — напоминание за 30 минут (workers.tasks.reminders) и после
-  завершения визита — ссылка на отзыв.
+- клиенту — напоминание о визите за N минут, настройка салона
+  (workers.tasks.reminders, доставка Telegram/SMS — workers.tasks.reminder_delivery),
+  и после завершения визита — ссылка на отзыв.
 Автору изменения уведомление о его же действии не отправляется.
 
 Дедупликация: доставка at-least-once, поэтому перед отправкой — SETNX по
@@ -237,33 +238,15 @@ def notify_master_telegram(envelope: dict[str, Any]) -> None:
         telegram.send_message(chat_id, f"{text}\nСалон: {_esc(salon)}" if salon else text)
 
 
-@celery.task(autoretry_for=(httpx.HTTPError,), retry_backoff=True, max_retries=5)
+@celery.task
 def notify_client_telegram(envelope: dict[str, Any]) -> None:
-    """Напоминание клиенту о визите."""
-    if not _first_delivery(envelope["event_id"], "client_tg"):
-        return
-    payload = envelope["payload"]
+    """Устарело: напоминание доставляет workers.tasks.reminder_delivery.deliver_reminder.
 
-    with db.master_session() as session:
-        chat_id = session.scalar(
-            select(Client.telegram_user_id).where(Client.id == UUID(payload["client_id"]))
-        )
-        salon = session.get(Salon, UUID(envelope["salon_id"]))
-    if chat_id is None:
-        logger.info("Клиент %s без Telegram — напоминание пропущено", payload["client_id"])
-        return
+    Оставлено на время выкатки — задачи, поставленные старым сканером.
+    """
+    from workers.tasks import reminder_delivery
 
-    lines = [
-        "⏰ <b>Нагадування про візит</b>",
-        f"Через 30 хвилин: {_when(payload.get('start_at'))}",
-        f"Майстер: {_esc(payload.get('master_name'))}",
-        f"Послуги: {_esc(payload.get('service_name'))}",
-    ]
-    if salon is not None:
-        lines.append(f"Салон: {_esc(salon.name)}")
-        booking_url = get_settings().booking_url(salon.slug)
-        lines.append(f'Записатися знову: <a href="{html.escape(booking_url)}">сайт запису</a>')
-    telegram.send_message(chat_id, "\n".join(lines))
+    reminder_delivery.deliver_reminder.delay(envelope)
 
 
 @celery.task(autoretry_for=(httpx.HTTPError,), retry_backoff=True, max_retries=5)

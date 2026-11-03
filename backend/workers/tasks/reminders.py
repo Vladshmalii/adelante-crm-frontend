@@ -1,4 +1,9 @@
-"""Time-triggered уведомления: напоминание клиенту за 30 минут до записи.
+"""Time-triggered уведомления: напоминание клиенту за N минут до записи.
+
+N — настройка салона reminder_lead_minutes (по умолчанию 30, «Налаштування»,
+backend/docs/sms-reminders.md, раздел 4); сканер читает её каждый тик, так что
+изменение действует на ещё не отправленные напоминания. Запись, созданная
+позже момента напоминания, его не получает.
 
 Celery Beat раз в минуту запускает диспетчер scan_upcoming_records — он ходит
 только в Master DB и делает fan-out scan_shard по каждому активному салону
@@ -17,13 +22,13 @@ from sqlalchemy import select
 
 from app.models.shard import Record, RecordStatus
 from app.notifications.outbox import RECORD_REMINDER, build_envelope
+from app.services.salon_settings import load_notifications_sync
 from workers import db
 from workers.celery_app import celery
-from workers.tasks import notify
+from workers.tasks import reminder_delivery
 
 logger = logging.getLogger(__name__)
 
-REMINDER_LEAD = timedelta(minutes=30)
 # Больше интервала beat (60с): пропущенный тик не означает пропущенное напоминание
 WINDOW_MARGIN = timedelta(seconds=90)
 
@@ -38,11 +43,12 @@ def scan_upcoming_records() -> None:
 def scan_shard(salon_id: str) -> None:
     sid = UUID(salon_id)
     now = datetime.now(UTC)
-    window_start = now + REMINDER_LEAD
-    window_end = window_start + WINDOW_MARGIN
 
     envelopes = []
     with db.shard_session(sid) as session:
+        lead = timedelta(minutes=load_notifications_sync(session).reminder_lead_minutes)
+        window_start = now + lead
+        window_end = window_start + WINDOW_MARGIN
         records = list(
             session.scalars(
                 select(Record)
@@ -77,4 +83,4 @@ def scan_shard(salon_id: str) -> None:
     # Диспатч после commit: упавший до commit процесс не пометит записи,
     # следующий тик подберёт их снова (at-least-once + дедуп по event_id)
     for envelope in envelopes:
-        notify.notify_client_telegram.delay(envelope)
+        reminder_delivery.deliver_reminder.delay(envelope)

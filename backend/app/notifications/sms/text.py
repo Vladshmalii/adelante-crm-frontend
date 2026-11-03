@@ -42,6 +42,14 @@ def _day_label(start: datetime, now: datetime) -> str:
     return f"{start:%d.%m}"
 
 
+def visit_when(start_at: datetime, now: datetime | None = None) -> str:
+    """«Сьогодні о 14:30» / «Завтра о 10:00» / «06.11 о 09:05» — для Telegram-напоминания."""
+    start = to_local(start_at)
+    current = to_local(now) if now is not None else now_local()
+    day = _day_label(start, current)
+    return f"{day[:1].upper()}{day[1:]} о {start:%H:%M}"
+
+
 def reminder_text(start_at: datetime, salon_name: str | None, now: datetime | None = None) -> str:
     """«Нагадуємо: сьогодні о 14:30, Adelante Позняки. Чекаємо!» — всегда ≤ 70 символов.
 

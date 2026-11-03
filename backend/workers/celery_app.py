@@ -12,6 +12,7 @@ celery = Celery(
         "workers.tasks.outbox",
         "workers.tasks.reminders",
         "workers.tasks.notify",
+        "workers.tasks.reminder_delivery",
         "workers.tasks.integrity",
         "workers.tasks.mail",
         "workers.tasks.loyalty",
@@ -24,6 +25,7 @@ celery.conf.task_default_queue = "default"
 # не блокировали сканирование шардов
 celery.conf.task_routes = {
     "workers.tasks.notify.*": {"queue": "notifications"},
+    "workers.tasks.reminder_delivery.*": {"queue": "notifications"},
     "workers.tasks.mail.*": {"queue": "notifications"},
 }
 

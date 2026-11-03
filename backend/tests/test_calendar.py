@@ -241,7 +241,12 @@ def test_reminder_flag_and_status(w: World, monkeypatch: pytest.MonkeyPatch) -> 
     api, s = w.s.api, w.s
     sent: list[tuple[int, str]] = []
     monkeypatch.setattr(celery.conf, "task_always_eager", True)
-    monkeypatch.setattr(telegram, "send_message", lambda chat, text: sent.append((chat, text)))
+    # Напоминание отправляется через telegram.deliver (нужен результат для запасного SMS)
+    monkeypatch.setattr(
+        telegram,
+        "deliver",
+        lambda chat, text: sent.append((chat, text)) or telegram.TelegramResult(ok=True),
+    )
 
     client_phone = phone()
     soon = datetime.now(UTC) + timedelta(minutes=30, seconds=30)

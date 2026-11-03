@@ -19,10 +19,13 @@ def sent(monkeypatch: pytest.MonkeyPatch) -> list[tuple[int, str]]:
     from workers.celery_app import celery
 
     messages: list[tuple[int, str]] = []
+
+    def deliver(chat_id: int, text: str) -> telegram.TelegramResult:
+        messages.append((chat_id, text))
+        return telegram.TelegramResult(ok=True)
+
     monkeypatch.setattr(celery.conf, "task_always_eager", True)
-    monkeypatch.setattr(
-        telegram, "send_message", lambda chat_id, text: messages.append((chat_id, text))
-    )
+    monkeypatch.setattr(telegram, "deliver", deliver)
     _publish()  # очистить outbox от событий, созданных до теста
     messages.clear()
     return messages
