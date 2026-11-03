@@ -7,7 +7,8 @@ Auth: X-API-Key. Бот не имеет доступа к БД и не явля�
 Бот не создаёт записи (решение от 28.09.2026): клиентам он напоминает о
 визитах и ведёт на сайт записи, мастерам — сообщает о новых, перенесённых и
 отменённых записях и показывает записи на день; клиенту — «Мій баланс»
-(особовий рахунок, карта лояльности, кешбэк и уровень; только просмотр).
+(особовий рахунок, карта лояльности, кешбэк и уровень; только просмотр) и
+«Нагадування» — свой канал напоминаний (backend/docs/sms-reminders.md).
 """
 
 import logging
@@ -19,14 +20,22 @@ from typing import Annotated, cast
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.api.security import verify_bot_api_key
 from app.config import Settings, get_settings
-from app.models.master import Administrator, Client, Master, Salon, SalonStatus
-from app.models.shard import Record, RecordStatus
+from app.models.master import (
+    Administrator,
+    Client,
+    Master,
+    ReminderChannel,
+    Salon,
+    SalonStatus,
+)
+from app.models.shard import AuditAction, Record, RecordStatus
 from app.services import ledger, loyalty
+from app.services.audit import write_audit
 from app.services.phones import phone_prefilter, same_phone
 from app.tenancy.deps import MasterSession
 from app.tenancy.registry import EngineRegistry, SalonNotFound, SalonSuspended
@@ -299,3 +308,90 @@ async def client_loyalty(tg_user_id: int, master_session: MasterSession) -> Clie
         )
 
     return await master_session.run_sync(build)
+
+
+# --- Нагадування (sms-reminders.md, разделы 8–10) -----------------------------
+
+BOT_AUTHOR = "клієнт (бот)"
+
+
+class ClientRemindersOut(BaseModel):
+    # auto бот показывает как Telegram (клиент в боте — значит, бот подключён)
+    channel: ReminderChannel
+
+
+class ClientRemindersIn(BaseModel):
+    channel: ReminderChannel
+
+
+async def _bot_client(master_session: MasterSession, tg_user_id: int) -> Client:
+    client = await master_session.scalar(
+        select(Client).where(Client.telegram_user_id == tg_user_id, Client.is_active.is_(True))
+    )
+    if client is None:
+        raise HTTPException(404, "Клієнта не знайдено")
+    return client
+
+
+@router.get("/clients/by-telegram/{tg_user_id}/reminders", response_model=ClientRemindersOut)
+async def client_reminders(tg_user_id: int, master_session: MasterSession) -> ClientRemindersOut:
+    """Текущий канал напоминаний клиента. 404 — клиента с таким Telegram нет."""
+    client = await _bot_client(master_session, tg_user_id)
+    return ClientRemindersOut(channel=client.reminder_channel)
+
+
+@router.put("/clients/by-telegram/{tg_user_id}/reminders", response_model=ClientRemindersOut)
+async def set_client_reminders(
+    tg_user_id: int,
+    body: ClientRemindersIn,
+    master_session: MasterSession,
+    request: Request,
+) -> ClientRemindersOut:
+    """Клиент меняет свой канал — только свой: клиент определяется по telegram_user_id.
+
+    В журнал изменений — с автором «клієнт (бот)» в каждом активном салоне, где у
+    клиента есть записи (клиент общий для сети, у бота нет текущего салона).
+    """
+    client = await _bot_client(master_session, tg_user_id)
+    old = client.reminder_channel
+    if body.channel == old:
+        return ClientRemindersOut(channel=old)
+    client.reminder_channel = body.channel
+    await master_session.flush()
+    await _audit_bot_change(request, master_session, client, old, body.channel)
+    return ClientRemindersOut(channel=body.channel)
+
+
+async def _audit_bot_change(
+    request: Request,
+    master_session: MasterSession,
+    client: Client,
+    old: ReminderChannel,
+    new: ReminderChannel,
+) -> None:
+    registry: EngineRegistry = request.app.state.engine_registry
+    salon_ids = list(
+        await master_session.scalars(select(Salon.id).where(Salon.status == SalonStatus.ACTIVE))
+    )
+    for salon_id in salon_ids:
+        try:
+            factory = await registry.get_sessionmaker(salon_id)
+            async with factory() as tenant_session:
+                has_records = await tenant_session.scalar(
+                    select(Record.id).where(Record.client_id == client.id).limit(1)
+                )
+                if has_records is None:
+                    continue
+                write_audit(
+                    tenant_session,
+                    entity="client",
+                    entity_id=client.id,
+                    entity_name=client.full_name,
+                    action=AuditAction.UPDATED,
+                    author_name=BOT_AUTHOR,
+                    details={"reminder_channel": [old.value, new.value]},
+                )
+                await tenant_session.commit()
+        except (SalonNotFound, SalonSuspended, SQLAlchemyError, OSError):
+            # Канал уже сменён; журнал недоступного салона — не повод отказать клиенту
+            logger.warning("Салон %s: зміну каналу клієнта %s не записано", salon_id, client.id)

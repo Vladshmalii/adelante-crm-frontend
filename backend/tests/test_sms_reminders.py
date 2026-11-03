@@ -801,3 +801,50 @@ def test_sms_report(
 
     _sms_report(s, staff["admin_token"], expect=403)
     _sms_report(s, staff["master_token"], expect=403)
+
+
+# --- Этап 6: бот ------------------------------------------------------------------
+
+
+def test_bot_changes_only_own_channel(new_salon: Salon, staff: dict[str, Any]) -> None:
+    s, api = new_salon, new_salon.api
+    me, other = _client(s), _client(s, channel="sms")
+    my_tg, other_tg = _link(s, me), _link(s, other)
+    # Запись в салоне — изменение попадёт в его журнал
+    _record(
+        s,
+        staff["master"]["id"],
+        staff["service"]["id"],
+        datetime.now(UTC) + timedelta(days=6),
+        client_id=me["id"],
+    )
+
+    assert api.get(f"/clients/by-telegram/{my_tg}/reminders", **BOT) == {"channel": "auto"}
+    for channel in ("sms", "none", "telegram"):
+        data = api.call(
+            "PUT", f"/clients/by-telegram/{my_tg}/reminders", **BOT, json={"channel": channel}
+        )
+        assert data == {"channel": channel}
+        assert api.get(f"/clients/{me['id']}", token=s.su, salon=s.id)["reminderChannel"] == channel
+    # Чужой клиент не изменился
+    assert api.get(f"/clients/by-telegram/{other_tg}/reminders", **BOT) == {"channel": "sms"}
+    assert api.get(f"/clients/{other['id']}", token=s.su, salon=s.id)["reminderChannel"] == "sms"
+
+    api.call(
+        "PUT",
+        f"/clients/by-telegram/{my_tg}/reminders",
+        **BOT,
+        json={"channel": "pigeon"},
+        expect=422,
+    )
+    api.get("/clients/by-telegram/1/reminders", **BOT, expect=404)
+    api.call("PUT", "/clients/by-telegram/1/reminders", **BOT, json={"channel": "sms"}, expect=404)
+    api.get(f"/clients/by-telegram/{my_tg}/reminders", prefix="/api/bot", expect=401)
+
+    audit = api.get("/audit", token=s.su, salon=s.id, params={"entity": "client"})
+    mine = [a for a in audit if a["entityId"] == me["id"] and a["author"]["name"] == "клієнт (бот)"]
+    assert [a["details"] for a in mine] == [
+        {"reminder_channel": ["none", "telegram"]},
+        {"reminder_channel": ["sms", "none"]},
+        {"reminder_channel": ["auto", "sms"]},
+    ]
