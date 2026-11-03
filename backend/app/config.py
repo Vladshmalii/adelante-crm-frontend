@@ -1,7 +1,9 @@
+from decimal import Decimal
 from functools import lru_cache
+from typing import Literal
 
 from dotenv import load_dotenv
-from pydantic import Field
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # pydantic-settings читает .env только в поля Settings — переменные вроде
@@ -45,6 +47,16 @@ class Settings(BaseSettings):
     bot_api_keys: list[str] = Field(default_factory=list)
 
     telegram_bot_token: str = ""
+
+    # SMS-напоминания (backend/docs/sms-reminders.md). console — пишет в лог, ничего
+    # не отправляет (dev, тесты); turbosms — боевой провайдер
+    sms_provider: Literal["console", "turbosms"] = "console"
+    # Альфа-имя отправителя, одно на сеть; должно быть активировано у провайдера
+    sms_sender: str = "ADELANTE"
+    turbosms_token: SecretStr = SecretStr("")
+    turbosms_api_url: str = "https://api.turbosms.ua"
+    # Цена одного сегмента для отчёта (TurboSMS стоимость в ответе не возвращает)
+    sms_price_uah: Decimal = Decimal("1.30")
 
     # Локальное хранилище загрузок (фото визитов, аватары); раздаётся под /uploads
     upload_dir: str = "uploads"
