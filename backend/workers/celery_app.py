@@ -38,6 +38,11 @@ celery.conf.beat_schedule = {
         "task": "workers.tasks.reminders.scan_upcoming_records",
         "schedule": 60.0,
     },
+    # Статусы доставки SMS-напоминаний (опрос провайдера, backend/docs/sms-reminders.md)
+    "poll-sms-statuses": {
+        "task": "workers.tasks.reminders.poll_sms_statuses",
+        "schedule": 300.0,
+    },
     "burn-expired-cashback": {
         "task": "workers.tasks.loyalty.burn_expired_cashback",
         "schedule": crontab(hour=3, minute=30),

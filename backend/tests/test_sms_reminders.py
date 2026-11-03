@@ -184,6 +184,8 @@ class FakeSms:
         self.errors: list[Exception] = []
         self.calls = 0
         self.statuses: dict[str, Any] = {}
+        self.status_error: Exception | None = None
+        self.asked: list[list[str]] = []
 
     def send(self, phone: str, text: str, reference: str) -> Any:
         from app.notifications.sms import SendResult
@@ -195,6 +197,9 @@ class FakeSms:
         return SendResult(provider_message_id=f"msg-{reference}", segments=1)
 
     def fetch_status(self, message_ids: list[str]) -> dict[str, Any]:
+        self.asked.append(list(message_ids))
+        if self.status_error is not None:
+            raise self.status_error
         return {i: self.statuses[i] for i in message_ids if i in self.statuses}
 
 
@@ -553,3 +558,106 @@ def test_scanner_uses_salon_lead_time(
         assert len(sms.sent) == before
     finally:
         _set_lead(s, 30)
+
+
+# --- Этап 4: статусы доставки ---------------------------------------------------
+
+
+def _poll(s: Salon, monkeypatch: pytest.MonkeyPatch, sms: FakeSms) -> None:
+    from workers.tasks import reminders
+
+    monkeypatch.setattr(reminders, "get_provider", lambda: sms)
+    reminders.poll_shard_sms(s.id)
+
+
+def test_sms_statuses_are_polled(
+    new_salon: Salon, channels: tuple[FakeTelegram, FakeSms], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sqlalchemy import update
+
+    from app.models.shard import ReminderDelivery
+    from app.notifications.sms import DeliveryStatus, SmsTemporaryError
+    from workers import db
+
+    s = new_salon
+    _, sms = channels
+    delivered, undelivered, pending, old = (
+        _envelope(s, _client(s, channel="sms")["id"]) for _ in range(4)
+    )
+    for envelope in (delivered, undelivered, pending, old):
+        _deliver(envelope)
+    # Отправка старше суток не опрашивается
+    with db.shard_session(uuid.UUID(s.id)) as session:
+        session.execute(
+            update(ReminderDelivery)
+            .where(ReminderDelivery.event_id == uuid.UUID(old["event_id"]))
+            .values(created_at=datetime.now(UTC) - timedelta(days=2))
+        )
+        session.commit()
+
+    def mid(envelope: dict[str, Any]) -> str:
+        return _rows(s, envelope)["sms"].provider_message_id
+
+    # Провайдер недоступен — строки не меняются, обработка не падает
+    sms.status_error = SmsTemporaryError("TurboSMS HTTP 502")
+    _poll(s, monkeypatch, sms)
+    assert _rows(s, delivered)["sms"].status == "sent"
+    sms.status_error = None
+
+    sms.statuses = {
+        mid(delivered): DeliveryStatus.DELIVERED,
+        mid(undelivered): DeliveryStatus.UNDELIVERED,
+        mid(pending): DeliveryStatus.SENT,
+        mid(old): DeliveryStatus.DELIVERED,
+        "unknown-id": DeliveryStatus.DELIVERED,
+    }
+    sms.asked.clear()
+    _poll(s, monkeypatch, sms)
+
+    assert _rows(s, delivered)["sms"].status == "delivered"
+    assert _rows(s, undelivered)["sms"].status == "undelivered"
+    assert _rows(s, pending)["sms"].status == "sent"
+    assert _rows(s, old)["sms"].status == "sent"
+    assert mid(old) not in sms.asked[0]
+
+    # Финальные строки больше не опрашиваются
+    sms.asked.clear()
+    _poll(s, monkeypatch, sms)
+    assert len(sms.asked) == 1 and mid(pending) in sms.asked[0]
+    assert mid(delivered) not in sms.asked[0] and mid(undelivered) not in sms.asked[0]
+
+
+def test_turbosms_unknown_message_id_does_not_break_polling(
+    new_salon: Salon, channels: tuple[FakeTelegram, FakeSms], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Через настоящий TurboSmsProvider на моке HTTP: 414 по чужому id пропускается."""
+    import httpx
+
+    from app.notifications.sms import TurboSmsProvider
+
+    s = new_salon
+    _, sms = channels
+    envelope = _envelope(s, _client(s, channel="sms")["id"])
+    _deliver(envelope)
+    known = _rows(s, envelope)["sms"].provider_message_id
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "response_code": 0,
+                "response_status": "OK",
+                "response_result": [
+                    {"message_id": known, "response_code": 0, "status": "Delivered"},
+                    {"message_id": "x", "response_code": 414, "response_status": "NOT_ALLOWED"},
+                ],
+            },
+        )
+
+    turbo = TurboSmsProvider("token", "ADELANTE", transport=httpx.MockTransport(handler))
+    turbo.name = sms.name  # строки журнала записаны «провайдером» fake
+    from workers.tasks import reminders
+
+    monkeypatch.setattr(reminders, "get_provider", lambda: turbo)
+    reminders.poll_shard_sms(s.id)
+    assert _rows(s, envelope)["sms"].status == "delivered"
