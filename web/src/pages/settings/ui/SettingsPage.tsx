@@ -6,6 +6,7 @@ import { useViewer } from '@/shared/auth';
 import type { SettingsTab } from '../model/search';
 import { CertificatesTab } from './CertificatesTab';
 import { LoyaltyTab } from './LoyaltyTab';
+import { NotificationsTab } from './NotificationsTab';
 import { SalonInfoTab } from './SalonInfoTab';
 import { SalonScheduleTab } from './SalonScheduleTab';
 
@@ -14,10 +15,12 @@ const route = getRouteApi('/_app/settings');
 const TABS: { key: SettingsTab; tab: string }[] = [
   { key: 'salon', tab: 'Салон' },
   { key: 'schedule', tab: 'Графік роботи' },
+  { key: 'notifications', tab: 'Нагадування' },
 ];
 
 /**
- * Налаштування салону: реквизиты и часы работы (границы смен сотрудников); суперюзеру —
+ * Налаштування салону: реквизиты, часы работы (границы смен сотрудников) и время
+ * напоминаний клиентам о визите; суперюзеру —
  * ещё «Лояльність» (типы карт, уровни, бонусные правила) и «Сертифікати» (шаблоны
  * подарочных сертификатов) — общие для сети.
  */
@@ -40,6 +43,7 @@ export function SettingsPage() {
     >
       {active === 'salon' && <SalonInfoTab />}
       {active === 'schedule' && <SalonScheduleTab />}
+      {active === 'notifications' && <NotificationsTab />}
       {active === 'loyalty' && <LoyaltyTab />}
       {active === 'certificates' && <CertificatesTab />}
     </PageContainer>

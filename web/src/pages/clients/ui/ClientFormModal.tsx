@@ -15,7 +15,7 @@ import { genderLabels, isValidPhone, toOptions } from '@/shared/lib';
 import { ColorInput, PhoneInput } from '@/shared/ui';
 
 import { useCreateClient, useUpdateClient } from '../api/clients.mutations';
-import { categoryLabels, importanceLabels } from '../model/labels';
+import { categoryLabels, importanceLabels, reminderChannelLabels } from '../model/labels';
 
 type Client = Schema<'ClientOut'>;
 type FormValues = Schema<'ClientCreateIn'>;
@@ -60,6 +60,7 @@ export function ClientFormModal({ open, onOpenChange, client }: ClientFormModalP
           importance: 'medium',
           discountPercent: 0,
           noOnlineBooking: false,
+          reminderChannel: 'auto',
         }
       }
       submitter={{ searchConfig: { submitText: 'Зберегти', resetText: 'Скасувати' } }}
@@ -117,6 +118,13 @@ export function ClientFormModal({ open, onOpenChange, client }: ClientFormModalP
         min={0}
         max={100}
         fieldProps={{ suffix: '%', precision: 0 }}
+      />
+      <ProFormSelect
+        name="reminderChannel"
+        label="Нагадування"
+        allowClear={false}
+        options={toOptions(reminderChannelLabels)}
+        tooltip="Як нагадувати про візит. Якщо Telegram не доставив — одразу надсилаємо SMS"
       />
       <ProFormText name="source" label="Звідки дізнався" />
       <ProForm.Item name="color" label="Кольорова мітка">

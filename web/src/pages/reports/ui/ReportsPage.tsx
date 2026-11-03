@@ -21,6 +21,7 @@ import {
 } from '../api/reports.queries';
 import { formatChange, periodLabel } from '../model/format';
 import { type GroupBy, period, periodToApi, type ReportsSearch } from '../model/search';
+import { SmsReport } from './SmsReport';
 
 type Metric = Schema<'MetricOut'>;
 
@@ -94,6 +95,11 @@ export function ReportsPage() {
         <Col xs={24}>
           <ServicesBlock period={api} />
         </Col>
+        {can.reports.sms && (
+          <Col xs={24}>
+            <SmsReport period={api} />
+          </Col>
+        )}
       </Row>
     </PageContainer>
   );

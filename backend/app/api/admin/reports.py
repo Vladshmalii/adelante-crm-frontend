@@ -8,6 +8,9 @@
 
 Права: раздел — администратор и суперюзер; денежные показатели — только
 суперюзер (администратору — null, GET /reports/revenue — 403).
+
+SMS-нагадування (GET /reports/sms, backend/docs/sms-reminders.md) — только
+суперюзер: сетевой отчёт, fan-out по журналам шардов салонов из токена.
 """
 
 import io
@@ -19,26 +22,32 @@ from decimal import Decimal
 from enum import StrEnum
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy import distinct, func, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.admin.services import CategoryRef
 from app.api.schemas import ApiModel, Envelope
 from app.api.security import AdminUser, SuperUser, require_admin
+from app.models.master import Salon, SalonStatus
 from app.models.shard import (
+    DeliveryChannel,
     Receipt,
     ReceiptStatus,
     Record,
     RecordService,
     RecordStatus,
+    ReminderDelivery,
+    ReminderDeliveryStatus,
     Review,
     Service,
     ServiceCategory,
 )
 from app.services.text import uk_sort_key
-from app.tenancy.deps import TenantSession
+from app.tenancy.deps import MasterSession, TenantSession
+from app.tenancy.registry import EngineRegistry, SalonNotFound, SalonSuspended
 from app.timeutils import LocalDatetime, day_bounds, to_local
 
 router = APIRouter(prefix="/reports", tags=["reports"], dependencies=[Depends(require_admin)])
@@ -652,3 +661,132 @@ async def export_reports(
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": 'attachment; filename="reports.xlsx"'},
     )
+
+
+# --- SMS-нагадування (сеть) -----------------------------------------------------
+
+# Принято провайдером — за эти SMS платим
+_SMS_ACCEPTED = {
+    ReminderDeliveryStatus.SENT,
+    ReminderDeliveryStatus.DELIVERED,
+    ReminderDeliveryStatus.UNDELIVERED,
+}
+
+
+class SmsReportRowOut(ApiModel):
+    salon_id: uuid.UUID | None
+    salon_name: str
+    # false — шард салона недоступен, цифр нет
+    available: bool = True
+    # SMS, принятые провайдером (оплачиваемые), и их сегменты
+    sms: int = 0
+    segments: int = 0
+    delivered: int = 0
+    undelivered: int = 0
+    # Принято, финального статуса ещё нет (или в очереди на отправку)
+    pending: int = 0
+    failed: int = 0
+    skipped: int = 0
+    # Из принятых — запасные после неудачи Telegram
+    fallback: int = 0
+    cost: Decimal = Decimal(0)
+    # Напоминания, доставленные в Telegram
+    telegram: int = 0
+
+
+class SmsReportOut(ApiModel):
+    rows: list[SmsReportRowOut]
+    total: SmsReportRowOut
+
+
+async def _sms_row(session: AsyncSession, date_from: datetime, date_to: datetime) -> dict[str, Any]:
+    result = await session.execute(
+        select(
+            ReminderDelivery.channel,
+            ReminderDelivery.status,
+            ReminderDelivery.is_fallback,
+            func.count(),
+            func.coalesce(func.sum(ReminderDelivery.segments), 0),
+            func.coalesce(func.sum(ReminderDelivery.cost), 0),
+        )
+        .where(ReminderDelivery.created_at >= date_from, ReminderDelivery.created_at < date_to)
+        .group_by(ReminderDelivery.channel, ReminderDelivery.status, ReminderDelivery.is_fallback)
+    )
+    row: dict[str, Any] = defaultdict(int)
+    row["cost"] = Decimal(0)
+    for channel, status, is_fallback, count, segments, cost in result.all():
+        if channel == DeliveryChannel.TELEGRAM:
+            if status == ReminderDeliveryStatus.SENT:
+                row["telegram"] += count
+            continue
+        if status in _SMS_ACCEPTED:
+            row["sms"] += count
+            row["segments"] += int(segments)
+            row["cost"] += Decimal(cost)
+            if is_fallback:
+                row["fallback"] += count
+        if status == ReminderDeliveryStatus.DELIVERED:
+            row["delivered"] += count
+        elif status == ReminderDeliveryStatus.UNDELIVERED:
+            row["undelivered"] += count
+        elif status in (ReminderDeliveryStatus.SENT, ReminderDeliveryStatus.QUEUED):
+            row["pending"] += count
+        elif status == ReminderDeliveryStatus.FAILED:
+            row["failed"] += count
+        elif status == ReminderDeliveryStatus.SKIPPED:
+            row["skipped"] += count
+    row["cost"] = _money(row["cost"])
+    return dict(row)
+
+
+_SMS_COUNTERS = (
+    "sms",
+    "segments",
+    "delivered",
+    "undelivered",
+    "pending",
+    "failed",
+    "skipped",
+    "fallback",
+    "telegram",
+)
+
+
+@router.get("/sms", response_model=Envelope[SmsReportOut])
+async def sms_report(
+    user: SuperUser,
+    request: Request,
+    master_session: MasterSession,
+    date_from: DateFrom,
+    date_to: DateTo,
+) -> Envelope[SmsReportOut]:
+    """По салонам: SMS, сегменты, доставлено / не доставлено / ошибки / пропущено, стоимость;
+    сколько напоминаний ушло в Telegram. Период — по дате отправки.
+    """
+    _check_period(date_from, date_to)
+    registry: EngineRegistry = request.app.state.engine_registry
+    salons = list(
+        await master_session.scalars(
+            select(Salon)
+            .where(Salon.id.in_(user.salon_ids), Salon.status == SalonStatus.ACTIVE)
+            .order_by(Salon.name)
+        )
+    )
+    rows: list[SmsReportRowOut] = []
+    for salon in salons:
+        try:
+            factory = await registry.get_sessionmaker(salon.id)
+            async with factory() as shard:
+                data = await _sms_row(shard, date_from, date_to)
+        except (SalonNotFound, SalonSuspended, SQLAlchemyError, OSError):
+            rows.append(SmsReportRowOut(salon_id=salon.id, salon_name=salon.name, available=False))
+            continue
+        rows.append(SmsReportRowOut(salon_id=salon.id, salon_name=salon.name, **data))
+
+    total = SmsReportRowOut(salon_id=None, salon_name="Усього по мережі")
+    for row in rows:
+        for field in _SMS_COUNTERS:
+            setattr(total, field, getattr(total, field) + getattr(row, field))
+        total.cost += row.cost
+    total.cost = _money(total.cost)
+    return Envelope(data=SmsReportOut(rows=rows, total=total))

@@ -9,6 +9,7 @@ export const clientsKeys = {
   list: (params: ClientsListParams) => [...clientsKeys.all, 'list', params] as const,
   detail: (id: string) => [...clientsKeys.all, 'detail', id] as const,
   visits: (id: string, page: number) => [...clientsKeys.all, 'visits', id, page] as const,
+  reminders: (id: string, page: number) => [...clientsKeys.all, 'reminders', id, page] as const,
 };
 
 export const clientsListQueryOptions = (params: ClientsListParams) =>
@@ -40,6 +41,21 @@ export const clientVisitsQueryOptions = (id: string, page: number) =>
       unwrap(
         await api.GET('/api/admin/v1/clients/{client_id}/visits', {
           params: { path: { client_id: id }, query: { page, perPage: VISITS_PER_PAGE } },
+          signal,
+        }),
+      ),
+    placeholderData: keepPreviousData,
+  });
+
+export const REMINDERS_PER_PAGE = 10;
+
+export const clientRemindersQueryOptions = (id: string, page: number) =>
+  queryOptions({
+    queryKey: clientsKeys.reminders(id, page),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await api.GET('/api/admin/v1/clients/{client_id}/reminders', {
+          params: { path: { client_id: id }, query: { page, perPage: REMINDERS_PER_PAGE } },
           signal,
         }),
       ),

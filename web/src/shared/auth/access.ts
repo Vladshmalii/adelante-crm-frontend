@@ -63,6 +63,8 @@ export const permissions = (v: Viewer) => ({
     delete: v.isAdmin,
     import: v.isAdmin,
     export: v.isSuperuser,
+    /** Канал напоминаний и история отправок (backend/docs/sms-reminders.md, раздел 8). */
+    reminders: v.isAdmin,
   },
   staff: {
     manageMasters: v.isAdmin,
@@ -89,6 +91,8 @@ export const permissions = (v: Viewer) => ({
   reports: {
     /** Виручка и середній чек; администратору бекенд отдаёт их как null. */
     viewMoney: v.isSuperuser,
+    /** «SMS-нагадування» — сетевой отчёт со стоимостью, как Фінанси. */
+    sms: v.isSuperuser,
   },
   loyalty: {
     /** Пополнение и возврат депозита, оплата со счёта и кешбэком, выдача и удаление карты. */

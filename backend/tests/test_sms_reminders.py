@@ -661,3 +661,143 @@ def test_turbosms_unknown_message_id_does_not_break_polling(
     monkeypatch.setattr(reminders, "get_provider", lambda: turbo)
     reminders.poll_shard_sms(s.id)
     assert _rows(s, envelope)["sms"].status == "delivered"
+
+
+# --- Этап 5: CRM — история в карточке, отчёт -----------------------------------
+
+
+def test_client_reminder_history(
+    new_salon: Salon, staff: dict[str, Any], channels: tuple[FakeTelegram, FakeSms]
+) -> None:
+    s, api = new_salon, new_salon.api
+    tg, _ = channels
+    tg.default = "blocked"
+    client = _client(s)
+    _link(s, client)
+    # Мастеру клиент «свой» — но истории напоминаний он всё равно не видит
+    _record(
+        s,
+        staff["master"]["id"],
+        staff["service"]["id"],
+        datetime.now(UTC) + timedelta(days=5),
+        client_id=client["id"],
+    )
+    first, second = _envelope(s, client["id"]), _envelope(s, client["id"])
+    _deliver(first)
+    tg.default = "ok"
+    _deliver(second)
+
+    history = api.get(f"/clients/{client['id']}/reminders", token=staff["admin_token"], salon=s.id)
+    assert [(h["channel"], h["status"], h["isFallback"]) for h in history] == [
+        ("telegram", "sent", False),
+        ("sms", "sent", True),
+        ("telegram", "failed", False),
+    ]
+    assert "blocked" in history[2]["error"]
+    assert set(history[0]) == {
+        "id",
+        "createdAt",
+        "recordId",
+        "channel",
+        "isFallback",
+        "status",
+        "error",
+    }
+    page = api.call(
+        "GET",
+        f"/clients/{client['id']}/reminders",
+        token=s.su,
+        salon=s.id,
+        params={"perPage": 2},
+    )
+    assert len(page) == 2
+
+    api.get(
+        f"/clients/{client['id']}/reminders", token=staff["master_token"], salon=s.id, expect=403
+    )
+    api.get(f"/clients/{uuid.uuid4()}/reminders", token=s.su, salon=s.id, expect=404)
+
+
+def _sms_report(s: Salon, token: str, expect: int = 200) -> Any:
+    now = datetime.now(UTC)
+    return s.api.get(
+        "/reports/sms",
+        token=token,
+        salon=s.id,
+        expect=expect,
+        params={
+            "dateFrom": (now - timedelta(hours=1)).isoformat(),
+            "dateTo": (now + timedelta(hours=1)).isoformat(),
+        },
+    )
+
+
+def test_sms_report(
+    new_salon: Salon,
+    staff: dict[str, Any],
+    channels: tuple[FakeTelegram, FakeSms],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from decimal import Decimal
+
+    from app.config import get_settings
+    from app.notifications.sms import DeliveryStatus, SmsPermanentError
+    from workers.tasks import reminders
+
+    s = new_salon
+    tg, sms = channels
+
+    def mine(report: dict[str, Any]) -> dict[str, Any]:
+        return next(r for r in report["rows"] if r["salonId"] == s.id)
+
+    before = mine(_sms_report(s, s.su))
+
+    tg.default = "ok"
+    tg_client = _client(s)
+    _link(s, tg_client)
+    _deliver(_envelope(s, tg_client["id"]))  # Telegram
+
+    tg.default = "blocked"
+    fb_client = _client(s)
+    _link(s, fb_client)
+    _deliver(_envelope(s, fb_client["id"]))  # Telegram не доставил → запасное SMS
+
+    delivered_env = _envelope(s, _client(s, channel="sms")["id"])
+    _deliver(delivered_env)
+    sms.errors = [SmsPermanentError("TurboSMS 305 INVALID_PHONE")]
+    _deliver(_envelope(s, _client(s, channel="sms")["id"]))  # failed
+    _deliver(_envelope(s, _client(s, client_phone="+48 600 " + phone()[-6:])["id"]))  # skipped
+
+    sms.statuses = {_rows(s, delivered_env)["sms"].provider_message_id: DeliveryStatus.DELIVERED}
+    monkeypatch.setattr(reminders, "get_provider", lambda: sms)
+    reminders.poll_shard_sms(s.id)
+
+    report = _sms_report(s, s.su)
+    after = mine(report)
+    diff = {
+        k: after[k] - before[k]
+        for k in after
+        if isinstance(after[k], int) and not isinstance(after[k], bool)
+    }
+    assert diff == {
+        "sms": 2,
+        "segments": 2,
+        "delivered": 1,
+        "undelivered": 0,
+        "pending": 1,
+        "failed": 1,
+        "skipped": 1,
+        "fallback": 1,
+        "telegram": 1,
+    }
+    price = get_settings().sms_price_uah
+    assert Decimal(after["cost"]) - Decimal(before["cost"]) == price * 2
+    assert after["available"] is True and after["salonName"].startswith("Салон ")
+
+    total = report["total"]
+    assert total["salonId"] is None and total["salonName"] == "Усього по мережі"
+    assert total["sms"] == sum(r["sms"] for r in report["rows"])
+    assert Decimal(total["cost"]) == sum(Decimal(r["cost"]) for r in report["rows"])
+
+    _sms_report(s, staff["admin_token"], expect=403)
+    _sms_report(s, staff["master_token"], expect=403)

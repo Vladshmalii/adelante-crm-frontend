@@ -33,7 +33,15 @@ from app.models.master import (
     LoyaltyCard,
     ReminderChannel,
 )
-from app.models.shard import AuditAction, Record, RecordService, RecordStatus
+from app.models.shard import (
+    AuditAction,
+    DeliveryChannel,
+    Record,
+    RecordService,
+    RecordStatus,
+    ReminderDelivery,
+    ReminderDeliveryStatus,
+)
 from app.services.audit import diff_fields, write_audit
 from app.tenancy.deps import MasterSession, TenantSession
 from app.timeutils import to_local
@@ -559,4 +567,42 @@ def _visit_out(record: Record) -> VisitOut:
         total_amount=record.total_amount,
         internal_notes=record.internal_notes,
         photos=[p.url for p in record.photos],
+    )
+
+
+# --- Нагадування (backend/docs/sms-reminders.md, раздел 9) ----------------------
+
+
+class ReminderDeliveryOut(ApiModel):
+    id: uuid.UUID
+    created_at: datetime
+    record_id: uuid.UUID
+    channel: DeliveryChannel
+    # SMS после неудачи Telegram
+    is_fallback: bool
+    status: ReminderDeliveryStatus
+    error: str | None
+
+
+@router.get("/{client_id}/reminders", response_model=Envelope[list[ReminderDeliveryOut]])
+async def client_reminders(
+    client_id: uuid.UUID,
+    _admin: AdminUser,
+    master_session: MasterSession,
+    tenant_session: TenantSession,
+    page: int = 1,
+    per_page: Annotated[int, Query(alias="perPage", le=100)] = 20,
+) -> Envelope[list[ReminderDeliveryOut]]:
+    """Последние отправки напоминаний клиенту в текущем салоне. Мастеру — 403."""
+    await _get_client(master_session, client_id)
+    base = select(ReminderDelivery).where(ReminderDelivery.client_id == client_id)
+    total = await tenant_session.scalar(select(func.count()).select_from(base.subquery()))
+    rows = await tenant_session.scalars(
+        base.order_by(ReminderDelivery.created_at.desc(), ReminderDelivery.channel.desc())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+    )
+    return Envelope(
+        data=[ReminderDeliveryOut.model_validate(r) for r in rows],
+        meta=page_meta(page, per_page, total or 0),
     )

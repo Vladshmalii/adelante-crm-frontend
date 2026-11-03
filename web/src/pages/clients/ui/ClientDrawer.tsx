@@ -32,13 +32,18 @@ import {
 import { useDeleteClient } from '../api/clients.mutations';
 import {
   clientQueryOptions,
+  clientRemindersQueryOptions,
   clientVisitsQueryOptions,
+  REMINDERS_PER_PAGE,
   VISITS_PER_PAGE,
 } from '../api/clients.queries';
 import {
   categoryLabels,
   clientFullName,
+  deliveryChannelLabels,
+  deliveryStatusLabels,
   importanceLabels,
+  reminderChannelLabels,
   segmentLabels,
   visitStatusLabels,
 } from '../model/labels';
@@ -46,6 +51,7 @@ import { deleteWarning } from '../model/account';
 
 type Client = Schema<'ClientOut'>;
 type Visit = Schema<'VisitOut'>;
+type Reminder = Schema<'ReminderDeliveryOut'>;
 
 interface ClientDrawerProps {
   clientId: string | undefined;
@@ -135,6 +141,15 @@ export function ClientDrawer({ clientId, onClose, onEdit }: ClientDrawerProps) {
               label: 'Історія відвідувань',
               children: <ClientVisits id={client.id} />,
             },
+            ...(can.clients.reminders
+              ? [
+                  {
+                    key: 'reminders',
+                    label: 'Нагадування',
+                    children: <ClientReminders id={client.id} />,
+                  },
+                ]
+              : []),
           ]}
         />
       )}
@@ -171,11 +186,15 @@ function ClientInfo({ client }: { client: Client }) {
         {
           label: 'Telegram',
           children: client.telegramLinked ? (
-            <Tag color="green">Підключено — отримує нагадування</Tag>
+            <Tag color="green">Підключено</Tag>
           ) : (
             <Typography.Text type="secondary">Не підключено</Typography.Text>
           ),
         },
+        // Мастеру бекенд отдаёт канал как null — строку не показываем
+        ...(client.reminderChannel
+          ? [{ label: 'Нагадування', children: <ReminderChannelText client={client} /> }]
+          : []),
         { label: 'Дата народження', children: formatDate(client.birthDate) },
         { label: 'Стать', children: client.gender ? genderLabels[client.gender] : '—' },
         { label: 'Важливість', children: importanceLabels[client.importance] },
@@ -268,5 +287,75 @@ function VisitDetails({ visit }: { visit: Visit }) {
         </Image.PreviewGroup>
       )}
     </Space>
+  );
+}
+
+/** Куда фактически уйдёт напоминание с учётом подключения бота. */
+function ReminderChannelText({ client }: { client: Client }) {
+  const channel = client.reminderChannel;
+  if (!channel) return null;
+  if (channel === 'none') return <Tag>{reminderChannelLabels.none}</Tag>;
+  const viaTelegram = channel !== 'sms' && client.telegramLinked;
+  const hint =
+    channel === 'telegram' && !client.telegramLinked
+      ? 'бот не підключено — надсилаємо SMS'
+      : viaTelegram
+        ? 'зараз — у Telegram, якщо не доставлено — SMS'
+        : 'зараз — SMS';
+  return (
+    <Space size="small" wrap>
+      <span>{reminderChannelLabels[channel]}</span>
+      <Typography.Text type="secondary">({hint})</Typography.Text>
+    </Space>
+  );
+}
+
+function ClientReminders({ id }: { id: string }) {
+  const [page, setPage] = useState(1);
+  const { data, isPending } = useQuery(clientRemindersQueryOptions(id, page));
+  const total = data?.meta?.total ?? 0;
+
+  return (
+    <ProList<Reminder>
+      rowKey="id"
+      loading={isPending}
+      dataSource={data?.data}
+      locale={{ emptyText: <Empty description="Нагадувань ще не надсилали" /> }}
+      pagination={
+        total > REMINDERS_PER_PAGE
+          ? { current: page, pageSize: REMINDERS_PER_PAGE, total, onChange: setPage }
+          : false
+      }
+      columns={[
+        {
+          key: 'title',
+          listSlot: 'title',
+          render: (_, r) =>
+            r.isFallback
+              ? `${deliveryChannelLabels[r.channel]} (замість Telegram)`
+              : deliveryChannelLabels[r.channel],
+        },
+        {
+          key: 'description',
+          listSlot: 'description',
+          render: (_, r) => formatDateTime(r.createdAt),
+        },
+        {
+          key: 'actions',
+          listSlot: 'actions',
+          render: (_, r) => [
+            <Tag key="status" color={deliveryStatusLabels[r.status].color}>
+              {deliveryStatusLabels[r.status].text}
+            </Tag>,
+          ],
+        },
+        {
+          key: 'content',
+          listSlot: 'content',
+          render: (_, r) =>
+            r.error ? <Typography.Text type="secondary">{r.error}</Typography.Text> : null,
+        },
+      ]}
+    />
   );
 }
