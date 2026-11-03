@@ -246,3 +246,26 @@ TurboSMS. Строки без финального статуса через с�
 - Тариф и цена сегмента — после договора; до этого `SMS_PRICE_UAH` из конфига.
 - Если TurboSMS не подойдёт по договору — другой местный агрегатор (AlphaSMS, SMSClub, eSputnik)
   добавляется ещё одной реализацией провайдера.
+
+---
+
+## 14. Уточнения при реализации (2026-11-03)
+
+| # | Вопрос | Решение |
+|---|---|---|
+| 1 | Имена переменных окружения | В `Settings` префикс `ADELANTE_`: `ADELANTE_SMS_PROVIDER`, `ADELANTE_SMS_SENDER`, `ADELANTE_TURBOSMS_TOKEN` (`SecretStr`), `ADELANTE_TURBOSMS_API_URL`, `ADELANTE_SMS_PRICE_UAH` (по умолчанию 1.30). Секрет вебхука не нужен — см. п. 2 |
+| 2 | Вебхук или опрос (этап 4) | **Опрос.** Вебхук TurboSMS задаётся один на кабинет (раздел «Вебхуки»), callback-URL на сообщение API не принимает — салон по DLR не найти без глобального индекса `message_id → салон` в Master; плюс публичный эндпоинт и проверка подписи. Опрос: beat `poll_sms_statuses` раз в 5 минут → `poll_shard_sms` по салону, строки `sms`/`sent` младше суток, `message/status.json` пачками по 100. `Delivered`, `Read` → `delivered`; `Expired`, `Undelivered`, `Rejected`, `Failed`, `Cancelled` → `undelivered`; `Queued`, `Accepted`, `Sent`, `Unknown` — без изменений; код 414 (чужой id) пропускается |
+| 3 | Идемпотентность отправки | `sequence_id = event_id`: повтор TurboSMS в течение 30 дней возвращает `507 FAILED_DUPLICATE_REQUEST` с результатом первого запроса — считаем успехом. Поэтому таймаут запроса 30 с (документация советует без таймаута) безопасен |
+| 4 | Временные и постоянные ошибки TurboSMS | Временные (повтор): сеть, HTTP ≠ 200, битый JSON, коды 428, 436–438, 500, 501, 503, 9000–9999. Остальные — постоянные (`failed` без повтора), в т. ч. 203 `REQUIRED_BALANCE`, ошибки токена, 401 (альфа-имя не активно), 404 (стоп-лист), 406 (страна). В `error` — код и статус TurboSMS |
+| 5 | Стоимость и сегменты | TurboSMS их в ответе на отправку не возвращает: сегменты считаем сами (UCS-2), `cost = segments × SMS_PRICE_UAH` на момент отправки |
+| 6 | Длина текста | Считается в кодовых единицах UTF-16 (эмодзи в названии салона — 2 символа), чтобы SMS всегда было одним сегментом |
+| 7 | Результат Telegram | `workers/telegram.py::deliver()` → `TelegramResult(ok, error)`; `send_message()` вызывает его и возвращает `bool` — остальные вызовы не меняются. В тестах `test_calendar` и `test_notifications` подмена перенесена на `deliver` |
+| 8 | Повторы | Telegram и SMS — до 5 повторов, backoff 10 → 120 с (≈ 5 минут: напоминание привязано ко времени). Повтор Telegram проходит дедуп `sent:{event_id}:client_tg` только на первой попытке, дальше состояние — строка журнала |
+| 9 | Журнал для Telegram | Строка `telegram`: `queued` → `sent` или `failed` (статусов доставки у Telegram нет), `provider = telegram`. Для `none` строки нет |
+| 10 | Задача доставки | Новая `workers.tasks.reminder_delivery.deliver_reminder` (очередь `notifications`), SMS — `send_reminder_sms` по строке журнала (`FOR UPDATE SKIP LOCKED`). Старая `notify_client_telegram` оставлена как переходник на время выкатки |
+| 11 | Мастер и канал | Мастеру `reminderChannel` в карточке и списке — `null`, `GET /clients/{id}/reminders` — 403 |
+| 12 | Отчёт `GET /reports/sms` | Суперюзер; салоны — активные из его токена. `sms` — принятые провайдером (`sent` + `delivered` + `undelivered`), за них `segments` и `cost`; `pending` — `queued` + `sent`; `fallback` — принятые запасные; `telegram` — доставленные в Telegram. Период — по дате отправки. Недоступный шард — строка с `available: false`. В web — блок на странице «Звіти» |
+| 13 | Журнал изменений для бота | Клиент общий для сети, салона у бота нет: запись `reminder_channel` с автором «клієнт (бот)» (`author_id = null`) пишется в каждый активный салон, где у клиента есть записи. Кнопка «Telegram» в боте сохраняет `telegram` (не `auto`) |
+| 14 | Эталонные БД для autogenerate | Общий docker-стенд не был запущен; миграции написаны вручную, соответствие моделям проверяет `tests/test_migrations.py` (`compare_metadata`) на чистых БД testcontainers. `shard_ref_sms` / `master_ref_sms` не создавались |
+| 15 | Причины `skipped` | «Немає номера телефону», «Номер не український або некоректний» |
+| 16 | Настройка в web | Отдельная вкладка «Налаштування → Нагадування» |
