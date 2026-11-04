@@ -23,6 +23,14 @@ function useInvalidateFinances() {
     ]);
 }
 
+/** Чек и его отмена двигают склад: товары списываются при оплате и возвращаются при отмене. */
+function useInvalidateReceipt() {
+  const queryClient = useQueryClient();
+  const invalidateFinances = useInvalidateFinances();
+  return () =>
+    Promise.all([invalidateFinances(), queryClient.invalidateQueries({ queryKey: ['inventory'] })]);
+}
+
 const idPath = <K extends string>(key: K, id: string) => ({
   path: { [key]: id } as Record<K, string>,
 });
@@ -75,7 +83,7 @@ export function useUpdateDocument() {
 
 /** Чек: продажа или оплата визита. Ключ идемпотентности — на одно открытие формы. */
 export function useCreateReceipt() {
-  const onSuccess = useInvalidateFinances();
+  const onSuccess = useInvalidateReceipt();
   return useMutation({
     mutationFn: async ({ key, body }: { key: string; body: Schema<'ReceiptCreateIn'> }) =>
       unwrap(
@@ -89,7 +97,7 @@ export function useCreateReceipt() {
 }
 
 export function useCancelReceipt() {
-  const onSuccess = useInvalidateFinances();
+  const onSuccess = useInvalidateReceipt();
   return useMutation({
     mutationFn: async (id: string) =>
       unwrap(

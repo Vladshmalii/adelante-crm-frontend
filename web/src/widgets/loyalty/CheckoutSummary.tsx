@@ -1,7 +1,7 @@
 import { Alert, Checkbox, Descriptions, Space, Table, Tag, Typography } from 'antd';
 
 import type { Schema } from '@/shared/api';
-import { formatMoney } from '@/shared/lib';
+import { formatMoney, formatUnitPrice } from '@/shared/lib';
 
 import { discountSourceLabels, formatCardNumber, type PaymentCheck } from './model';
 
@@ -9,7 +9,7 @@ type Checkout = Schema<'CheckoutOut'>;
 type Line = Schema<'CheckoutLineOut'>;
 
 /**
- * Предпросмотр оплаты (раздел 6, шаг 1): карта и уровень, строки с бонусными услугами,
+ * Предпросмотр оплаты (раздел 6, шаг 1): карта и уровень, строки с бонусными услугами и товарами,
  * «Продано», скидка с источником, итог. Итог считает сервер — его же шлём как expectedTotal.
  */
 export function CheckoutSummary({
@@ -46,7 +46,7 @@ export function CheckoutSummary({
           )}
         </Typography.Text>
       )}
-      {checkout.lines.length > 1 || hasBonusColumn ? (
+      {checkout.lines.length > 1 || hasBonusColumn || checkout.lines.some((l) => l.productId) ? (
         <Table<Line>
           size="small"
           rowKey={(l) => l.recordServiceId ?? `${l.kind}-${checkout.lines.indexOf(l)}`}
@@ -85,6 +85,14 @@ export function CheckoutSummary({
                   <Space size={4}>
                     {l.name}
                     <Tag color="purple">сертифікат</Tag>
+                  </Space>
+                ) : l.productId ? (
+                  <Space size={4} wrap>
+                    {l.name}
+                    {l.mode === 'package' && <Tag color="blue">пляшка</Tag>}
+                    <Typography.Text type="secondary">
+                      {Number(l.quantity)} × {formatUnitPrice(l.unitPrice)}
+                    </Typography.Text>
                   </Space>
                 ) : (
                   l.name

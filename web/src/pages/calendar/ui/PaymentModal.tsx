@@ -31,6 +31,12 @@ import {
   PaymentWarnings,
   recordCheckoutQueryOptions,
 } from '@/widgets/loyalty';
+import {
+  ProductSalePicker,
+  type ProductSaleItem,
+  productsBody,
+  useDebouncedProductParams,
+} from '@/widgets/product-sale';
 
 import { usePayRecord } from '../api/calendar.mutations';
 import { paymentMethodsQueryOptions } from '../api/calendar.queries';
@@ -45,8 +51,8 @@ interface FormValues {
  * Оплата завершённого визита (раздел 6 спецификации лояльности): предпросмотр сервера —
  * «Продано», бонусные услуги (чекбоксы у строк), скидка с источником, итог; один или несколько
  * способов, сумма — ровно итог. Недоплата закрывается частью «Особовий рахунок» (в долг —
- * с подтверждением), кешбэк — в пределах максимума чека. «+ Сертифікат» — продажа подарочных
- * сертификатов в том же чеке; после оплаты — окно с кодами.
+ * с подтверждением), кешбэк — в пределах максимума чека. «+ Товар» — продажа со склада в том же
+ * чеке, «+ Сертифікат» — подарочных сертификатов; после оплаты — окно с кодами.
  */
 export function PaymentModal({
   record,
@@ -61,11 +67,18 @@ export function PaymentModal({
   const [bonusIds, setBonusIds] = useState<string[]>([]);
   const [debtConfirmed, setDebtConfirmed] = useState(false);
   const [certificates, setCertificates] = useState<CertificateSaleItem[]>([]);
+  const [products, setProducts] = useState<ProductSaleItem[]>([]);
+  const productParams = useDebouncedProductParams(products);
   const [sold, setSold] = useState<{ receiptId: string; client: { id: string; name: string } }>();
   const [key, setKey] = useState(newOperationKey);
   const { data: methods = [] } = useQuery({ ...paymentMethodsQueryOptions(), enabled: !!record });
   const checkout = useQuery({
-    ...recordCheckoutQueryOptions(record?.id ?? '', bonusIds, templateIdsOf(certificates)),
+    ...recordCheckoutQueryOptions(
+      record?.id ?? '',
+      bonusIds,
+      templateIdsOf(certificates),
+      productParams,
+    ),
     enabled: !!record,
   });
   const preview = checkout.data;
@@ -87,6 +100,7 @@ export function PaymentModal({
     setBonusIds([]);
     setDebtConfirmed(false);
     setCertificates([]);
+    setProducts([]);
   };
 
   return (
@@ -130,6 +144,7 @@ export function PaymentModal({
                 bonusRecordServiceIds: bonusIds,
                 expectedTotal: preview.total,
                 certificates,
+                products: productsBody(products),
               },
             });
             message.success(`Оплачено, чек № ${receipt.number}`);
@@ -150,11 +165,12 @@ export function PaymentModal({
         }}
       >
         <QueryErrorAlert error={checkout.error} onRetry={() => void checkout.refetch()} />
+        <ProductSalePicker value={products} onChange={setProducts} />
         <CertificateSalePicker value={certificates} onChange={setCertificates} />
         {preview ? (
           <CheckoutSummary checkout={preview} bonusIds={bonusIds} onBonusChange={setBonusIds} />
         ) : (
-          <Spin style={{ display: 'block', marginBottom: 16 }} />
+          !checkout.isError && <Spin style={{ display: 'block', marginBottom: 16 }} />
         )}
         <ProFormList
           name="payments"

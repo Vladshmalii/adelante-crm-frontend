@@ -2,12 +2,13 @@ import { PlusOutlined, StopOutlined } from '@ant-design/icons';
 import { type ProColumns, ProTable } from '@ant-design/pro-components';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { App, Button, Select, Space, Tag, Typography } from 'antd';
+import { App, Button, Select, Space, Table, Tag, Typography } from 'antd';
 import { useState } from 'react';
 
 import { errorMessage, type Schema } from '@/shared/api';
-import { formatDateTime, formatMoney } from '@/shared/lib';
+import { formatDateTime, formatMoney, formatQuantity, productUnitLabels } from '@/shared/lib';
 import { QueryErrorAlert } from '@/shared/ui';
+import { productModeLabels } from '@/widgets/product-sale';
 
 import { useCancelReceipt } from '../api/finances.mutations';
 import { receiptsQueryOptions } from '../api/finances.queries';
@@ -16,6 +17,40 @@ import { type FinancesSearch, receiptsParams } from '../model/search';
 import { ReceiptFormModal } from './ReceiptFormModal';
 
 type Receipt = Schema<'ReceiptOut'>;
+type ProductLine = Schema<'ReceiptProductLineOut'>;
+
+/** Снимок строк товаров на момент продажи: «Як продали» — бутылки или единицы карточки. */
+function ReceiptProducts({ lines }: { lines: ProductLine[] }) {
+  return (
+    <Table<ProductLine>
+      size="small"
+      rowKey="id"
+      pagination={false}
+      dataSource={lines}
+      columns={[
+        { title: 'Товар', dataIndex: 'name' },
+        { title: 'Артикул', dataIndex: 'sku' },
+        { title: 'Режим', key: 'mode', render: (_, l) => productModeLabels[l.mode] },
+        {
+          title: 'Кількість',
+          key: 'quantity',
+          align: 'right',
+          render: (_, l) =>
+            l.mode === 'package'
+              ? `${String(Number(l.quantity))} шт (${formatQuantity(l.baseQuantity, l.unit)})`
+              : `${String(Number(l.quantity))} ${productUnitLabels[l.unit]}`,
+        },
+        { title: 'Сума', key: 'amount', align: 'right', render: (_, l) => formatMoney(l.amount) },
+        {
+          title: 'Сплачено',
+          key: 'paid',
+          align: 'right',
+          render: (_, l) => formatMoney(l.paidAmount),
+        },
+      ]}
+    />
+  );
+}
 
 interface TabProps {
   search: FinancesSearch;
@@ -34,8 +69,8 @@ export function ReceiptsTab({ search, setSearch }: TabProps) {
     modal.confirm({
       title: `Скасувати чек № ${r.number}?`,
       content: r.recordId
-        ? 'Чек і повʼязані операції буде скасовано, а візит знову стане неоплаченим. Дію не можна повернути.'
-        : 'Чек і повʼязані з ним операції буде позначено скасованими. Дію не можна повернути.',
+        ? 'Чек і повʼязані операції буде скасовано, а візит знову стане неоплаченим. Товари повернуться на склад. Дію не можна повернути.'
+        : 'Чек і повʼязані з ним операції буде позначено скасованими. Товари повернуться на склад. Дію не можна повернути.',
       okText: 'Скасувати чек',
       okButtonProps: { danger: true },
       cancelText: 'Назад',
@@ -117,6 +152,10 @@ export function ReceiptsTab({ search, setSearch }: TabProps) {
         search={false}
         columnEmptyText="—"
         scroll={{ x: 'max-content' }}
+        expandable={{
+          rowExpandable: (r) => r.products.length > 0,
+          expandedRowRender: (r) => <ReceiptProducts lines={r.products} />,
+        }}
         options={{ reload: () => void refetch(), density: true, setting: true }}
         pagination={{
           current: search.page,

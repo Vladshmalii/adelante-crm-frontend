@@ -17,10 +17,10 @@ export const loyaltyKeys = {
   cardTxns: (cardId: string) => [...loyaltyKeys.all, 'card-txns', cardId] as const,
   cardVisits: (cardId: string) => [...loyaltyKeys.all, 'card-visits', cardId] as const,
   cardTypes: () => [...loyaltyKeys.all, 'card-types'] as const,
-  checkout: (recordId: string, bonusIds: string[], certificateIds: string[]) =>
-    [...loyaltyKeys.all, 'checkout', recordId, bonusIds, certificateIds] as const,
-  saleCheckout: (clientId: string | undefined, subtotal: number, certificateIds: string[]) =>
-    [...loyaltyKeys.all, 'sale-checkout', clientId, subtotal, certificateIds] as const,
+  checkout: (recordId: string, bonusIds: string[], certificateIds: string[], products: string[]) =>
+    [...loyaltyKeys.all, 'checkout', recordId, bonusIds, certificateIds, products] as const,
+  saleCheckout: (clientId: string | undefined, certificateIds: string[], products: string[]) =>
+    [...loyaltyKeys.all, 'sale-checkout', clientId, certificateIds, products] as const,
 };
 
 export const TXNS_PER_PAGE = 10;
@@ -93,14 +93,18 @@ export const cardTypesQueryOptions = () =>
       unwrap(await api.GET('/api/admin/v1/loyalty/card-types', { signal })).data,
   });
 
-/** certificateIds — продаваемые в чеке сертификаты: id шаблона по одному на штуку. */
+/**
+ * certificateIds — продаваемые в чеке сертификаты: id шаблона по одному на штуку.
+ * products — товары со склада: `<productId>:<mode>:<quantity>`.
+ */
 export const recordCheckoutQueryOptions = (
   recordId: string,
   bonusIds: string[],
   certificateIds: string[] = [],
+  products: string[] = [],
 ) =>
   queryOptions({
-    queryKey: loyaltyKeys.checkout(recordId, bonusIds, certificateIds),
+    queryKey: loyaltyKeys.checkout(recordId, bonusIds, certificateIds, products),
     queryFn: async ({ signal }) =>
       unwrap(
         await api.GET('/api/admin/v1/records/{record_id}/checkout', {
@@ -109,6 +113,7 @@ export const recordCheckoutQueryOptions = (
             query: {
               ...(bonusIds.length ? { bonusRecordServiceIds: bonusIds } : {}),
               ...(certificateIds.length ? { certificateTemplateIds: certificateIds } : {}),
+              ...(products.length ? { products } : {}),
             },
           },
           signal,
@@ -117,21 +122,22 @@ export const recordCheckoutQueryOptions = (
     placeholderData: keepPreviousData,
   });
 
+/** Продажа без записи: товары и сертификаты. Ручная сумма `subtotal` осталась только в API. */
 export const saleCheckoutQueryOptions = (
   clientId: string | undefined,
-  subtotal: number,
   certificateIds: string[] = [],
+  products: string[] = [],
 ) =>
   queryOptions({
-    queryKey: loyaltyKeys.saleCheckout(clientId, subtotal, certificateIds),
+    queryKey: loyaltyKeys.saleCheckout(clientId, certificateIds, products),
     queryFn: async ({ signal }) =>
       unwrap(
         await api.GET('/api/admin/v1/finances/receipts/checkout', {
           params: {
             query: {
-              subtotal,
               clientId,
               ...(certificateIds.length ? { certificateTemplateIds: certificateIds } : {}),
+              ...(products.length ? { products } : {}),
             },
           },
           signal,

@@ -109,6 +109,8 @@ export function usePayRecord() {
       void queryClient.invalidateQueries({ queryKey: ['loyalty'] });
       // Продажа и погашение сертификатов
       void queryClient.invalidateQueries({ queryKey: ['certificates'] });
+      // Товары, проданные в чеке, списаны со склада
+      void queryClient.invalidateQueries({ queryKey: ['inventory'] });
     },
   });
 }

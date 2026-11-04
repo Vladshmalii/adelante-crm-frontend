@@ -45,6 +45,12 @@ import {
   recordCheckoutQueryOptions,
   saleCheckoutQueryOptions,
 } from '@/widgets/loyalty';
+import {
+  ProductSalePicker,
+  type ProductSaleItem,
+  productsBody,
+  useDebouncedProductParams,
+} from '@/widgets/product-sale';
 
 import { useCreateReceipt } from '../api/finances.mutations';
 import { paymentMethodsQueryOptions, unpaidRecordsQueryOptions } from '../api/finances.queries';
@@ -57,7 +63,6 @@ interface FormValues {
   recordId?: string;
   clientId?: string;
   clientName?: string;
-  subtotal?: number;
   date: Dayjs;
   source: Schema<'ReceiptSource'>;
   payments: PaymentPart[];
@@ -73,10 +78,11 @@ const recordLabel = (r: RecordItem) =>
 
 /**
  * Чек: продажа товаров без записи или оплата завершённого визита (`recordId`). Итог считает
- * сервер (предпросмотр): у продажи — от «Продано» со скидкой клиента или карты, у визита —
+ * сервер (предпросмотр): у продажи — от выбранных товаров со скидкой клиента или карты, у визита —
  * с бонусными услугами и скидкой. Сумма оплат = итог; способы — как у оплаты визита, включая
- * «Особовий рахунок» (для продажи нужен клиент) и «Кешбек». «+ Сертифікат» — продажа подарочных
- * сертификатов в том же чеке (продажа может состоять из одних сертификатов); после — коды.
+ * «Особовий рахунок» (для продажи нужен клиент) и «Кешбек». «+ Товар» — продажа со склада; ручной
+ * суммы «Продано» в форме нет (product-sales.md, раздел 9): продажа мимо склада разводит деньги и
+ * остатки. «+ Сертифікат» — подарочные сертификаты; продажа может состоять из одних них; после — коды.
  */
 export function ReceiptFormModal({ open, onOpenChange }: ReceiptFormModalProps) {
   const { message } = App.useApp();
@@ -90,12 +96,12 @@ export function ReceiptFormModal({ open, onOpenChange }: ReceiptFormModalProps) 
   const debouncedClientQuery = useDebouncedValue(clientQuery);
   const [recordId, setRecordId] = useState<string>();
   const [clientId, setClientId] = useState<string>();
-  const [subtotal, setSubtotal] = useState<number>();
-  const debouncedSubtotal = useDebouncedValue(subtotal);
   const [bonusIds, setBonusIds] = useState<string[]>([]);
   const [debtConfirmed, setDebtConfirmed] = useState(false);
   const [certificates, setCertificates] = useState<CertificateSaleItem[]>([]);
   const certificateIds = templateIdsOf(certificates);
+  const [products, setProducts] = useState<ProductSaleItem[]>([]);
+  const productParams = useDebouncedProductParams(products);
   const [sold, setSold] = useState<{
     receiptId: string;
     client: { id: string; name: string } | null;
@@ -119,16 +125,17 @@ export function ReceiptFormModal({ open, onOpenChange }: ReceiptFormModalProps) 
     staleTime: 30_000,
   });
   const visitCheckout = useQuery({
-    ...recordCheckoutQueryOptions(recordId ?? '', bonusIds, certificateIds),
+    ...recordCheckoutQueryOptions(recordId ?? '', bonusIds, certificateIds, productParams),
     enabled: open && kind === 'visit' && !!recordId,
   });
   const saleCheckout = useQuery({
-    ...saleCheckoutQueryOptions(clientId, debouncedSubtotal ?? 0, certificateIds),
-    enabled:
-      open && kind === 'sale' && (debouncedSubtotal !== undefined || certificateIds.length > 0),
+    ...saleCheckoutQueryOptions(clientId, certificateIds, productParams),
+    enabled: open && kind === 'sale' && (productParams.length > 0 || certificateIds.length > 0),
   });
   const checkout = kind === 'visit' ? visitCheckout : saleCheckout;
-  const preview = kind === 'visit' ? (recordId ? checkout.data : undefined) : checkout.data;
+  // Запрос продажи выключен, пока ничего не выбрано; его кеш не должен оставаться итогом
+  const hasSelection = kind === 'visit' ? !!recordId : products.length + certificates.length > 0;
+  const preview = hasSelection ? checkout.data : undefined;
   const total = preview ? Number(preview.total) : undefined;
 
   // Итог изменился — одна строка оплаты подстраивается под него
@@ -165,10 +172,10 @@ export function ReceiptFormModal({ open, onOpenChange }: ReceiptFormModalProps) 
     setKind('sale');
     setRecordId(undefined);
     setClientId(undefined);
-    setSubtotal(undefined);
     setBonusIds([]);
     setDebtConfirmed(false);
     setCertificates([]);
+    setProducts([]);
     setRecordQuery('');
     setClientQuery('');
   };
@@ -215,13 +222,13 @@ export function ReceiptFormModal({ open, onOpenChange }: ReceiptFormModalProps) 
                   : {
                       clientId: v.clientId ?? null,
                       clientName: !v.clientId && v.clientName?.trim() ? v.clientName : null,
-                      subtotal: v.subtotal ?? 0,
                     }),
                 expectedTotal: preview.total,
                 date: fromPickerDateTime(v.date),
                 source: v.source,
                 payments,
                 certificates,
+                products: productsBody(products),
               },
             });
             message.success(isVisit ? 'Візит оплачено' : 'Чек створено');
@@ -306,22 +313,9 @@ export function ReceiptFormModal({ open, onOpenChange }: ReceiptFormModalProps) 
                 )
               }
             </ProFormDependency>
-            <ProFormDigit
-              name="subtotal"
-              label="Продано"
-              tooltip="Сума товарів до знижки, без сертифікатів. Лише сертифікати — 0"
-              min={0}
-              fieldProps={{
-                suffix: '₴',
-                precision: 2,
-                onChange: (value) => {
-                  setSubtotal(value ?? undefined);
-                },
-              }}
-              rules={[{ required: true, message: 'Вкажіть суму' }]}
-            />
           </>
         )}
+        <ProductSalePicker value={products} onChange={setProducts} />
         <CertificateSalePicker value={certificates} onChange={setCertificates} />
         <QueryErrorAlert error={checkout.error} onRetry={() => void checkout.refetch()} />
         {preview ? (

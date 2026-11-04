@@ -791,6 +791,10 @@ export interface paths {
          *
          *     Чек продажи сертификатов отменяется, только пока ими не расплачивались
          *     (certificates.md, раздел 6); сертификаты аннулирует воркер вместе со сторно.
+         *     Проданные товары возвращаются на склад обратными движениями, в том числе удалённые.
+         *
+         *     Чек читается FOR UPDATE: параллельная отмена ждёт и видит «уже скасовано». Порядок
+         *     блокировок как при оплате: запись, затем товары в порядке id.
          */
         post: operations["cancel_receipt_api_admin_v1_finances_receipts__receipt_id__cancel_post"];
         delete?: never;
@@ -808,7 +812,9 @@ export interface paths {
         };
         /**
          * Sale Checkout
-         * @description Предпросмотр продажи без записи: subtotal — «Продано» товаров, скидка — наибольшая.
+         * @description Предпросмотр продажи без записи: товары со склада и/или ручная сумма subtotal.
+         *
+         *     Скидка — наибольшая. Без товаров и сертификатов subtotal обязателен.
          */
         get: operations["sale_checkout_api_admin_v1_finances_receipts_checkout_get"];
         put?: never;
@@ -1444,6 +1450,23 @@ export interface paths {
          * @description Все отчёты одним файлом; администратору — без денежных колонок и листа выручки.
          */
         get: operations["export_reports_api_admin_v1_reports_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/reports/products": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Products Report */
+        get: operations["products_report_api_admin_v1_reports_products_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3026,16 +3049,23 @@ export interface components {
             isBonus: boolean;
             /** Kind */
             kind: string;
+            mode?: components["schemas"]["ProductSaleMode"] | null;
             /** Name */
             name: string;
             /** Price */
             price: string;
+            /** Productid */
+            productId?: string | null;
+            /** Quantity */
+            quantity?: string | null;
             /** Recordserviceid */
             recordServiceId: string | null;
             /** Serviceid */
             serviceId: string | null;
             /** Templateid */
             templateId?: string | null;
+            /** Unitprice */
+            unitPrice?: string | null;
         };
         /** CheckoutOut */
         CheckoutOut: {
@@ -3718,6 +3748,12 @@ export interface components {
         Envelope_list_ProductOut__: {
             /** Data */
             data: components["schemas"]["ProductOut"][];
+            meta?: components["schemas"]["PageMeta"] | null;
+        };
+        /** Envelope[list[ProductRowOut]] */
+        Envelope_list_ProductRowOut__: {
+            /** Data */
+            data: components["schemas"]["ProductRowOut"][];
             meta?: components["schemas"]["PageMeta"] | null;
         };
         /** Envelope[list[ReceiptOut]] */
@@ -4733,6 +4769,52 @@ export interface components {
             sku?: string | null;
             unit?: components["schemas"]["ProductUnit"] | null;
         };
+        /** ProductRowOut */
+        ProductRowOut: {
+            /** Category */
+            category: string | null;
+            /** Cost */
+            cost: string | null;
+            /** Margin */
+            margin: string | null;
+            /** Name */
+            name: string;
+            /** Packagessold */
+            packagesSold: string;
+            /**
+             * Productid
+             * Format: uuid
+             */
+            productId: string;
+            /** Revenue */
+            revenue: string | null;
+            /** Sku */
+            sku: string;
+            /** Totalsold */
+            totalSold: string;
+            unit: components["schemas"]["ProductUnit"];
+            /** Volumesold */
+            volumeSold: string;
+        };
+        /**
+         * ProductSaleIn
+         * @description Позиция продажи в чеке (product-sales.md, раздел 3): бутылки и штуки — целые.
+         */
+        ProductSaleIn: {
+            mode: components["schemas"]["ProductSaleMode"];
+            /**
+             * Productid
+             * Format: uuid
+             */
+            productId: string;
+            /** Quantity */
+            quantity: number | string;
+        };
+        /**
+         * ProductSaleMode
+         * @enum {string}
+         */
+        ProductSaleMode: "package" | "volume";
         /**
          * ProductUnit
          * @enum {string}
@@ -4754,6 +4836,8 @@ export interface components {
             expectedTotal?: number | string | null;
             /** Payments */
             payments?: components["schemas"]["ReceiptPaymentIn"][];
+            /** Products */
+            products?: components["schemas"]["ProductSaleIn"][];
             /** Recordid */
             recordId?: string | null;
             /** @default web */
@@ -4787,6 +4871,10 @@ export interface components {
             number: string;
             /** Payments */
             payments: components["schemas"]["ReceiptPaymentOut"][];
+            /** Products */
+            products: components["schemas"]["ReceiptProductLineOut"][];
+            /** Productsamount */
+            productsAmount: string;
             /** Recordid */
             recordId: string | null;
             source: components["schemas"]["ReceiptSource"];
@@ -4812,6 +4900,35 @@ export interface components {
             amount: string;
             method: components["schemas"]["PersonRef"];
             methodType?: components["schemas"]["PaymentMethodType"] | null;
+        };
+        /** ReceiptProductLineOut */
+        ReceiptProductLineOut: {
+            /** Amount */
+            amount: string;
+            /** Basequantity */
+            baseQuantity: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            mode: components["schemas"]["ProductSaleMode"];
+            /** Name */
+            name: string;
+            /** Paidamount */
+            paidAmount: string;
+            /**
+             * Productid
+             * Format: uuid
+             */
+            productId: string;
+            /** Quantity */
+            quantity: string;
+            /** Sku */
+            sku: string;
+            unit: components["schemas"]["ProductUnit"];
+            /** Unitprice */
+            unitPrice: string;
         };
         /** ReceiptRef */
         ReceiptRef: {
@@ -5027,6 +5144,8 @@ export interface components {
             expectedTotal?: number | string | null;
             /** Payments */
             payments?: components["schemas"]["PaymentIn"][];
+            /** Products */
+            products?: components["schemas"]["ProductSaleIn"][];
         };
         /** RecordPaymentOut */
         RecordPaymentOut: {
@@ -7763,10 +7882,11 @@ export interface operations {
     };
     sale_checkout_api_admin_v1_finances_receipts_checkout_get: {
         parameters: {
-            query: {
+            query?: {
                 certificateTemplateIds?: string[] | null;
                 clientId?: string | null;
-                subtotal: number | string;
+                products?: string[] | null;
+                subtotal?: number | string | null;
             };
             header?: never;
             path?: never;
@@ -8920,6 +9040,7 @@ export interface operations {
             query?: {
                 bonusRecordServiceIds?: string[] | null;
                 certificateTemplateIds?: string[] | null;
+                products?: string[] | null;
             };
             header?: never;
             path: {
@@ -9240,6 +9361,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    products_report_api_admin_v1_reports_products_get: {
+        parameters: {
+            query: {
+                dateFrom: string;
+                dateTo: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_list_ProductRowOut__"];
                 };
             };
             /** @description Validation Error */
