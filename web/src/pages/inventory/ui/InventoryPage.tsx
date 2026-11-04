@@ -22,7 +22,7 @@ import type { SorterResult } from 'antd/es/table/interface';
 import { useState } from 'react';
 
 import { errorMessage, type Schema } from '@/shared/api';
-import { formatMoney, formatQuantity } from '@/shared/lib';
+import { formatMoney, formatQuantity, formatUnitPrice, packageBreakdown } from '@/shared/lib';
 import { QueryErrorAlert } from '@/shared/ui';
 
 import { useDeleteProduct, useRestoreProduct } from '../api/inventory.mutations';
@@ -31,7 +31,7 @@ import {
   inventorySummaryQueryOptions,
   productsQueryOptions,
 } from '../api/inventory.queries';
-import { packageBreakdown, productMargin, stockStatusLabels } from '../model/labels';
+import { type Margin, packageMargin, productMargin, stockStatusLabels } from '../model/labels';
 import type { InventorySearch } from '../model/search';
 import { CategoriesModal } from './CategoriesModal';
 import { InventoryExportModal } from './InventoryExportModal';
@@ -51,6 +51,15 @@ const isSort = (key: unknown): key is Sort => SORTS.includes(key as Sort);
 /** Доля от общего числа позиций — для KPI «Закінчуються» и «Немає». */
 const share = (part: number, total: number) =>
   total ? `${Math.round((part / total) * 100)}%` : undefined;
+
+function MarginLine({ title, margin }: { title?: string; margin: Margin }) {
+  return (
+    <Typography.Text type={margin.amount < 0 ? 'danger' : undefined}>
+      {title && `${title}: `}
+      {formatMoney(margin.amount)} · {margin.percent}%
+    </Typography.Text>
+  );
+}
 
 export function InventoryPage() {
   const search = route.useSearch();
@@ -145,13 +154,21 @@ export function InventoryPage() {
       title: 'Собівартість',
       key: 'costPrice',
       align: 'right',
-      render: (_, p) => formatMoney(p.costPrice),
+      tooltip: 'За одиницю картки (мл, г, шт…)',
+      render: (_, p) => formatUnitPrice(p.costPrice),
+    },
+    {
+      title: 'Ціна упаковки',
+      key: 'packagePrice',
+      align: 'right',
+      render: (_, p) => formatMoney(p.packagePrice),
     },
     {
       title: 'Ціна продажу',
       key: 'salePrice',
       align: 'right',
-      render: (_, p) => formatMoney(p.salePrice),
+      tooltip: 'За одиницю картки: на розлив або за штуку',
+      render: (_, p) => formatUnitPrice(p.salePrice),
     },
     {
       title: 'Маржа',
@@ -159,14 +176,16 @@ export function InventoryPage() {
       align: 'right',
       sorter: true,
       sortOrder: sortOrder('margin'),
-      tooltip: '(Ціна продажу − собівартість) / ціна продажу',
+      tooltip: '(Ціна продажу − собівартість) / ціна продажу; для упаковки — окремо',
       render: (_, p) => {
-        const margin = productMargin(p.costPrice, p.salePrice);
-        if (!margin) return '—';
+        const unit = productMargin(p.costPrice, p.salePrice);
+        const pack = packageMargin(p.costPrice, p.packagePrice, p.packageVolume);
+        if (!unit && !pack) return '—';
         return (
-          <Typography.Text type={margin.amount < 0 ? 'danger' : undefined}>
-            {formatMoney(margin.amount)} · {margin.percent}%
-          </Typography.Text>
+          <Space orientation="vertical" size={0} style={{ alignItems: 'flex-end' }}>
+            {pack && <MarginLine title="Упаковка" margin={pack} />}
+            {unit && <MarginLine title={pack ? 'Розлив' : undefined} margin={unit} />}
+          </Space>
         );
       },
     },

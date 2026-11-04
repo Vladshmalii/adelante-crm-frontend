@@ -5,3 +5,11 @@ export const formatMoney = (value: string | number | null | undefined) =>
   value === null || value === undefined || value === ''
     ? '—'
     : `${formatter.format(Number(value))} ₴`;
+
+const unitPriceFormatter = new Intl.NumberFormat('uk-UA', { maximumFractionDigits: 4 });
+
+/** Цена за единицу товара (₴/мл): бывает дробнее копейки, до 4 знаков. */
+export const formatUnitPrice = (value: string | number | null | undefined) =>
+  value === null || value === undefined || value === ''
+    ? '—'
+    : `${unitPriceFormatter.format(Number(value))} ₴`;

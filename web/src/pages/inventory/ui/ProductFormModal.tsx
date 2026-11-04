@@ -11,7 +11,7 @@ import { App } from 'antd';
 import { useMemo } from 'react';
 
 import { errorMessage, type Schema } from '@/shared/api';
-import { productUnitLabels, toOptions } from '@/shared/lib';
+import { packagedVolume, productUnitLabels, toBaseQuantity, toOptions } from '@/shared/lib';
 
 import { useCreateProduct, useUpdateProduct } from '../api/inventory.mutations';
 import { inventoryCategoriesQueryOptions } from '../api/inventory.queries';
@@ -30,6 +30,7 @@ interface FormValues {
   minQuantity?: number;
   costPrice?: number;
   salePrice?: number;
+  packagePrice?: number;
   description?: string;
 }
 
@@ -45,9 +46,16 @@ const num = (value: string | null | undefined) =>
 
 const blank = (value: string | undefined) => (value?.trim() ? value.trim() : null);
 
+/** Остаток в единице карточки → значение поля в упаковках, до 3 знаков. */
+const toPackages = (value: number | undefined, volume: number | null) =>
+  value === undefined || !volume ? value : Math.round((value / volume) * 1000) / 1000;
+
 /**
  * Создание и редактирование товара. Остаток задаётся только при создании (бекенд оформит его
- * надходженням «Початковий залишок»); дальше он меняется только движениями.
+ * надходженням «Початковий залишок»); дальше он меняется только движениями. У фасованного товара
+ * начальный и минимальный остаток вводятся упаковками, в API уходят в единице карточки. Цены за
+ * единицу — за единицу карточки, цена упаковки отдельно. Единица и объём у товара с движениями
+ * заблокированы: другой объём — другая карточка (product-sales.md, решения 3 и 6).
  */
 export function ProductFormModal({ open, onOpenChange, product }: ProductFormModalProps) {
   const { message } = App.useApp();
@@ -57,6 +65,13 @@ export function ProductFormModal({ open, onOpenChange, product }: ProductFormMod
     ...inventoryCategoriesQueryOptions(),
     enabled: open,
   });
+
+  const locked = product?.hasMovements === true;
+  const savedVolume = product ? packagedVolume(product.unit, product.packageVolume) : null;
+  const savedMin = toPackages(num(product?.minQuantity), savedVolume);
+  const lockedHint = locked
+    ? 'Товар уже має рух: одиницю й об’єм змінити не можна — створіть нову картку'
+    : undefined;
 
   const initialValues = useMemo<Partial<FormValues>>(
     () =>
@@ -68,9 +83,13 @@ export function ProductFormModal({ open, onOpenChange, product }: ProductFormMod
             categoryId: product.category?.id ?? undefined,
             unit: product.unit,
             packageVolume: num(product.packageVolume),
-            minQuantity: num(product.minQuantity),
+            minQuantity: toPackages(
+              num(product.minQuantity),
+              packagedVolume(product.unit, product.packageVolume),
+            ),
             costPrice: num(product.costPrice),
             salePrice: num(product.salePrice),
+            packagePrice: num(product.packagePrice),
             description: product.description ?? undefined,
           }
         : { unit: 'pcs', quantity: 0, minQuantity: 0 },
@@ -90,6 +109,14 @@ export function ProductFormModal({ open, onOpenChange, product }: ProductFormMod
       initialValues={initialValues}
       submitter={{ searchConfig: { submitText: 'Зберегти', resetText: 'Скасувати' } }}
       onFinish={async (v) => {
+        const volume = packagedVolume(v.unit, v.packageVolume);
+        // Неизменённый минимум не пересчитываем: упаковками он мог быть округлён до 3 знаков
+        const minQuantity =
+          product && v.minQuantity === savedMin && volume === savedVolume
+            ? Number(product.minQuantity)
+            : volume
+              ? toBaseQuantity(v.minQuantity ?? 0, 0, volume)
+              : (v.minQuantity ?? 0);
         const common = {
           name: v.name.trim(),
           sku: v.sku.trim(),
@@ -97,9 +124,10 @@ export function ProductFormModal({ open, onOpenChange, product }: ProductFormMod
           unit: v.unit,
           // Объём упаковки имеет смысл только для фасованных (не штучных) товаров.
           packageVolume: v.unit === 'pcs' ? null : (v.packageVolume ?? null),
-          minQuantity: v.minQuantity ?? 0,
+          minQuantity,
           costPrice: v.costPrice ?? null,
           salePrice: v.salePrice ?? null,
+          packagePrice: volume ? (v.packagePrice ?? null) : null,
           description: blank(v.description),
         };
         try {
@@ -112,7 +140,7 @@ export function ProductFormModal({ open, onOpenChange, product }: ProductFormMod
             await create.mutateAsync({
               ...common,
               categoryId: v.categoryId ?? null,
-              quantity: v.quantity ?? 0,
+              quantity: volume ? toBaseQuantity(v.quantity ?? 0, 0, volume) : (v.quantity ?? 0),
             });
           }
           message.success(product ? 'Товар оновлено' : 'Товар створено');
@@ -153,6 +181,8 @@ export function ProductFormModal({ open, onOpenChange, product }: ProductFormMod
         name="unit"
         label="Одиниця виміру"
         allowClear={false}
+        disabled={locked}
+        tooltip={lockedHint}
         options={toOptions(productUnitLabels)}
       />
       <ProFormDependency name={['unit']}>
@@ -161,38 +191,75 @@ export function ProductFormModal({ open, onOpenChange, product }: ProductFormMod
             <ProFormDigit
               name="packageVolume"
               label="Об'єм упаковки"
-              tooltip="Скільки одиниць в одній упаковці — щоб показувати залишок упаковками"
+              tooltip={
+                lockedHint ?? 'Скільки одиниць в одній упаковці — для залишку й продажу упаковками'
+              }
               min={0.001}
-              fieldProps={{ suffix: productUnitLabels[unit] }}
+              disabled={locked}
+              fieldProps={{ suffix: productUnitLabels[unit], precision: 3 }}
             />
           ) : null
         }
       </ProFormDependency>
-      {!product && (
-        <ProFormDependency name={['unit']}>
-          {({ unit }: { unit?: Unit }) => (
-            <ProFormDigit
-              name="quantity"
-              label="Початковий залишок"
-              min={0}
-              fieldProps={{ suffix: unit ? productUnitLabels[unit] : undefined }}
-            />
-          )}
-        </ProFormDependency>
-      )}
-      <ProFormDependency name={['unit']}>
-        {({ unit }: { unit?: Unit }) => (
-          <ProFormDigit
-            name="minQuantity"
-            label="Мінімальний залишок"
-            tooltip="Нижче цього — статус «Закінчується»"
-            min={0}
-            fieldProps={{ suffix: unit ? productUnitLabels[unit] : undefined }}
-          />
-        )}
+      <ProFormDependency name={['unit', 'packageVolume']}>
+        {({ unit, packageVolume }: { unit?: Unit; packageVolume?: number }) => {
+          const packaged = packagedVolume(unit, packageVolume) !== null;
+          const unitLabel = unit ? productUnitLabels[unit] : '';
+          const quantitySuffix = packaged ? 'упак.' : unitLabel;
+          return (
+            <>
+              {!product && (
+                <ProFormDigit
+                  name="quantity"
+                  label="Початковий залишок"
+                  tooltip={packaged ? 'В упаковках' : undefined}
+                  colProps={{ span: 12 }}
+                  min={0}
+                  fieldProps={{ suffix: quantitySuffix, precision: 3 }}
+                />
+              )}
+              <ProFormDigit
+                name="minQuantity"
+                label="Мінімальний залишок"
+                tooltip={`Нижче цього — статус «Закінчується»${packaged ? '. В упаковках' : ''}`}
+                colProps={{ span: 12 }}
+                min={0}
+                fieldProps={{ suffix: quantitySuffix, precision: 3 }}
+              />
+              <ProFormDigit
+                name="costPrice"
+                label={unit ? `Собівартість за ${unitLabel}` : 'Собівартість'}
+                colProps={{ span: 12 }}
+                min={0}
+                fieldProps={{ suffix: '₴', precision: 4 }}
+              />
+              <ProFormDigit
+                name="salePrice"
+                label={
+                  !unit
+                    ? 'Ціна продажу'
+                    : unit === 'pcs'
+                      ? 'Ціна продажу за шт'
+                      : `Ціна на розлив за ${unitLabel}`
+                }
+                colProps={{ span: 12 }}
+                min={0}
+                fieldProps={{ suffix: '₴', precision: 4 }}
+              />
+              {packaged && (
+                <ProFormDigit
+                  name="packagePrice"
+                  label="Ціна упаковки"
+                  tooltip="Без цієї ціни товар продається лише на розлив"
+                  colProps={{ span: 12 }}
+                  min={0}
+                  fieldProps={{ suffix: '₴', precision: 2 }}
+                />
+              )}
+            </>
+          );
+        }}
       </ProFormDependency>
-      <ProFormDigit name="costPrice" label="Собівартість" min={0} fieldProps={{ suffix: '₴' }} />
-      <ProFormDigit name="salePrice" label="Ціна продажу" min={0} fieldProps={{ suffix: '₴' }} />
       <ProFormTextArea name="description" label="Опис" colProps={{ span: 24 }} />
     </ModalForm>
   );

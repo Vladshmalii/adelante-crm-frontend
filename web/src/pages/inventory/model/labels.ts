@@ -1,7 +1,4 @@
 import type { Schema } from '@/shared/api';
-import { formatQuantity } from '@/shared/lib';
-
-type Unit = Schema<'ProductUnit'>;
 interface Labeled {
   text: string;
   color: string;
@@ -17,26 +14,8 @@ export const movementTypeLabels: Record<Schema<'MovementType'>, Labeled> = {
   receipt: { text: 'Надходження', color: 'green' },
   write_off: { text: 'Списання', color: 'red' },
   adjustment: { text: 'Коригування', color: 'blue' },
+  sale: { text: 'Продаж', color: 'purple' },
 };
-
-/**
- * Остаток фасованного товара упаковками: «2 шт + 250 мл». `null` — для штучных товаров,
- * без объёма упаковки или если нет ни одной целой упаковки (тогда хватает общего остатка).
- */
-export function packageBreakdown(
-  quantity: string | number,
-  unit: Unit,
-  packageVolume: string | number | null | undefined,
-): string | null {
-  const total = Number(quantity);
-  const volume = Number(packageVolume);
-  if (unit === 'pcs' || !(volume > 0) || !(total > 0)) return null;
-  // Погрешность float: 1500 / 500 должно дать ровно 3 упаковки.
-  const packs = Math.floor(total / volume + 1e-9);
-  if (packs === 0) return null;
-  const rest = Math.round((total - packs * volume) * 1000) / 1000;
-  return rest > 0 ? `${packs} шт + ${formatQuantity(rest, unit)}` : `${packs} шт`;
-}
 
 export interface Margin {
   /** Продажа − себестоимость, ₴. */
@@ -56,4 +35,14 @@ export function productMargin(
   if (!(sale > 0) || Number.isNaN(cost)) return null;
   const amount = Math.round((sale - cost) * 100) / 100;
   return { amount, percent: Math.round((amount / sale) * 100) };
+}
+
+/** Маржа упаковки: цена упаковки против себестоимости единицы × объём. */
+export function packageMargin(
+  costPrice: string | number | null | undefined,
+  packagePrice: string | number | null | undefined,
+  packageVolume: string | number | null | undefined,
+): Margin | null {
+  if (costPrice == null || costPrice === '' || packageVolume == null) return null;
+  return productMargin(Number(costPrice) * Number(packageVolume), packagePrice);
 }

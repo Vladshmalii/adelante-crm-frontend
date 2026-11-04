@@ -1,29 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatQuantity } from '@/shared/lib';
-
-import { packageBreakdown, productMargin } from './labels';
-
-describe('остаток товара', () => {
-  it('форматирует количество с единицей', () => {
-    // uk-UA делит тысячи неразрывным пробелом.
-    expect(formatQuantity('1250.000', 'ml')).toMatch(/^1\s250 мл$/);
-    expect(formatQuantity('2.500', 'kg')).toBe('2,5 кг');
-  });
-
-  it('раскладывает фасованный товар на упаковки и остаток', () => {
-    expect(packageBreakdown('1250', 'ml', '500')).toBe('2 шт + 250 мл');
-    expect(packageBreakdown('1500', 'ml', '500.000')).toBe('3 шт');
-    expect(packageBreakdown('0.3', 'l', '0.1')).toBe('3 шт');
-  });
-
-  it('не раскладывает штучный товар, товар без объёма и неполную упаковку', () => {
-    expect(packageBreakdown('12', 'pcs', '10')).toBeNull();
-    expect(packageBreakdown('250', 'ml', null)).toBeNull();
-    expect(packageBreakdown('250', 'ml', '500')).toBeNull();
-    expect(packageBreakdown('0', 'ml', '500')).toBeNull();
-  });
-});
+import { movementTypeLabels, packageMargin, productMargin } from './labels';
 
 describe('маржа товара', () => {
   it('считает долю от цены продажи', () => {
@@ -39,5 +16,23 @@ describe('маржа товара', () => {
     expect(productMargin(null, '100')).toBeNull();
     expect(productMargin('100', undefined)).toBeNull();
     expect(productMargin('50', '0')).toBeNull();
+  });
+});
+
+describe('маржа упаковки', () => {
+  it('считает себестоимость единицы на объём упаковки', () => {
+    expect(packageMargin('0.2', '350', '1000')).toEqual({ amount: 150, percent: 43 });
+  });
+
+  it('нет маржи без себестоимости, цены или объёма', () => {
+    expect(packageMargin(null, '350', '1000')).toBeNull();
+    expect(packageMargin('0.2', null, '1000')).toBeNull();
+    expect(packageMargin('0.2', '350', null)).toBeNull();
+  });
+});
+
+describe('типы движений', () => {
+  it('продажа подписана', () => {
+    expect(movementTypeLabels.sale.text).toBe('Продаж');
   });
 });

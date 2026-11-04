@@ -896,6 +896,8 @@ export interface paths {
          *     отличие остатка оформляется коригуванням. Неизвестная категория создаётся.
          *     Штрихкод необязателен; занятый другим товаром — ошибка строки, строка
          *     пропускается; пустая ячейка у существующего товара штрихкод не стирает.
+         *     Так же цена упаковки: нет колонки или пустая ячейка — цена не меняется.
+         *     Смена единицы или объёма у товара с движениями — ошибка строки.
          */
         post: operations["import_products_api_admin_v1_inventory_import_post"];
         delete?: never;
@@ -4364,7 +4366,7 @@ export interface components {
          * MovementType
          * @enum {string}
          */
-        MovementType: "receipt" | "write_off" | "adjustment";
+        MovementType: "receipt" | "write_off" | "adjustment" | "sale";
         /** NewClientIn */
         NewClientIn: {
             /** Name */
@@ -4646,6 +4648,8 @@ export interface components {
             minQuantity: number | string;
             /** Name */
             name: string;
+            /** Packageprice */
+            packagePrice?: number | string | null;
             /** Packagevolume */
             packageVolume?: number | string | null;
             /**
@@ -4671,6 +4675,8 @@ export interface components {
             createdAt?: string | null;
             /** Description */
             description?: string | null;
+            /** Hasmovements */
+            hasMovements?: boolean | null;
             /**
              * Id
              * Format: uuid
@@ -4685,6 +4691,8 @@ export interface components {
             minQuantity?: string | null;
             /** Name */
             name: string;
+            /** Packageprice */
+            packagePrice?: string | null;
             /** Packagevolume */
             packageVolume?: string | null;
             /** Quantity */
@@ -4715,6 +4723,8 @@ export interface components {
             minQuantity?: number | string | null;
             /** Name */
             name?: string | null;
+            /** Packageprice */
+            packagePrice?: number | string | null;
             /** Packagevolume */
             packageVolume?: number | string | null;
             /** Saleprice */
