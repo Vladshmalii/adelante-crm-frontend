@@ -223,6 +223,7 @@ def test_period_validation_and_export(w: World) -> None:
         "Клієнти",
         "Співробітники",
         "Послуги",
+        "Товари",
     ]
     su_file = api.get(f"/reports/export?{w.query}", token=s.su, salon=s.id)
     assert "Виручка" in load_workbook(io.BytesIO(su_file.content)).sheetnames

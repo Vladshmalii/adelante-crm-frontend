@@ -47,7 +47,7 @@ from app.notifications.outbox import (
     LOYALTY_RECEIPT_PAID,
     add_outbox_event,
 )
-from app.services import certificates, checkout, loyalty
+from app.services import certificates, checkout, loyalty, product_sales
 from app.services import payments as payments_service
 from app.services.audit import write_audit
 from app.services.ledger import money
@@ -205,6 +205,7 @@ async def create_receipt(
     quote: "checkout.Quote | None" = None,
     issued: "payments_service.ChargeResult | None" = None,
     issues: "list[certificates.Issue] | None" = None,
+    products: "list[product_sales.PlannedLine] | None" = None,
 ) -> Receipt:
     """Чек + разбивка по способам оплаты + приходные операции по каждой оплате.
 
@@ -219,6 +220,12 @@ async def create_receipt(
     забирается из кассовых частей по порядку: кассовая часть, покрывающая и
     сертификат, и остальное, делится на две операции — «certificates» и обычную
     (certificates.md, 4.3). Сумма income по-прежнему = сумме частей.
+
+    Проданные товары (products) — строки receipt_product_lines и движения sale. Их
+    сумма после скидки (products_amount) забирается из остальных частей по порядку:
+    такая часть — операция «sales», остальное — обычная (product-sales.md, раздел 4).
+    Часть «Сертифікат» дохода не создаёт, поэтому покрытая ею доля товаров в «sales»
+    не попадает: products_amount она не уменьшает.
     """
     if methods is None:
         methods = await load_methods(tenant_session, payments)
@@ -231,6 +238,7 @@ async def create_receipt(
         None,
     )
 
+    paid_amounts = quote.product_paid_amounts() if quote and products else []
     receipt = Receipt(
         id=receipt_id or uuid.uuid4(),
         number=receipt_number(),
@@ -244,6 +252,7 @@ async def create_receipt(
         discount_amount=quote.discount if quote else Decimal(0),
         discount_source=quote.discount_source if quote else DiscountSource.NONE,
         amount=sum((p.amount for p in payments), Decimal(0)),
+        products_amount=sum(paid_amounts, Decimal(0)),
         status=ReceiptStatus.PAID,
         source=source,
         author_id=author_id,
@@ -264,6 +273,17 @@ async def create_receipt(
         )
     # Сертификаты оплачиваются только кассовыми способами (check_certificate_parts)
     certificates_left = sum((i.amount for i in issues or []), Decimal(0))
+    if products:
+        await product_sales.write_lines(
+            tenant_session,
+            receipt=receipt,
+            lines=products,
+            paid_amounts=paid_amounts,
+            record_id=record.id if record else None,
+            author_id=author_id,
+            author_name=author_name,
+        )
+    products_left = receipt.products_amount
 
     def income(method: PaymentMethod, amount: Decimal, category: str, description: str) -> None:
         tenant_session.add(
@@ -296,6 +316,11 @@ async def create_receipt(
             certificates_left -= share
             rest -= share
             income(method, share, "certificates", f"Продаж сертифікатів: чек {receipt.number}")
+        if products_left > 0 and rest > 0:
+            share = min(products_left, rest)
+            products_left -= share
+            rest -= share
+            income(method, share, "sales", f"Продаж товарів: чек {receipt.number}")
         if rest > 0:
             income(
                 method,
@@ -326,12 +351,13 @@ async def pay_record(
     bonus_record_service_ids: list[uuid.UUID] | None = None,
     expected_total: Decimal | None = None,
     certificate_sales: list[certificates.CertificateSale] | None = None,
+    products: list[product_sales.ProductSale] | None = None,
 ) -> Receipt:
     """Оплата визита (раздел 6). Итог считает сервер: бонусные услуги, наибольшая скидка.
 
     Части account/bonus списываются в Master до записи чека, там же выпускаются
-    проданные сертификаты. Коммитит обе сессии сама. Повтор с тем же
-    Idempotency-Key возвращает тот же чек.
+    проданные сертификаты. Товары блокируются и проверяются раньше этих списаний.
+    Коммитит обе сессии сама. Повтор с тем же Idempotency-Key возвращает тот же чек.
     """
     receipt_id = payments_service.receipt_id_for(salon_id, idempotency_key)
     existing = await payments_service.lock_receipt(tenant_session, receipt_id)
@@ -354,7 +380,12 @@ async def pay_record(
     if bonus_ids and ctx.card is None:
         raise PaymentError("Бонусні послуги доступні лише з карткою, що діє в цьому салоні")
     issues = await _certificate_issues(master_session, certificate_sales)
-    q = ctx.quote(checkout.record_lines(record, bonus_ids) + checkout.certificate_lines(issues))
+    planned = await product_sales.plan(tenant_session, products or [], lock=True)
+    q = ctx.quote(
+        checkout.record_lines(record, bonus_ids)
+        + [line.line() for line in planned]
+        + checkout.certificate_lines(issues)
+    )
     check_total(q, payments, expected_total)
     methods = await load_methods(tenant_session, payments)
     check_certificate_parts(q, payments, methods)
@@ -376,7 +407,8 @@ async def pay_record(
         record.discount_amount = q.discount
         record.discount_source = q.discount_source
         record.loyalty_card_id = card_id
-        record.total_amount = q.total
+        # Только услуги: сумму записи читают выручка мастера и агрегаты клиента
+        record.total_amount = q.total - sum(q.product_paid_amounts(), Decimal(0))
         for item in record.services:
             item.is_bonus = item.id in bonus_ids
         receipt = await create_receipt(
@@ -395,6 +427,7 @@ async def pay_record(
             quote=q,
             issued=result,
             issues=issues,
+            products=planned,
         )
         emit_receipt_paid(
             tenant_session,
@@ -465,10 +498,15 @@ def check_total(
         raise PaymentError(f"Сума оплати {paid} не збігається з сумою до сплати {q.total}")
 
 
-def sale_lines(subtotal: Decimal, issues: list[certificates.Issue]) -> list[checkout.Line]:
-    """Строки продажи: «Товари» (если есть) и сертификаты."""
-    products = checkout.sale_lines(subtotal) if subtotal > 0 or not issues else []
-    return products + checkout.certificate_lines(issues)
+def sale_lines(
+    subtotal: Decimal,
+    issues: list[certificates.Issue],
+    products: list[product_sales.PlannedLine] | None = None,
+) -> list[checkout.Line]:
+    """Строки продажи: ручная сумма «Товари» (если есть), товары со склада и сертификаты."""
+    products = products or []
+    manual = checkout.sale_lines(subtotal) if subtotal > 0 or not (issues or products) else []
+    return manual + [line.line() for line in products] + checkout.certificate_lines(issues)
 
 
 async def _certificate_issues(
@@ -514,11 +552,13 @@ async def sell(
     subtotal: Decimal | None = None,
     expected_total: Decimal | None = None,
     certificate_sales: list[certificates.CertificateSale] | None = None,
+    products: list[product_sales.ProductSale] | None = None,
 ) -> Receipt:
     """Чек без записи (продажа товаров) — те же способы оплаты и скидки, что у визита.
 
-    subtotal — «Продано» товаров: скидка считается от него, части оплаты = итог.
-    Без subtotal — как раньше: сумма чека = сумма частей, без скидки. Сертификаты —
+    products — товары со склада; subtotal — ручная сумма «Продано» (поле API для
+    совместимости): скидка считается от них, части оплаты = итог. Ни того, ни другого,
+    ни сертификатов — как раньше: сумма чека = сумма частей, без скидки. Сертификаты —
     отдельные строки вне скидки; чек может состоять из одних сертификатов. Коммитит сам.
     """
     receipt_id = payments_service.receipt_id_for(salon_id, idempotency_key)
@@ -532,10 +572,11 @@ async def sell(
         client_name = client_name or client.full_name
     ctx = await checkout.load_context(master_session, client_id, salon_id)
     issues = await _certificate_issues(master_session, certificate_sales)
-    if subtotal is None and not issues:
+    planned = await product_sales.plan(tenant_session, products or [], lock=True)
+    if subtotal is None and not issues and not planned:
         q = checkout.quote(checkout.sale_lines(sum((p.amount for p in payments), Decimal(0))))
     else:
-        q = ctx.quote(sale_lines(subtotal or Decimal(0), issues))
+        q = ctx.quote(sale_lines(subtotal or Decimal(0), issues, planned))
     check_total(q, payments, expected_total)
     methods = await load_methods(tenant_session, payments)
     check_certificate_parts(q, payments, methods)
@@ -569,6 +610,7 @@ async def sell(
             quote=q,
             issued=result,
             issues=issues,
+            products=planned,
         )
         emit_receipt_paid(
             tenant_session,

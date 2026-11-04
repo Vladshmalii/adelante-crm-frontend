@@ -1,8 +1,9 @@
 """Звіти: сводка, выручка, клиенты, сотрудники, услуги, Excel.
 
-Выручка = сумма неотменённых чеков по дате чека. Выручка мастера и услуги —
-по чекам, привязанным к записям; выручка записи делится между её услугами
-пропорционально их цене (снапшот в record_services).
+Выручка = сумма неотменённых чеков по дате чека, с товарами. Выручка мастера и
+услуги — по чекам, привязанным к записям, без товаров (Receipt.amount −
+Receipt.products_amount); выручка записи делится между её услугами пропорционально
+их цене (снапшот в record_services). Отчёт по товарам — по строкам чеков.
 
 Периоды и группировка — по киевским суткам (неделя с понедельника).
 
@@ -28,7 +29,12 @@ from app.api.admin.services import CategoryRef
 from app.api.schemas import ApiModel, Envelope
 from app.api.security import AdminUser, SuperUser, require_admin
 from app.models.shard import (
+    InventoryCategory,
+    Product,
+    ProductSaleMode,
+    ProductUnit,
     Receipt,
+    ReceiptProductLine,
     ReceiptStatus,
     Record,
     RecordService,
@@ -37,6 +43,7 @@ from app.models.shard import (
     Service,
     ServiceCategory,
 )
+from app.services.product_sales import UNIT_NAMES
 from app.services.text import uk_sort_key
 from app.tenancy.deps import TenantSession
 from app.timeutils import LocalDatetime, day_bounds, to_local
@@ -119,19 +126,24 @@ class _PaidReceipt:
     date: datetime
     amount: Decimal
     record_id: uuid.UUID | None
+    products_amount: Decimal = Decimal(0)
+
+    @property
+    def services_amount(self) -> Decimal:
+        return self.amount - self.products_amount
 
 
 async def _paid_receipts(
     session: AsyncSession, date_from: datetime, date_to: datetime
 ) -> list[_PaidReceipt]:
     rows = await session.execute(
-        select(Receipt.date, Receipt.amount, Receipt.record_id).where(
+        select(Receipt.date, Receipt.amount, Receipt.record_id, Receipt.products_amount).where(
             Receipt.status != ReceiptStatus.CANCELLED,
             Receipt.date >= date_from,
             Receipt.date < date_to,
         )
     )
-    return [_PaidReceipt(d, a, r) for d, a, r in rows.all()]
+    return [_PaidReceipt(d, a, r, p) for d, a, r, p in rows.all()]
 
 
 @dataclass
@@ -408,7 +420,11 @@ async def _staff(
         master_id: (amount, n)
         for master_id, amount, n in (
             await session.execute(
-                select(Record.master_id, func.sum(Receipt.amount), func.count())
+                select(
+                    Record.master_id,
+                    func.sum(Receipt.amount - Receipt.products_amount),
+                    func.count(),
+                )
                 .join(Record, Record.id == Receipt.record_id)
                 .where(
                     Receipt.status != ReceiptStatus.CANCELLED,
@@ -531,7 +547,7 @@ async def _services(
             base = sum((p.price for p in parts), Decimal(0))
             for part in parts:
                 share = part.price / base if base else Decimal(1) / len(parts)
-                revenue[part.service_id] += receipt.amount * share
+                revenue[part.service_id] += receipt.services_amount * share
                 names.setdefault(part.service_id, part.name)
 
     service_ids = set(names)
@@ -580,6 +596,108 @@ async def services_report(
     _check_period(date_from, date_to)
     return Envelope(
         data=await _services(tenant_session, date_from, date_to, show_money=user.is_superuser)
+    )
+
+
+# --- Товары -------------------------------------------------------------------
+
+
+class ProductRowOut(ApiModel):
+    product_id: uuid.UUID
+    name: str
+    sku: str
+    category: str | None
+    unit: ProductUnit
+    # Продано бутылок, на разлив и всего — в единице карточки
+    packages_sold: Decimal
+    volume_sold: Decimal
+    total_sold: Decimal
+    # Денежные — только суперюзеру. Выручка — после скидки; себестоимость — по строкам,
+    # где она задана; маржа — только если задана у всех строк товара
+    revenue: Decimal | None
+    cost: Decimal | None
+    margin: Decimal | None
+
+
+async def _products(
+    session: AsyncSession, date_from: datetime, date_to: datetime, *, show_money: bool
+) -> list[ProductRowOut]:
+    """Строки неотменённых чеков за период; ручная сумма «Продано» сюда не попадает."""
+    line = ReceiptProductLine
+    rows = (
+        await session.execute(
+            select(
+                line.product_id,
+                func.max(line.name),
+                func.max(line.sku),
+                InventoryCategory.name,
+                line.unit,
+                func.coalesce(
+                    func.sum(line.quantity).filter(line.mode == ProductSaleMode.PACKAGE), 0
+                ),
+                func.coalesce(
+                    func.sum(line.quantity).filter(line.mode == ProductSaleMode.VOLUME), 0
+                ),
+                func.sum(line.base_quantity),
+                func.sum(line.paid_amount),
+                func.sum(line.cost_amount),
+                func.count(line.cost_amount),
+                func.count(),
+            )
+            .join(Receipt, Receipt.id == line.receipt_id)
+            .join(Product, Product.id == line.product_id)
+            .outerjoin(InventoryCategory, InventoryCategory.id == Product.category_id)
+            .where(
+                Receipt.status != ReceiptStatus.CANCELLED,
+                Receipt.date >= date_from,
+                Receipt.date < date_to,
+            )
+            .group_by(line.product_id, InventoryCategory.name, line.unit)
+        )
+    ).all()
+    result = []
+    for (
+        product_id,
+        name,
+        sku,
+        category,
+        unit,
+        packages,
+        volume,
+        total,
+        paid,
+        cost,
+        costed,
+        n,
+    ) in rows:
+        result.append(
+            ProductRowOut(
+                product_id=product_id,
+                name=name,
+                sku=sku,
+                category=category,
+                unit=unit,
+                packages_sold=packages,
+                volume_sold=volume,
+                total_sold=total,
+                revenue=_money(paid) if show_money else None,
+                cost=_money(cost) if show_money and cost is not None else None,
+                margin=(
+                    _money(paid - cost) if show_money and cost is not None and costed == n else None
+                ),
+            )
+        )
+    result.sort(key=lambda r: (-(r.revenue or 0), -r.total_sold, uk_sort_key(r.name)))
+    return result
+
+
+@router.get("/products", response_model=Envelope[list[ProductRowOut]])
+async def products_report(
+    user: AdminUser, tenant_session: TenantSession, date_from: DateFrom, date_to: DateTo
+) -> Envelope[list[ProductRowOut]]:
+    _check_period(date_from, date_to)
+    return Envelope(
+        data=await _products(tenant_session, date_from, date_to, show_money=user.is_superuser)
     )
 
 
@@ -643,6 +761,17 @@ async def export_reports(
     ws.append(["Послуга", "Категорія", "Кількість"] + (["Виручка"] if money else []))
     for svc in (await _services(tenant_session, date_from, date_to, show_money=money)).services:
         ws.append([svc.name, svc.category.name, svc.count] + ([_num(svc.revenue)] if money else []))
+
+    ws = wb.create_sheet("Товари")
+    product_header: list[Any] = ["Товар", "Артикул", "Категорія", "Одиниця"]
+    product_header += ["Продано упаковок", "Продано на розлив", "Усього в одиниці"]
+    product_header += ["Виручка", "Собівартість", "Маржа"] if money else []
+    ws.append(product_header)
+    for p in await _products(tenant_session, date_from, date_to, show_money=money):
+        product_row: list[Any] = [p.name, p.sku, p.category, UNIT_NAMES[p.unit]]
+        product_row += [_num(p.packages_sold), _num(p.volume_sold), _num(p.total_sold)]
+        product_row += [_num(p.revenue), _num(p.cost), _num(p.margin)] if money else []
+        ws.append(product_row)
 
     buffer = io.BytesIO()
     wb.save(buffer)

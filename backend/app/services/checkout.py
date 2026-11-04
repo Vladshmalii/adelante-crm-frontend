@@ -4,7 +4,8 @@
 2. Бонусные строки → 0 ₴ (в скидке не участвуют).
 3. Скидка — одна, наибольшая в гривнах из: личной % клиента, % уровня карты,
    фиксированной уровня карты (не больше суммы). Источник — в discount_source.
-   Строки-сертификаты в базу скидки не входят (certificates.md, решение 11).
+   Строки-сертификаты в базу скидки не входят (certificates.md, решение 11),
+   строки-товары входят (product-sales.md, раздел 3).
 4. Итог = Продано − бонусные строки − скидка, копейки ROUND_HALF_UP.
 
 Клиенту не доверяем: итог считается здесь и при предпросмотре, и при оплате.
@@ -18,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
 from app.models.master import Client, LoyaltyCard
-from app.models.shard import DiscountSource, Record
+from app.models.shard import DiscountSource, ProductSaleMode, Record
 from app.services import certificates, ledger, loyalty
 from app.services.certificates import ServiceAmount
 from app.services.ledger import money
@@ -37,6 +38,11 @@ class Line:
     is_bonus: bool = False
     # Строка-сертификат: шаблон продажи
     template_id: uuid.UUID | None = None
+    # Строка-товар со склада; у ручной суммы «Товари» (чек без записи) product_id нет
+    product_id: uuid.UUID | None = None
+    mode: ProductSaleMode | None = None
+    quantity: Decimal | None = None
+    unit_price: Decimal | None = None
 
     @property
     def is_certificate(self) -> bool:
@@ -94,6 +100,25 @@ class Quote:
             for line in self.lines
             if line.kind == "service" and line.service_id is not None
         ]
+
+    def product_paid_amounts(self) -> list[Decimal]:
+        """Строки товаров со склада после скидки — по той же формуле, что и услуги.
+
+        Копеечный остаток округления уходит на последнюю строку; если он больше неё —
+        на предыдущие: строка не может стать отрицательной.
+        """
+        amounts = [line.price for line in self.lines if line.product_id is not None]
+        base = self.sold - self.bonus_amount - self.certificates
+        if base <= 0:
+            return [Decimal("0.00") for _ in amounts]
+        factor = (base - self.discount) / base
+        paid = [money(amount * factor) for amount in amounts]
+        rest = money(sum(amounts, Decimal(0)) * factor) - sum(paid, Decimal(0))
+        for i in reversed(range(len(paid))):
+            adjusted = max(paid[i] + rest, Decimal("0.00"))
+            rest -= adjusted - paid[i]
+            paid[i] = adjusted
+        return paid
 
 
 def quote(

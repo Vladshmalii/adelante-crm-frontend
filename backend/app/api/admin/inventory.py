@@ -35,23 +35,17 @@ from app.models.shard import (
     InventoryCategory,
     MovementType,
     Product,
+    ProductSaleMode,
     ProductUnit,
     Record,
     RecordStatus,
     StockMovement,
 )
 from app.services.audit import diff_fields, write_audit
+from app.services.product_sales import UNIT_NAMES, ProductSale
 from app.tenancy.deps import TenantSession
 
 router = APIRouter(tags=["inventory"], dependencies=[Depends(require_salon_access)])
-
-UNIT_NAMES = {
-    ProductUnit.PCS: "шт",
-    ProductUnit.ML: "мл",
-    ProductUnit.L: "л",
-    ProductUnit.G: "г",
-    ProductUnit.KG: "кг",
-}
 
 
 class StockStatus(StrEnum):
@@ -572,6 +566,17 @@ async def delete_product(
 
 
 # --- Движения ---------------------------------------------------------------
+
+
+class ProductSaleIn(ApiModel):
+    """Позиция продажи в чеке (product-sales.md, раздел 3): бутылки и штуки — целые."""
+
+    product_id: uuid.UUID
+    mode: ProductSaleMode
+    quantity: Decimal = Field(gt=0, max_digits=14, decimal_places=3)
+
+    def to_sale(self) -> ProductSale:
+        return ProductSale(product_id=self.product_id, mode=self.mode, quantity=self.quantity)
 
 
 class MovementIn(ApiModel):

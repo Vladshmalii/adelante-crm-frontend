@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.admin.certificates import CertificateSaleIn
 from app.api.admin.deps import CurrentAuthor, ensure_own_record
+from app.api.admin.inventory import ProductSaleIn
 from app.api.admin.services import CategoryRef
 from app.api.schemas import ApiModel, Envelope, PersonRef, page_meta
 from app.api.security import AdminUser, CurrentUser, forbidden, require_salon_access
@@ -38,6 +39,7 @@ from app.models.shard import (
     StaffProfile,
     StaffShift,
 )
+from app.services import product_sales
 from app.services import records as records_service
 from app.services import slots as slots_service
 from app.services import visits as visits_service
@@ -710,6 +712,8 @@ class RecordPaymentIn(ApiModel):
     expected_total: Decimal | None = None
     # Продажа сертификатов в том же чеке (certificates.md, раздел 4)
     certificates: list[CertificateSaleIn] = Field(default_factory=list, max_length=20)
+    # Продажа товаров со склада в том же чеке (product-sales.md, раздел 4)
+    products: list[ProductSaleIn] = Field(default_factory=list, max_length=product_sales.MAX_LINES)
 
 
 class ReceiptRef(ApiModel):
@@ -760,7 +764,10 @@ async def pay_record(
             bonus_record_service_ids=body.bonus_record_service_ids,
             expected_total=body.expected_total,
             certificate_sales=[c.to_sale() for c in body.certificates],
+            products=[p.to_sale() for p in body.products],
         )
+    except product_sales.ProductSaleError as exc:
+        raise HTTPException(exc.status_code, str(exc))
     except visits_service.PaymentError as exc:
         raise HTTPException(409, str(exc))
     return Envelope(

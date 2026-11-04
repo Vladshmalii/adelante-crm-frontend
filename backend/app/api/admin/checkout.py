@@ -7,6 +7,9 @@ GET /records/{id}/checkout — оплата визита; GET /finances/receipts
 
 certificateTemplateIds — продаваемые в чеке сертификаты, по одному id на штуку
 (certificates.md, раздел 4): строки вне скидки, кешбэк к оплате — только от остального.
+
+products — товары со склада, повторяемый параметр `<productId>:<mode>:<quantity>`
+(product-sales.md, раздел 4): строки в скидке и кешбэке. Нехватка остатка — 409.
 """
 
 import uuid
@@ -15,10 +18,17 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from app.api.admin.inventory import ProductSaleIn
 from app.api.schemas import ApiModel, Envelope
 from app.api.security import AdminUser, require_salon_access
-from app.models.shard import DiscountSource, PaymentStatus, Record, RecordStatus
-from app.services import certificates, checkout, loyalty, visits
+from app.models.shard import (
+    DiscountSource,
+    PaymentStatus,
+    ProductSaleMode,
+    Record,
+    RecordStatus,
+)
+from app.services import certificates, checkout, loyalty, product_sales, visits
 from app.tenancy.deps import MasterSession, SalonId, TenantSession
 
 router = APIRouter(tags=["checkout"], dependencies=[Depends(require_salon_access)])
@@ -51,6 +61,11 @@ class CheckoutLineOut(ApiModel):
     bonus_rule_name: str | None = None
     # Строка-сертификат: шаблон продажи
     template_id: uuid.UUID | None = None
+    # Строка-товар со склада: режим, количество как ввели, цена режима
+    product_id: uuid.UUID | None = None
+    mode: ProductSaleMode | None = None
+    quantity: Decimal | None = None
+    unit_price: Decimal | None = None
 
 
 class DiscountCandidateOut(ApiModel):
@@ -119,6 +134,10 @@ def checkout_out(
                     bonus.get(line.record_service_id) if line.record_service_id else None
                 ),
                 template_id=line.template_id,
+                product_id=line.product_id,
+                mode=line.mode,
+                quantity=line.quantity,
+                unit_price=line.unit_price,
             )
             for line in q.lines
         ],
@@ -176,6 +195,37 @@ async def _issues(
         raise HTTPException(409, str(exc))
 
 
+ProductSales = Annotated[
+    list[str] | None, Query(alias="products", max_length=product_sales.MAX_LINES)
+]
+
+
+def parse_products(values: list[str] | None) -> list[product_sales.ProductSale]:
+    """`<productId>:<mode>:<quantity>` → позиции продажи."""
+    sales = []
+    for value in values or []:
+        parts = value.split(":")
+        if len(parts) != 3:
+            raise HTTPException(422, "Товар: очікується productId:mode:quantity")
+        try:
+            item = ProductSaleIn.model_validate(
+                {"productId": parts[0], "mode": parts[1], "quantity": parts[2]}
+            )
+        except ValueError:
+            raise HTTPException(422, "Товар: очікується productId:mode:quantity")
+        sales.append(item.to_sale())
+    return sales
+
+
+async def _planned(
+    tenant_session: TenantSession, values: list[str] | None
+) -> list[product_sales.PlannedLine]:
+    try:
+        return await product_sales.plan(tenant_session, parse_products(values), lock=False)
+    except product_sales.ProductSaleError as exc:
+        raise HTTPException(exc.status_code, str(exc))
+
+
 @router.get("/records/{record_id}/checkout", response_model=Envelope[CheckoutOut])
 async def record_checkout(
     record_id: uuid.UUID,
@@ -185,6 +235,7 @@ async def record_checkout(
     tenant_session: TenantSession,
     bonus_ids: Annotated[list[uuid.UUID] | None, Query(alias="bonusRecordServiceIds")] = None,
     template_ids: CertificateTemplateIds = None,
+    products: ProductSales = None,
 ) -> Envelope[CheckoutOut]:
     """Предпросмотр оплаты визита: карта и уровень, бонусные услуги, скидки, итог, балансы.
 
@@ -204,7 +255,12 @@ async def record_checkout(
     except loyalty.LoyaltyError as exc:
         raise HTTPException(409, str(exc))
     issues = await _issues(master_session, template_ids)
-    q = ctx.quote(checkout.record_lines(record, selected) + checkout.certificate_lines(issues))
+    planned = await _planned(tenant_session, products)
+    q = ctx.quote(
+        checkout.record_lines(record, selected)
+        + [line.line() for line in planned]
+        + checkout.certificate_lines(issues)
+    )
     return Envelope(data=checkout_out(record.client_id, ctx, q, bonus))
 
 
@@ -213,14 +269,22 @@ async def sale_checkout(
     _admin: AdminUser,
     salon_id: SalonId,
     master_session: MasterSession,
-    subtotal: Annotated[Decimal, Query(ge=0, max_digits=12, decimal_places=2)],
+    tenant_session: TenantSession,
+    subtotal: Annotated[Decimal | None, Query(ge=0, max_digits=12, decimal_places=2)] = None,
     client_id: Annotated[uuid.UUID | None, Query(alias="clientId")] = None,
     template_ids: CertificateTemplateIds = None,
+    products: ProductSales = None,
 ) -> Envelope[CheckoutOut]:
-    """Предпросмотр продажи без записи: subtotal — «Продано» товаров, скидка — наибольшая."""
+    """Предпросмотр продажи без записи: товары со склада и/или ручная сумма subtotal.
+
+    Скидка — наибольшая. Без товаров и сертификатов subtotal обязателен.
+    """
+    if subtotal is None and not products and not template_ids:
+        raise HTTPException(422, "Вкажіть товари або суму")
     ctx = await checkout.load_context(master_session, client_id, salon_id)
     if client_id is not None and (ctx.client is None or not ctx.client.is_active):
         raise HTTPException(404, "Клієнта не знайдено")
     issues = await _issues(master_session, template_ids)
-    q = ctx.quote(visits.sale_lines(subtotal, issues))
+    planned = await _planned(tenant_session, products)
+    q = ctx.quote(visits.sale_lines(subtotal or Decimal(0), issues, planned))
     return Envelope(data=checkout_out(client_id, ctx, q))

@@ -18,6 +18,7 @@ from sqlalchemy import Select, case, func, literal, select, union_all, update
 
 from app.api.admin.certificates import CertificateSaleIn
 from app.api.admin.deps import CurrentAuthor
+from app.api.admin.inventory import ProductSaleIn
 from app.api.schemas import ApiModel, Envelope, PersonRef, page_meta
 from app.api.security import require_admin, require_superuser
 from app.models.master import AccountKind, Client, ClientAccount
@@ -38,8 +39,11 @@ from app.models.shard import (
     OperationType,
     PaymentMethod,
     PaymentMethodType,
+    ProductSaleMode,
+    ProductUnit,
     Receipt,
     ReceiptCertificateLine,
+    ReceiptProductLine,
     ReceiptSource,
     ReceiptStatus,
     Record,
@@ -47,6 +51,7 @@ from app.models.shard import (
     RecordStatus,
 )
 from app.services import certificates as certificates_service
+from app.services import product_sales as product_sales_service
 from app.services import visits as visits_service
 from app.services.audit import diff_fields, write_audit
 from app.services.text import uk_sort_key
@@ -139,7 +144,11 @@ async def dashboard(
         Receipt.date < date_to,
     ]
     if master_id is not None:
-        ops_query = ops_query.where(FinanceOperation.record_id.in_(_master_records(master_id)))
+        # Продажа товара в визите — не выручка мастера (product-sales.md, решение 9)
+        ops_query = ops_query.where(
+            FinanceOperation.record_id.in_(_master_records(master_id)),
+            FinanceOperation.category.is_distinct_from("sales"),
+        )
         receipt_filters.append(Receipt.record_id.in_(_master_records(master_id)))
     if location:
         ops_query = ops_query.where(
@@ -719,6 +728,21 @@ class ReceiptPaymentOut(ApiModel):
     amount: Decimal
 
 
+class ReceiptProductLineOut(ApiModel):
+    id: uuid.UUID
+    product_id: uuid.UUID
+    name: str
+    sku: str
+    unit: ProductUnit
+    mode: ProductSaleMode
+    quantity: Decimal
+    base_quantity: Decimal
+    unit_price: Decimal
+    # До скидки и после неё
+    amount: Decimal
+    paid_amount: Decimal
+
+
 class ReceiptOut(ApiModel):
     id: uuid.UUID
     number: str
@@ -733,6 +757,9 @@ class ReceiptOut(ApiModel):
     discount_source: DiscountSource
     loyalty_card_id: uuid.UUID | None
     amount: Decimal
+    # Товары в amount и строки товаров
+    products_amount: Decimal
+    products: list[ReceiptProductLineOut]
     payments: list[ReceiptPaymentOut]
     status: ReceiptStatus
     source: ReceiptSource
@@ -755,6 +782,11 @@ async def _receipt_out(tenant_session, receipt: Receipt) -> ReceiptOut:
                 amount=p.amount,
             )
         )
+    products = await tenant_session.scalars(
+        select(ReceiptProductLine)
+        .where(ReceiptProductLine.receipt_id == receipt.id)
+        .order_by(ReceiptProductLine.name, ReceiptProductLine.mode)
+    )
     return ReceiptOut(
         id=receipt.id,
         number=receipt.number,
@@ -778,6 +810,23 @@ async def _receipt_out(tenant_session, receipt: Receipt) -> ReceiptOut:
         discount_source=receipt.discount_source,
         loyalty_card_id=receipt.loyalty_card_id,
         amount=receipt.amount,
+        products_amount=receipt.products_amount,
+        products=[
+            ReceiptProductLineOut(
+                id=line.id,
+                product_id=line.product_id,
+                name=line.name,
+                sku=line.sku,
+                unit=line.unit,
+                mode=line.mode,
+                quantity=line.quantity,
+                base_quantity=line.base_quantity,
+                unit_price=line.unit_price,
+                amount=line.amount,
+                paid_amount=line.paid_amount,
+            )
+            for line in products
+        ],
         payments=payments,
         status=receipt.status,
         source=receipt.source,
@@ -838,7 +887,8 @@ class ReceiptCreateIn(ApiModel):
     source: ReceiptSource = ReceiptSource.WEB
     date: LocalDatetime | None = None
     # Продажа: «Продано» до скидки — сервер применит наибольшую скидку клиента/карты,
-    # части оплаты = итог. Без subtotal — сумма чека = сумма частей, без скидки
+    # части оплаты = итог. Без subtotal и товаров — сумма чека = сумма частей, без скидки.
+    # Форма чека показывает товары; поле сохранено для совместимости API
     subtotal: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2)
     # Итог из предпросмотра (GET /finances/receipts/checkout или /records/{id}/checkout)
     expected_total: Decimal | None = None
@@ -846,6 +896,10 @@ class ReceiptCreateIn(ApiModel):
     bonus_record_service_ids: list[uuid.UUID] = Field(default_factory=list)
     # Продажа сертификатов в том же чеке (certificates.md, раздел 4)
     certificates: list[CertificateSaleIn] = Field(default_factory=list, max_length=20)
+    # Товары со склада (product-sales.md, раздел 4): цена только из карточки
+    products: list[ProductSaleIn] = Field(
+        default_factory=list, max_length=product_sales_service.MAX_LINES
+    )
 
 
 @sales_router.post(
@@ -873,6 +927,7 @@ async def create_receipt(
         for p in body.payments
     ]
     certificate_sales = [c.to_sale() for c in body.certificates]
+    products = [p.to_sale() for p in body.products]
     try:
         if body.record_id is not None:
             record = await tenant_session.get(Record, body.record_id)
@@ -892,9 +947,10 @@ async def create_receipt(
                 bonus_record_service_ids=body.bonus_record_service_ids,
                 expected_total=body.expected_total,
                 certificate_sales=certificate_sales,
+                products=products,
             )
         else:
-            if not body.payments and not body.subtotal:
+            if not body.payments and not body.subtotal and not products:
                 raise HTTPException(422, "Порожній чек")
             receipt = await visits_service.sell(
                 tenant_session,
@@ -911,7 +967,10 @@ async def create_receipt(
                 subtotal=body.subtotal,
                 expected_total=body.expected_total,
                 certificate_sales=certificate_sales,
+                products=products,
             )
+    except product_sales_service.ProductSaleError as exc:
+        raise HTTPException(exc.status_code, str(exc))
     except visits_service.StaleCheckout as exc:
         raise HTTPException(409, str(exc))
     except visits_service.PaymentError as exc:
@@ -931,8 +990,17 @@ async def cancel_receipt(
 
     Чек продажи сертификатов отменяется, только пока ими не расплачивались
     (certificates.md, раздел 6); сертификаты аннулирует воркер вместе со сторно.
+    Проданные товары возвращаются на склад обратными движениями, в том числе удалённые.
+
+    Чек читается FOR UPDATE: параллельная отмена ждёт и видит «уже скасовано». Порядок
+    блокировок как при оплате: запись, затем товары в порядке id.
     """
-    receipt = await tenant_session.get(Receipt, receipt_id)
+    receipt = await tenant_session.scalar(
+        select(Receipt)
+        .where(Receipt.id == receipt_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
     if receipt is None:
         raise HTTPException(404, "Чек не знайдено")
     if receipt.status == ReceiptStatus.CANCELLED:
@@ -966,6 +1034,9 @@ async def cancel_receipt(
         receipt=receipt,
         author_id=author.id,
         author_name=author.name,
+    )
+    await product_sales_service.return_lines(
+        tenant_session, receipt=receipt, author_id=author.id, author_name=author.name
     )
     # Деньги со счёта клиента вернёт воркер — сторно в Master по событию
     visits_service.emit_receipt_cancelled(
