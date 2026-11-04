@@ -4,6 +4,10 @@
 каждое хранит дельту и остаток после — история читается без пересчёта.
 Остаток хранится в единице товара (unit); для фасованных товаров
 package_volume — сколько единиц в упаковке (фронт показывает «N шт + остаток»).
+
+Цены — за единицу карточки (sale_price — на розлив, cost_price — себестоимость),
+package_price — цена упаковки (бутылки). Одновременно открыта одна упаковка:
+floor(остаток / объём) — закрытые (backend/docs/product-sales.md).
 """
 
 import enum
@@ -29,6 +33,13 @@ class MovementType(enum.StrEnum):
     RECEIPT = "receipt"  # надходження
     WRITE_OFF = "write_off"  # списання
     ADJUSTMENT = "adjustment"  # коригування (інвентаризація)
+    # Продаж у чеку: лише через оплату (вручну — 422); возврат при отмене чека — receipt
+    SALE = "sale"
+
+
+class ProductSaleMode(enum.StrEnum):
+    PACKAGE = "package"  # упаковкой (бутылкой): package_price за штуку
+    VOLUME = "volume"  # на розлив в единице карточки: sale_price за единицу
 
 
 class InventoryCategory(ShardBase):
@@ -56,8 +67,11 @@ class Product(ShardBase):
     package_volume: Mapped[Decimal | None] = mapped_column(Numeric(12, 3))
     quantity: Mapped[Decimal] = mapped_column(Numeric(14, 3), default=Decimal(0))
     min_quantity: Mapped[Decimal] = mapped_column(Numeric(14, 3), default=Decimal(0))
-    cost_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
-    sale_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    # За единицу карточки (за мл, г, л, кг или шт)
+    cost_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 4))
+    sale_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 4))
+    # Цена упаковки; требует package_volume, у unit=pcs не бывает
+    package_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
     description: Mapped[str | None] = mapped_column(String(2000))
     is_active: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -76,7 +90,7 @@ class StockMovement(ShardBase):
     delta: Mapped[Decimal] = mapped_column(Numeric(14, 3))
     quantity_after: Mapped[Decimal] = mapped_column(Numeric(14, 3))
     reason: Mapped[str | None] = mapped_column(String(500))
-    # Списание расходников по записи
+    # Списание расходников по записи; у продажи в визите — запись чека
     record_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("records.id"), index=True)
     # Отмена ошибочного списания: обратное движение ссылается на отменённое
     # (unique — одно списание отменяется один раз)

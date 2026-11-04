@@ -345,3 +345,153 @@ def test_consumables(w: World) -> None:
         expect=409,
         json={"items": [{"productId": gloves["id"], "quantity": 1}]},
     )
+
+
+# --- Карточка для продажи (product-sales.md, раздел 2) -------------------------------
+
+
+def _xlsx(rows: list[list[Any]]) -> dict[str, Any]:
+    wb = Workbook()
+    ws = wb.active
+    for row in rows:
+        ws.append(row)
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    return {
+        "file": (
+            "p.xlsx",
+            buffer.getvalue(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    }
+
+
+def test_card_rules(w: World) -> None:
+    api, s = w.s.api, w.s
+    url = "/inventory/products"
+    # У штучного товара нет упаковки; цена упаковки требует объёма
+    for bad in (
+        {"unit": "pcs", "packageVolume": 10},
+        {"unit": "pcs", "packagePrice": 10},
+        {"unit": "ml", "packagePrice": 350},
+        {"unit": "ml", "salePrice": 0.12345},
+        {"unit": "ml", "packageVolume": 1000, "packagePrice": 350.555},
+    ):
+        api.post(url, token=w.adm, salon=s.id, expect=422, json={"name": "X", "sku": "BAD", **bad})
+
+    oil = w.product(
+        name="Олія",
+        sku="OIL-1",
+        unit="ml",
+        packageVolume=1000,
+        packagePrice=350,
+        salePrice=0.5,
+        costPrice=0.2125,
+        quantity=2000,
+    )
+    assert _qty(oil["packagePrice"]) == 350 and _qty(oil["salePrice"]) == Decimal("0.5")
+    assert _qty(oil["costPrice"]) == Decimal("0.2125") and oil["hasMovements"] is True
+    item = f"{url}/{oil['id']}"
+    # Единица и объём товара с движениями не меняются
+    api.patch(item, token=w.adm, salon=s.id, expect=409, json={"unit": "l"})
+    api.patch(item, token=w.adm, salon=s.id, expect=409, json={"packageVolume": 500})
+    api.patch(item, token=w.adm, salon=s.id, expect=409, json={"packageVolume": None})
+    # Форма шлёт те же значения — это не смена
+    same = api.patch(
+        item,
+        token=w.adm,
+        salon=s.id,
+        json={"unit": "ml", "packageVolume": 1000, "packagePrice": 360},
+    )
+    assert _qty(same["packagePrice"]) == 360
+    api.patch(item, token=w.adm, salon=s.id, json={"packagePrice": 350})
+
+    fresh = w.product(name="Новий", sku="NEW-1", unit="ml", packageVolume=500)
+    assert fresh["hasMovements"] is False
+    changed = api.patch(
+        f"{url}/{fresh['id']}",
+        token=w.adm,
+        salon=s.id,
+        json={"unit": "l", "packageVolume": 1},
+    )
+    assert changed["unit"] == "l"
+    api.patch(f"{url}/{fresh['id']}", token=w.adm, salon=s.id, expect=422, json={"unit": "pcs"})
+
+    # Мастеру цены, в том числе цена упаковки, не отдаются
+    limited = api.get(f"{url}?query=OIL-1", token=w.mst, salon=s.id)
+    assert limited[0]["packagePrice"] is None and limited[0]["salePrice"] is None
+    assert limited[0]["hasMovements"] is None
+
+
+def test_manual_sale_movement_rejected(w: World) -> None:
+    api, s = w.s.api, w.s
+    oil = _find(w, "OIL-1")
+    api.post(
+        f"/inventory/products/{oil['id']}/movements",
+        token=w.adm,
+        salon=s.id,
+        expect=422,
+        json={"type": "sale", "quantity": 100},
+    )
+    assert _qty(_find(w, "OIL-1")["quantity"]) == 2000
+
+
+def _import(w: World, rows: list[list[Any]]) -> dict[str, Any]:
+    return w.s.api.post("/inventory/import", token=w.adm, salon=w.s.id, files=_xlsx(rows))
+
+
+HEADER = [
+    "Назва",
+    "Артикул",
+    "Категорія",
+    "Одиниця",
+    "Об'єм упаковки",
+    "Залишок",
+    "Мін. залишок",
+    "Собівартість",
+    "Ціна продажу",
+]
+
+
+def test_import_package_price(w: World) -> None:
+    # Без колонки цены упаковки: цена не стирается
+    report = _import(w, [HEADER, ["Олія", "OIL-1", None, "мл", 1000, 2000, 0, 0.2, 0.5]])
+    assert report["errors"] == [] and report["updated"] == 1
+    assert _qty(_find(w, "OIL-1")["packagePrice"]) == 350
+
+    # Пустая ячейка не стирает, значение — обновляет
+    header = [*HEADER, "Ціна упаковки"]
+    _import(w, [header, ["Олія", "OIL-1", None, "мл", 1000, 2000, 0, 0.2, 0.5, None]])
+    assert _qty(_find(w, "OIL-1")["packagePrice"]) == 350
+    _import(w, [header, ["Олія", "OIL-1", None, "мл", 1000, 2000, 0, 0.2, 0.5, 370]])
+    assert _qty(_find(w, "OIL-1")["packagePrice"]) == 370
+
+    # Старая раскладка (заголовки не распознаны): колонки не сдвигаются
+    legacy = ["Найменування", "Код", "Група", "Од.", "Об.", "К-сть", "Мін", "Соб", "Ціна", "Опис"]
+    report = _import(w, [legacy, ["Олія", "OIL-1", None, "мл", 1000, 2000, 0, 0.2, 0.55, "Опис"]])
+    assert report["errors"] == []
+    oil = _find(w, "OIL-1")
+    assert _qty(oil["salePrice"]) == Decimal("0.55") and _qty(oil["packagePrice"]) == 370
+    assert oil["description"] == "Опис"
+
+    # Смена единицы или объёма у товара с движениями — ошибка строки, товар не меняется
+    report = _import(
+        w,
+        [
+            header,
+            ["Олія", "OIL-1", None, "л", 1, 2, 0, 200, 500, None],
+            ["Олія", "OIL-1", None, "мл", 500, 2000, 0, 0.2, 0.5, None],
+            ["Пакет", "PK-1", None, "шт", None, 5, 0, 1, 2, 30],
+            ["Крем", "CR-1", None, "мл", None, 100, 0, 1, 2, 30],
+        ],
+    )
+    assert report["created"] == 0 and report["updated"] == 0
+    assert len(report["errors"]) == 4
+    assert "створіть нову картку" in report["errors"][0]
+    oil = _find(w, "OIL-1")
+    assert oil["unit"] == "ml" and _qty(oil["packageVolume"]) == 1000
+
+    export = w.s.api.get("/inventory/export?blocks=finance", token=w.adm, salon=w.s.id)
+    sheet = load_workbook(io.BytesIO(export.content)).active
+    header_row = [cell.value for cell in sheet[1]]
+    assert header_row[-4:] == ["Собівартість", "Ціна продажу", "Ціна упаковки", "Вартість залишку"]

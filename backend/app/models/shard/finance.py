@@ -23,6 +23,7 @@ from sqlalchemy import DateTime, ForeignKey, Index, Numeric, String, Uuid, func,
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import ShardBase, str_enum
+from app.models.shard.inventory import ProductSaleMode, ProductUnit
 from app.models.shard.record import DiscountSource
 
 
@@ -215,6 +216,11 @@ class Receipt(ShardBase):
         str_enum(DiscountSource, 16), default=DiscountSource.NONE, server_default="none"
     )
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    # Товары в amount — сумма paid_amount строк receipt_product_lines; отчёты по
+    # мастерам и услугам считают выручку без них (product-sales.md, раздел 5)
+    products_amount: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), default=Decimal(0), server_default="0"
+    )
     status: Mapped[ReceiptStatus] = mapped_column(
         str_enum(ReceiptStatus, 16), default=ReceiptStatus.PAID
     )
@@ -259,6 +265,36 @@ class ReceiptCertificateLine(ShardBase):
     name: Mapped[str] = mapped_column(String(255))
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
     certificate_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ReceiptProductLine(ShardBase):
+    """Строка чека — товар со склада в одном режиме (product-sales.md, раздел 2).
+
+    Все значения — снимок на момент продажи. Списание — движение sale (movement_id);
+    отмена чека возвращает товар обратным движением с cancels_movement_id.
+    """
+
+    __tablename__ = "receipt_product_lines"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    receipt_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("receipts.id"), index=True)
+    # Товар не удаляется физически (мягкое удаление) — FK безопасен
+    product_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("products.id"), index=True)
+    name: Mapped[str] = mapped_column(String(255))
+    sku: Mapped[str] = mapped_column(String(64))
+    unit: Mapped[ProductUnit] = mapped_column(str_enum(ProductUnit, 8))
+    mode: Mapped[ProductSaleMode] = mapped_column(str_enum(ProductSaleMode, 16))
+    # Как ввели (2 бутылки или 250 мл) и в единице карточки (2000 или 250)
+    quantity: Mapped[Decimal] = mapped_column(Numeric(14, 3))
+    base_quantity: Mapped[Decimal] = mapped_column(Numeric(14, 3))
+    unit_price: Mapped[Decimal] = mapped_column(Numeric(12, 4))
+    # unit_price × quantity до скидки; paid_amount — после скидки
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    paid_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    # cost_price × base_quantity; null — себестоимость не задана
+    cost_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    movement_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("stock_movements.id"), unique=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

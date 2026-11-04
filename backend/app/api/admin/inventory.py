@@ -6,7 +6,12 @@
   списание расходников по своей записи.
 
 Остаток меняется только движениями; под блокировкой строки товара (FOR
-UPDATE), чтобы параллельные списания не увели остаток в минус.
+UPDATE), чтобы параллельные списания не увели остаток в минус. Продажа (тип
+sale) — только через оплату чека (app.services.product_sales).
+
+Карточка (backend/docs/product-sales.md, раздел 2): цены — за единицу карточки,
+package_price — цена упаковки; unit и package_volume у товара с движениями не
+меняются (409 «Створіть нову картку»).
 """
 
 import io
@@ -19,7 +24,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
 from fastapi.responses import StreamingResponse
 from pydantic import BeforeValidator, Field
-from sqlalchemy import ColumnElement, and_, case, func, or_, select, update
+from sqlalchemy import ColumnElement, and_, case, exists, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.admin.deps import CurrentAuthor, ensure_own_record
@@ -86,14 +91,24 @@ class ProductOut(ApiModel):
     category: PersonRef | None = None
     package_volume: Decimal | None = None
     min_quantity: Decimal | None = None
+    # Цены — за единицу карточки; package_price — за упаковку
     cost_price: Decimal | None = None
     sale_price: Decimal | None = None
+    package_price: Decimal | None = None
     description: str | None = None
     is_active: bool = True
     created_at: datetime | None = None
+    # Есть движения — unit и package_volume заблокированы
+    has_movements: bool | None = None
 
 
-def _product_out(product: Product, categories: dict[uuid.UUID, str], *, full: bool) -> ProductOut:
+def _product_out(
+    product: Product,
+    categories: dict[uuid.UUID, str],
+    *,
+    full: bool,
+    has_movements: bool | None = None,
+) -> ProductOut:
     out = ProductOut(
         id=product.id,
         name=product.name,
@@ -111,10 +126,58 @@ def _product_out(product: Product, categories: dict[uuid.UUID, str], *, full: bo
         out.min_quantity = product.min_quantity
         out.cost_price = product.cost_price
         out.sale_price = product.sale_price
+        out.package_price = product.package_price
         out.description = product.description
         out.is_active = product.is_active
         out.created_at = product.created_at
+        out.has_movements = has_movements
     return out
+
+
+async def _with_movements(
+    tenant_session: AsyncSession, product_ids: list[uuid.UUID]
+) -> set[uuid.UUID]:
+    """Товары из списка, у которых есть движения."""
+    if not product_ids:
+        return set()
+    rows = await tenant_session.scalars(
+        select(StockMovement.product_id).where(StockMovement.product_id.in_(product_ids)).distinct()
+    )
+    return set(rows)
+
+
+async def _has_movements(tenant_session: AsyncSession, product_id: uuid.UUID) -> bool:
+    return bool(
+        await tenant_session.scalar(select(exists().where(StockMovement.product_id == product_id)))
+    )
+
+
+async def _full_out(tenant_session: AsyncSession, product: Product) -> ProductOut:
+    return _product_out(
+        product,
+        await _category_names(tenant_session),
+        full=True,
+        has_movements=await _has_movements(tenant_session, product.id),
+    )
+
+
+def card_error(
+    unit: ProductUnit, package_volume: Decimal | None, package_price: Decimal | None
+) -> str | None:
+    """Правила карточки: у штучного товара нет упаковки; цена упаковки требует объёма."""
+    if unit == ProductUnit.PCS and (package_volume is not None or package_price is not None):
+        return "У штучного товару немає об'єму та ціни упаковки"
+    if package_price is not None and package_volume is None:
+        return "Ціна упаковки потребує об'єму упаковки"
+    return None
+
+
+LOCKED_CARD = "Одиницю та об'єм упаковки товару з рухами змінити не можна — створіть нову картку"
+
+
+def changes_unit(product: Product, unit: ProductUnit, package_volume: Decimal | None) -> bool:
+    """Меняются ли единица или объём упаковки (сравнение по значению)."""
+    return unit != product.unit or package_volume != product.package_volume
 
 
 async def _category_names(tenant_session: AsyncSession) -> dict[uuid.UUID, str]:
@@ -234,12 +297,20 @@ async def list_products(
     else:
         column = SORTS.get(sort, Product.name)
         order = column.desc() if desc else column.asc()
-    products = await tenant_session.scalars(
-        query.order_by(order, Product.name).offset((page - 1) * per_page).limit(per_page)
+    products = list(
+        await tenant_session.scalars(
+            query.order_by(order, Product.name).offset((page - 1) * per_page).limit(per_page)
+        )
     )
     categories = await _category_names(tenant_session) if user.is_admin else {}
+    moved = (
+        await _with_movements(tenant_session, [p.id for p in products]) if user.is_admin else set()
+    )
     return Envelope(
-        data=[_product_out(p, categories, full=user.is_admin) for p in products],
+        data=[
+            _product_out(p, categories, full=user.is_admin, has_movements=p.id in moved)
+            for p in products
+        ],
         meta=page_meta(page, per_page, total or 0),
     )
 
@@ -287,7 +358,11 @@ async def get_product(
     product_id: uuid.UUID, _admin: AdminUser, tenant_session: TenantSession
 ) -> Envelope[ProductOut]:
     product = await _get_product(tenant_session, product_id)
-    return Envelope(data=_product_out(product, await _category_names(tenant_session), full=True))
+    return Envelope(data=await _full_out(tenant_session, product))
+
+
+UnitPrice = Annotated[Decimal | None, Field(ge=0, max_digits=12, decimal_places=4)]
+PackagePrice = Annotated[Decimal | None, Field(ge=0, max_digits=12, decimal_places=2)]
 
 
 class ProductCreateIn(ApiModel):
@@ -302,8 +377,11 @@ class ProductCreateIn(ApiModel):
     # Начальный остаток — оформляется движением «надходження»
     quantity: Decimal = Field(default=Decimal(0), ge=0)
     min_quantity: Decimal = Field(default=Decimal(0), ge=0)
-    cost_price: Decimal | None = Field(default=None, ge=0)
-    sale_price: Decimal | None = Field(default=None, ge=0)
+    # За единицу карточки (за мл, г, л, кг или шт)
+    cost_price: UnitPrice = None
+    sale_price: UnitPrice = None
+    # Цена упаковки; требует packageVolume
+    package_price: PackagePrice = None
     description: str | None = Field(default=None, max_length=2000)
 
 
@@ -369,6 +447,8 @@ async def create_product(
     author: CurrentAuthor,
     tenant_session: TenantSession,
 ) -> Envelope[ProductOut]:
+    if error := card_error(body.unit, body.package_volume, body.package_price):
+        raise HTTPException(422, error)
     await _ensure_sku_free(tenant_session, body.sku)
     await _ensure_barcode_free(tenant_session, body.barcode)
     if body.category_id is not None:
@@ -405,7 +485,7 @@ async def create_product(
     )
     await tenant_session.flush()
     await tenant_session.refresh(product, attribute_names=["created_at"])
-    return Envelope(data=_product_out(product, await _category_names(tenant_session), full=True))
+    return Envelope(data=await _full_out(tenant_session, product))
 
 
 class ProductPatchIn(ApiModel):
@@ -416,11 +496,13 @@ class ProductPatchIn(ApiModel):
     # null — очистить
     barcode: Barcode = None
     category_id: uuid.UUID | None = None
+    # У товара с движениями не меняются (409)
     unit: ProductUnit | None = None
     package_volume: Decimal | None = Field(default=None, gt=0)
     min_quantity: Decimal | None = Field(default=None, ge=0)
-    cost_price: Decimal | None = Field(default=None, ge=0)
-    sale_price: Decimal | None = Field(default=None, ge=0)
+    cost_price: UnitPrice = None
+    sale_price: UnitPrice = None
+    package_price: PackagePrice = None
     description: str | None = Field(default=None, max_length=2000)
     is_active: bool | None = None
 
@@ -444,6 +526,12 @@ async def patch_product(
         await _ensure_barcode_free(tenant_session, updates["barcode"], exclude_id=product.id)
     if updates.get("category_id"):
         await _ensure_category(tenant_session, updates["category_id"])
+    unit = updates.get("unit", product.unit)
+    volume = updates.get("package_volume", product.package_volume)
+    if changes_unit(product, unit, volume) and await _has_movements(tenant_session, product.id):
+        raise HTTPException(409, LOCKED_CARD)
+    if error := card_error(unit, volume, updates.get("package_price", product.package_price)):
+        raise HTTPException(422, error)
 
     changes = diff_fields(product, updates)
     for field, value in updates.items():
@@ -459,7 +547,7 @@ async def patch_product(
             author_name=author.name,
             details=changes,
         )
-    return Envelope(data=_product_out(product, await _category_names(tenant_session), full=True))
+    return Envelope(data=await _full_out(tenant_session, product))
 
 
 @router.delete("/inventory/products/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -487,6 +575,7 @@ async def delete_product(
 
 
 class MovementIn(ApiModel):
+    # sale — только оплатой чека, вручную — 422
     type: MovementType
     # receipt / write_off — количество (> 0); adjustment — фактический остаток (≥ 0)
     quantity: Decimal = Field(ge=0)
@@ -552,6 +641,9 @@ async def create_movement(
     author: CurrentAuthor,
     tenant_session: TenantSession,
 ) -> Envelope[MovementOut]:
+    if body.type == MovementType.SALE:
+        # _movement_delta сочла бы её приходом; продажа — только оплатой чека
+        raise HTTPException(422, "Продаж оформлюється лише оплатою чека")
     product = await _get_product(tenant_session, product_id, for_update=True)
     if not product.is_active:
         raise HTTPException(409, "Товар видалено")
@@ -768,7 +860,8 @@ async def delete_category(
 
 # Колонки шаблона (в этом порядке — экспорт и шаблон фронта). Импорт читает
 # колонки по заголовкам; файл без распознанных заголовков читается по старой
-# раскладке LEGACY_IMPORT_COLUMNS (без штрихкода)
+# раскладке LEGACY_IMPORT_COLUMNS (без штрихкода и цены упаковки). «Залишок» и
+# «Мін. залишок» — в единице карточки
 IMPORT_COLUMNS = {
     "name": "Назва",
     "sku": "Артикул",
@@ -780,9 +873,10 @@ IMPORT_COLUMNS = {
     "min_quantity": "Мін. залишок",
     "cost_price": "Собівартість",
     "sale_price": "Ціна продажу",
+    "package_price": "Ціна упаковки",
     "description": "Опис",
 }
-LEGACY_IMPORT_COLUMNS = [key for key in IMPORT_COLUMNS if key != "barcode"]
+LEGACY_IMPORT_COLUMNS = [key for key in IMPORT_COLUMNS if key not in ("barcode", "package_price")]
 _HEADER_ALIASES = {"одиниця виміру": "unit"}
 
 
@@ -837,6 +931,8 @@ async def import_products(
     отличие остатка оформляется коригуванням. Неизвестная категория создаётся.
     Штрихкод необязателен; занятый другим товаром — ошибка строки, строка
     пропускается; пустая ячейка у существующего товара штрихкод не стирает.
+    Так же цена упаковки: нет колонки или пустая ячейка — цена не меняется.
+    Смена единицы или объёма у товара с движениями — ошибка строки.
     """
     from openpyxl import load_workbook
 
@@ -879,7 +975,7 @@ async def import_products(
             errors.append(f"Рядок {i}: невідома одиниця «{unit_name}»")
             continue
         try:
-            volume, quantity, min_quantity, cost, price = (
+            volume, quantity, min_quantity, cost, price, package_price = (
                 _decimal(cell(key), IMPORT_COLUMNS[key], i)
                 for key in (
                     "package_volume",
@@ -887,6 +983,7 @@ async def import_products(
                     "min_quantity",
                     "cost_price",
                     "sale_price",
+                    "package_price",
                 )
             )
         except ValueError as exc:
@@ -900,6 +997,19 @@ async def import_products(
         product = await tenant_session.scalar(
             select(Product).where(func.lower(Product.sku) == sku.lower()).with_for_update()
         )
+        # Пустая ячейка (или нет колонки) у существующего товара цену упаковки не стирает
+        if package_price is None and product is not None:
+            package_price = product.package_price
+        if (
+            product is not None
+            and changes_unit(product, unit, volume)
+            and await _has_movements(tenant_session, product.id)
+        ):
+            errors.append(f"Рядок {i}: {LOCKED_CARD}")
+            continue
+        if error := card_error(unit, volume, package_price):
+            errors.append(f"Рядок {i}: {error}")
+            continue
         if barcode is not None:
             owner_query = select(Product).where(func.lower(Product.barcode) == barcode.lower())
             if product is not None:
@@ -929,6 +1039,7 @@ async def import_products(
             "min_quantity": min_quantity or Decimal(0),
             "cost_price": cost,
             "sale_price": price,
+            "package_price": package_price,
             "description": text("description") or None,
         }
         # Пустая ячейка штрихкода у существующего товара его не стирает
@@ -972,7 +1083,7 @@ async def import_products(
 EXPORT_BLOCKS = {
     "main": ["Назва", "Артикул", "Штрихкод", "Категорія", "Одиниця"],
     "stock": ["Об'єм упаковки", "Залишок", "Мін. залишок", "Статус"],
-    "finance": ["Собівартість", "Ціна продажу", "Вартість залишку"],
+    "finance": ["Собівартість", "Ціна продажу", "Ціна упаковки", "Вартість залишку"],
     "description": ["Опис"],
 }
 STATUS_NAMES = {
@@ -996,6 +1107,7 @@ def _export_values(block: str, p: Product, categories: dict[uuid.UUID, str]) -> 
         return [
             float(p.cost_price) if p.cost_price is not None else None,
             float(p.sale_price) if p.sale_price is not None else None,
+            float(p.package_price) if p.package_price is not None else None,
             float(p.cost_price * p.quantity) if p.cost_price is not None else None,
         ]
     return [p.description]

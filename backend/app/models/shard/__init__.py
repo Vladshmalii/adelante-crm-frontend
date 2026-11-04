@@ -17,6 +17,7 @@ from app.models.shard.finance import (
     Receipt,
     ReceiptCertificateLine,
     ReceiptPayment,
+    ReceiptProductLine,
     ReceiptSource,
     ReceiptStatus,
 )
@@ -24,6 +25,7 @@ from app.models.shard.inventory import (
     InventoryCategory,
     MovementType,
     Product,
+    ProductSaleMode,
     ProductUnit,
     StockMovement,
 )
@@ -71,10 +73,12 @@ __all__ = [
     "PaymentMethodType",
     "PaymentStatus",
     "Product",
+    "ProductSaleMode",
     "ProductUnit",
     "Receipt",
     "ReceiptCertificateLine",
     "ReceiptPayment",
+    "ReceiptProductLine",
     "ReceiptSource",
     "ReceiptStatus",
     "Record",
