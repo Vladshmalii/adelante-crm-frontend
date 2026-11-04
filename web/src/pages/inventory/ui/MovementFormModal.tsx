@@ -69,6 +69,11 @@ export function MovementFormModal({ product, onClose }: MovementFormModalProps) 
       submitter={{ searchConfig: { submitText: 'Провести', resetText: 'Скасувати' } }}
       onFinish={async (v) => {
         if (!product) return false;
+        // Пустые поля инвентаризации не должны молча обнулить остаток
+        if (volume && v.packages == null && v.rest == null) {
+          message.warning('Вкажіть кількість');
+          return false;
+        }
         const quantity = volume
           ? toBaseQuantity(v.packages ?? 0, v.rest ?? 0, volume)
           : (v.quantity ?? 0);
