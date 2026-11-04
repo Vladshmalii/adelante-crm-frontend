@@ -9,10 +9,12 @@ export const reportsSearchSchema = z.object({
   from: day.optional(),
   to: day.optional(),
   groupBy: z.enum(['day', 'week', 'month']).default('day'),
+  tab: z.enum(['overview', 'products']).default('overview'),
 });
 
 export type ReportsSearch = z.infer<typeof reportsSearchSchema>;
 export type GroupBy = ReportsSearch['groupBy'];
+export type ReportsTab = ReportsSearch['tab'];
 
 export const period = (s: Pick<ReportsSearch, 'from' | 'to'>): [string, string] =>
   s.from && s.to ? [s.from, s.to] : currentMonth();

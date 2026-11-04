@@ -3,16 +3,17 @@ import { Column, Line, Pie } from '@ant-design/plots';
 import { PageContainer, ProCard, StatisticCard } from '@ant-design/pro-components';
 import { useQuery } from '@tanstack/react-query';
 import { getRouteApi } from '@tanstack/react-router';
-import { App, Button, Col, Empty, Row, Segmented, Space, Table, Typography } from 'antd';
+import { App, Button, Col, Empty, Row, Segmented, Space, Table, Tabs, Typography } from 'antd';
 
 import { errorMessage, type Schema } from '@/shared/api';
 import { useViewer } from '@/shared/auth';
-import { formatMoney } from '@/shared/lib';
+import { formatMoney, formatQuantity } from '@/shared/lib';
 import { usePreferencesStore } from '@/shared/preferences';
 import { DateRangeFilter, QueryErrorAlert } from '@/shared/ui';
 
 import {
   clientsReportQueryOptions,
+  productsReportQueryOptions,
   revenueQueryOptions,
   servicesReportQueryOptions,
   staffReportQueryOptions,
@@ -20,7 +21,13 @@ import {
   useExportReports,
 } from '../api/reports.queries';
 import { formatChange, periodLabel } from '../model/format';
-import { type GroupBy, period, periodToApi, type ReportsSearch } from '../model/search';
+import {
+  type GroupBy,
+  period,
+  periodToApi,
+  type ReportsSearch,
+  type ReportsTab,
+} from '../model/search';
 
 type Metric = Schema<'MetricOut'>;
 
@@ -79,22 +86,37 @@ export function ReportsPage() {
       }
     >
       <Summary period={api} />
-      <Row gutter={[16, 16]}>
-        {can.reports.viewMoney && (
-          <Col xs={24}>
-            <RevenueChart period={api} groupBy={search.groupBy} />
-          </Col>
-        )}
-        <Col xs={24}>
-          <ClientsChart period={api} groupBy={search.groupBy} />
-        </Col>
-        <Col xs={24}>
-          <StaffTable period={api} />
-        </Col>
-        <Col xs={24}>
-          <ServicesBlock period={api} />
-        </Col>
-      </Row>
+      <Tabs
+        activeKey={search.tab}
+        onChange={(tab) => {
+          setSearch({ tab: tab as ReportsTab });
+        }}
+        items={[
+          {
+            key: 'overview',
+            label: 'Огляд',
+            children: (
+              <Row gutter={[16, 16]}>
+                {can.reports.viewMoney && (
+                  <Col xs={24}>
+                    <RevenueChart period={api} groupBy={search.groupBy} />
+                  </Col>
+                )}
+                <Col xs={24}>
+                  <ClientsChart period={api} groupBy={search.groupBy} />
+                </Col>
+                <Col xs={24}>
+                  <StaffTable period={api} />
+                </Col>
+                <Col xs={24}>
+                  <ServicesBlock period={api} />
+                </Col>
+              </Row>
+            ),
+          },
+          { key: 'products', label: 'Товари', children: <ProductsTable period={api} /> },
+        ]}
+      />
     </PageContainer>
   );
 }
@@ -296,6 +318,73 @@ function StaffTable({ period }: { period: Period }) {
             align: 'right',
             render: (_, r) => (r.rating === null ? '—' : `${r.rating.toFixed(1)} ★ (${r.reviews})`),
           },
+        ]}
+      />
+    </ProCard>
+  );
+}
+
+type ProductRow = Schema<'ProductRowOut'>;
+
+/** Продажи товаров по строкам неотменённых чеков; количества — бутылки, розлив и всего. */
+function ProductsTable({ period }: { period: Period }) {
+  const { can } = useViewer();
+  const { data, error, isPending, refetch } = useQuery(productsReportQueryOptions(period));
+
+  return (
+    <ProCard title="Продажі товарів" loading={isPending} variant="outlined">
+      <QueryErrorAlert error={error} onRetry={() => void refetch()} />
+      <Table<ProductRow>
+        size="small"
+        rowKey="productId"
+        pagination={{ pageSize: 25, hideOnSinglePage: true }}
+        scroll={{ x: 'max-content' }}
+        dataSource={data}
+        locale={{ emptyText: 'Немає продажів за період' }}
+        columns={[
+          { title: 'Товар', dataIndex: 'name' },
+          { title: 'Артикул', dataIndex: 'sku' },
+          { title: 'Категорія', key: 'category', render: (_, r) => r.category ?? '—' },
+          {
+            title: 'Пляшок',
+            key: 'packages',
+            align: 'right',
+            render: (_, r) => Number(r.packagesSold),
+          },
+          {
+            title: 'На розлив',
+            key: 'volume',
+            align: 'right',
+            render: (_, r) => formatQuantity(r.volumeSold, r.unit),
+          },
+          {
+            title: 'Усього',
+            key: 'total',
+            align: 'right',
+            render: (_, r) => formatQuantity(r.totalSold, r.unit),
+          },
+          ...(can.reports.viewMoney
+            ? [
+                {
+                  title: 'Виручка',
+                  key: 'revenue',
+                  align: 'right' as const,
+                  render: (_: unknown, r: ProductRow) => formatMoney(r.revenue),
+                },
+                {
+                  title: 'Собівартість',
+                  key: 'cost',
+                  align: 'right' as const,
+                  render: (_: unknown, r: ProductRow) => formatMoney(r.cost),
+                },
+                {
+                  title: 'Маржа',
+                  key: 'margin',
+                  align: 'right' as const,
+                  render: (_: unknown, r: ProductRow) => formatMoney(r.margin),
+                },
+              ]
+            : []),
         ]}
       />
     </ProCard>

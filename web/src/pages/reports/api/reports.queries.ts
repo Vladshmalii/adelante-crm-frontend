@@ -69,6 +69,16 @@ export const servicesReportQueryOptions = (period: Period) =>
     placeholderData: keepPreviousData,
   });
 
+/** Деньги в строках — только суперюзеру, администратору бекенд отдаёт их как null. */
+export const productsReportQueryOptions = (period: Period) =>
+  queryOptions({
+    queryKey: reportsKeys.report('products', period),
+    queryFn: async ({ signal }) =>
+      unwrap(await api.GET('/api/admin/v1/reports/products', { params: { query: period }, signal }))
+        .data,
+    placeholderData: keepPreviousData,
+  });
+
 /** Все отчёты одним Excel; администратору — без листа «Виручка» и денежных колонок. */
 export function useExportReports() {
   return useMutation({
