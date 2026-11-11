@@ -11,7 +11,7 @@ import {
   type ProFormInstance,
 } from '@ant-design/pro-components';
 import { useQuery } from '@tanstack/react-query';
-import { App, Select, Spin } from 'antd';
+import { Alert, App, Select, Spin } from 'antd';
 import type { Dayjs } from 'dayjs';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
@@ -45,6 +45,12 @@ import {
   recordCheckoutQueryOptions,
   saleCheckoutQueryOptions,
 } from '@/widgets/loyalty';
+import {
+  type SubscriptionSaleItem,
+  SubscriptionSalePicker,
+  subscriptionsBody,
+  subscriptionTypeIdsOf,
+} from '@/widgets/subscriptions';
 import {
   ProductSalePicker,
   type ProductSaleItem,
@@ -83,6 +89,7 @@ const recordLabel = (r: RecordItem) =>
  * «Особовий рахунок» (для продажи нужен клиент) и «Кешбек». «+ Товар» — продажа со склада; ручной
  * суммы «Продано» в форме нет (product-sales.md, раздел 9): продажа мимо склада разводит деньги и
  * остатки. «+ Сертифікат» — подарочные сертификаты; продажа может состоять из одних них; после — коды.
+ * «+ Абонемент» — только клиенту: без клиента кнопка «Створити» неактивна с подсказкой.
  */
 export function ReceiptFormModal({ open, onOpenChange }: ReceiptFormModalProps) {
   const { message } = App.useApp();
@@ -101,6 +108,10 @@ export function ReceiptFormModal({ open, onOpenChange }: ReceiptFormModalProps) 
   const [certificates, setCertificates] = useState<CertificateSaleItem[]>([]);
   const certificateIds = templateIdsOf(certificates);
   const [products, setProducts] = useState<ProductSaleItem[]>([]);
+  const [subscriptions, setSubscriptions] = useState<SubscriptionSaleItem[]>([]);
+  // Абонемент именной: в продаже без записи без клиента его не продать (422)
+  const needsClient = kind === 'sale' && subscriptions.length > 0 && !clientId;
+  const subscriptionTypeIds = needsClient ? [] : subscriptionTypeIdsOf(subscriptions);
   const productParams = useDebouncedProductParams(products);
   const [sold, setSold] = useState<{
     receiptId: string;
@@ -125,16 +136,28 @@ export function ReceiptFormModal({ open, onOpenChange }: ReceiptFormModalProps) 
     staleTime: 30_000,
   });
   const visitCheckout = useQuery({
-    ...recordCheckoutQueryOptions(recordId ?? '', bonusIds, certificateIds, productParams),
+    ...recordCheckoutQueryOptions(
+      recordId ?? '',
+      bonusIds,
+      certificateIds,
+      productParams,
+      subscriptionTypeIds,
+    ),
     enabled: open && kind === 'visit' && !!recordId,
   });
   const saleCheckout = useQuery({
-    ...saleCheckoutQueryOptions(clientId, certificateIds, productParams),
-    enabled: open && kind === 'sale' && (productParams.length > 0 || certificateIds.length > 0),
+    ...saleCheckoutQueryOptions(clientId, certificateIds, productParams, subscriptionTypeIds),
+    enabled:
+      open &&
+      kind === 'sale' &&
+      productParams.length + certificateIds.length + subscriptionTypeIds.length > 0,
   });
   const checkout = kind === 'visit' ? visitCheckout : saleCheckout;
   // Запрос продажи выключен, пока ничего не выбрано; его кеш не должен оставаться итогом
-  const hasSelection = kind === 'visit' ? !!recordId : products.length + certificates.length > 0;
+  const hasSelection =
+    kind === 'visit'
+      ? !!recordId
+      : products.length + certificates.length + subscriptionTypeIds.length > 0;
   const preview = hasSelection ? checkout.data : undefined;
   const total = preview ? Number(preview.total) : undefined;
 
@@ -176,6 +199,7 @@ export function ReceiptFormModal({ open, onOpenChange }: ReceiptFormModalProps) 
     setDebtConfirmed(false);
     setCertificates([]);
     setProducts([]);
+    setSubscriptions([]);
     setRecordQuery('');
     setClientQuery('');
   };
@@ -198,10 +222,10 @@ export function ReceiptFormModal({ open, onOpenChange }: ReceiptFormModalProps) 
         initialValues={initialValues}
         submitter={{
           searchConfig: { submitText: 'Створити', resetText: 'Скасувати' },
-          submitButtonProps: { disabled: !preview },
+          submitButtonProps: { disabled: !preview || needsClient },
         }}
         onFinish={async (v) => {
-          if (!preview) return false;
+          if (!preview || needsClient) return false;
           if (checkPayments(v.payments, methodType, preview).debt > 0 && !debtConfirmed) {
             message.warning('Підтвердіть запис у борг');
             return false;
@@ -229,6 +253,7 @@ export function ReceiptFormModal({ open, onOpenChange }: ReceiptFormModalProps) 
                 payments,
                 certificates,
                 products: productsBody(products),
+                subscriptions: subscriptionsBody(subscriptions),
               },
             });
             message.success(isVisit ? 'Візит оплачено' : 'Чек створено');
@@ -317,6 +342,15 @@ export function ReceiptFormModal({ open, onOpenChange }: ReceiptFormModalProps) 
         )}
         <ProductSalePicker value={products} onChange={setProducts} />
         <CertificateSalePicker value={certificates} onChange={setCertificates} />
+        <SubscriptionSalePicker value={subscriptions} onChange={setSubscriptions} />
+        {needsClient && (
+          <Alert
+            type="warning"
+            showIcon
+            style={{ marginBottom: 16 }}
+            title="Абонемент продається лише клієнту — оберіть клієнта, щоб створити чек"
+          />
+        )}
         <QueryErrorAlert error={checkout.error} onRetry={() => void checkout.refetch()} />
         {preview ? (
           <CheckoutSummary

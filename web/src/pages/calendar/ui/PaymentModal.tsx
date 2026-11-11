@@ -32,6 +32,12 @@ import {
   recordCheckoutQueryOptions,
 } from '@/widgets/loyalty';
 import {
+  type SubscriptionSaleItem,
+  SubscriptionSalePicker,
+  subscriptionsBody,
+  subscriptionTypeIdsOf,
+} from '@/widgets/subscriptions';
+import {
   ProductSalePicker,
   type ProductSaleItem,
   productsBody,
@@ -52,7 +58,8 @@ interface FormValues {
  * «Продано», бонусные услуги (чекбоксы у строк), скидка с источником, итог; один или несколько
  * способов, сумма — ровно итог. Недоплата закрывается частью «Особовий рахунок» (в долг —
  * с подтверждением), кешбэк — в пределах максимума чека. «+ Товар» — продажа со склада в том же
- * чеке, «+ Сертифікат» — подарочных сертификатов; после оплаты — окно с кодами.
+ * чеке, «+ Сертифікат» — подарочных сертификатов (после оплаты — окно с кодами), «+ Абонемент» —
+ * абонемент клиенту визита (subscriptions.md, раздел 5).
  */
 export function PaymentModal({
   record,
@@ -68,6 +75,7 @@ export function PaymentModal({
   const [debtConfirmed, setDebtConfirmed] = useState(false);
   const [certificates, setCertificates] = useState<CertificateSaleItem[]>([]);
   const [products, setProducts] = useState<ProductSaleItem[]>([]);
+  const [subscriptions, setSubscriptions] = useState<SubscriptionSaleItem[]>([]);
   const productParams = useDebouncedProductParams(products);
   const [sold, setSold] = useState<{ receiptId: string; client: { id: string; name: string } }>();
   const [key, setKey] = useState(newOperationKey);
@@ -78,6 +86,7 @@ export function PaymentModal({
       bonusIds,
       templateIdsOf(certificates),
       productParams,
+      subscriptionTypeIdsOf(subscriptions),
     ),
     enabled: !!record,
   });
@@ -101,6 +110,7 @@ export function PaymentModal({
     setDebtConfirmed(false);
     setCertificates([]);
     setProducts([]);
+    setSubscriptions([]);
   };
 
   return (
@@ -145,6 +155,7 @@ export function PaymentModal({
                 expectedTotal: preview.total,
                 certificates,
                 products: productsBody(products),
+                subscriptions: subscriptionsBody(subscriptions),
               },
             });
             message.success(`Оплачено, чек № ${receipt.number}`);
@@ -167,6 +178,7 @@ export function PaymentModal({
         <QueryErrorAlert error={checkout.error} onRetry={() => void checkout.refetch()} />
         <ProductSalePicker value={products} onChange={setProducts} />
         <CertificateSalePicker value={certificates} onChange={setCertificates} />
+        <SubscriptionSalePicker value={subscriptions} onChange={setSubscriptions} />
         {preview ? (
           <CheckoutSummary checkout={preview} bonusIds={bonusIds} onBonusChange={setBonusIds} />
         ) : (

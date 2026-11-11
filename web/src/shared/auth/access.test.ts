@@ -92,6 +92,7 @@ describe('права доступа (docs/ACCESS.md)', () => {
     expect(master.loyalty).toEqual({ manage: false, adjust: false });
     expect(admin.loyalty).toEqual({ manage: true, adjust: false });
     expect(su.loyalty).toEqual({ manage: true, adjust: true });
+    expect([master, admin, su].map((p) => p.subscriptions.manage)).toEqual([false, true, true]);
   });
 
   it('SMS-нагадування: канал и история — администратор, отчёт — суперюзер', () => {

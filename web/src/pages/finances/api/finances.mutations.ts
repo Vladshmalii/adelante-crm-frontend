@@ -28,7 +28,13 @@ function useInvalidateReceipt() {
   const queryClient = useQueryClient();
   const invalidateFinances = useInvalidateFinances();
   return () =>
-    Promise.all([invalidateFinances(), queryClient.invalidateQueries({ queryKey: ['inventory'] })]);
+    Promise.all([
+      invalidateFinances(),
+      queryClient.invalidateQueries({ queryKey: ['inventory'] }),
+      // Чек продаёт и гасит сертификаты и абонементы; отмена чека их аннулирует или сторнирует
+      queryClient.invalidateQueries({ queryKey: ['certificates'] }),
+      queryClient.invalidateQueries({ queryKey: ['subscriptions'] }),
+    ]);
 }
 
 const idPath = <K extends string>(key: K, id: string) => ({

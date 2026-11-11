@@ -17,10 +17,10 @@ export const loyaltyKeys = {
   cardTxns: (cardId: string) => [...loyaltyKeys.all, 'card-txns', cardId] as const,
   cardVisits: (cardId: string) => [...loyaltyKeys.all, 'card-visits', cardId] as const,
   cardTypes: () => [...loyaltyKeys.all, 'card-types'] as const,
-  checkout: (recordId: string, bonusIds: string[], certificateIds: string[], products: string[]) =>
-    [...loyaltyKeys.all, 'checkout', recordId, bonusIds, certificateIds, products] as const,
-  saleCheckout: (clientId: string | undefined, certificateIds: string[], products: string[]) =>
-    [...loyaltyKeys.all, 'sale-checkout', clientId, certificateIds, products] as const,
+  checkout: (recordId: string, bonusIds: string[], ...rest: string[][]) =>
+    [...loyaltyKeys.all, 'checkout', recordId, bonusIds, ...rest] as const,
+  saleCheckout: (clientId: string | undefined, ...rest: string[][]) =>
+    [...loyaltyKeys.all, 'sale-checkout', clientId, ...rest] as const,
 };
 
 export const TXNS_PER_PAGE = 10;
@@ -96,15 +96,26 @@ export const cardTypesQueryOptions = () =>
 /**
  * certificateIds — продаваемые в чеке сертификаты: id шаблона по одному на штуку.
  * products — товары со склада: `<productId>:<mode>:<quantity>`.
+ * subscriptionTypeIds — продаваемые абонементы: id типа по одному на абонемент.
+ * subscriptionUses — строки, оплаченные абонементом: `<recordServiceId>:<subscriptionId>`.
  */
 export const recordCheckoutQueryOptions = (
   recordId: string,
   bonusIds: string[],
   certificateIds: string[] = [],
   products: string[] = [],
+  subscriptionTypeIds: string[] = [],
+  subscriptionUses: string[] = [],
 ) =>
   queryOptions({
-    queryKey: loyaltyKeys.checkout(recordId, bonusIds, certificateIds, products),
+    queryKey: loyaltyKeys.checkout(
+      recordId,
+      bonusIds,
+      certificateIds,
+      products,
+      subscriptionTypeIds,
+      subscriptionUses,
+    ),
     queryFn: async ({ signal }) =>
       unwrap(
         await api.GET('/api/admin/v1/records/{record_id}/checkout', {
@@ -114,6 +125,8 @@ export const recordCheckoutQueryOptions = (
               ...(bonusIds.length ? { bonusRecordServiceIds: bonusIds } : {}),
               ...(certificateIds.length ? { certificateTemplateIds: certificateIds } : {}),
               ...(products.length ? { products } : {}),
+              ...(subscriptionTypeIds.length ? { subscriptionTypeIds } : {}),
+              ...(subscriptionUses.length ? { subscriptionUses } : {}),
             },
           },
           signal,
@@ -122,14 +135,18 @@ export const recordCheckoutQueryOptions = (
     placeholderData: keepPreviousData,
   });
 
-/** Продажа без записи: товары и сертификаты. Ручная сумма `subtotal` осталась только в API. */
+/**
+ * Продажа без записи: товары, сертификаты и абонементы (абонементы — только с клиентом, иначе
+ * 422). Ручная сумма `subtotal` осталась только в API.
+ */
 export const saleCheckoutQueryOptions = (
   clientId: string | undefined,
   certificateIds: string[] = [],
   products: string[] = [],
+  subscriptionTypeIds: string[] = [],
 ) =>
   queryOptions({
-    queryKey: loyaltyKeys.saleCheckout(clientId, certificateIds, products),
+    queryKey: loyaltyKeys.saleCheckout(clientId, certificateIds, products, subscriptionTypeIds),
     queryFn: async ({ signal }) =>
       unwrap(
         await api.GET('/api/admin/v1/finances/receipts/checkout', {
@@ -138,6 +155,7 @@ export const saleCheckoutQueryOptions = (
               clientId,
               ...(certificateIds.length ? { certificateTemplateIds: certificateIds } : {}),
               ...(products.length ? { products } : {}),
+              ...(subscriptionTypeIds.length ? { subscriptionTypeIds } : {}),
             },
           },
           signal,

@@ -103,6 +103,14 @@ export const permissions = (v: Viewer) => ({
     /** Ручная корректировка особового рахунку и кешбэка. */
     adjust: v.isSuperuser,
   },
+  subscriptions: {
+    /**
+     * Продажа, списание на визите, блок в карточке клиента, заморозка и разморозка
+     * (subscriptions.md, раздел 11). Мастеру абонементы не показываем — бекенд отвечает 403.
+     * Типы и реестр — раздел «Лояльність» (суперюзер).
+     */
+    manage: v.isAdmin,
+  },
 });
 
 export type Permissions = ReturnType<typeof permissions>;

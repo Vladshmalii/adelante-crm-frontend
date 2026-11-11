@@ -46,7 +46,9 @@ export function CheckoutSummary({
           )}
         </Typography.Text>
       )}
-      {checkout.lines.length > 1 || hasBonusColumn || checkout.lines.some((l) => l.productId) ? (
+      {checkout.lines.length > 1 ||
+      hasBonusColumn ||
+      checkout.lines.some((l) => l.kind !== 'service') ? (
         <Table<Line>
           size="small"
           rowKey={(l) => l.recordServiceId ?? `${l.kind}-${checkout.lines.indexOf(l)}`}
@@ -85,6 +87,11 @@ export function CheckoutSummary({
                   <Space size={4}>
                     {l.name}
                     <Tag color="purple">сертифікат</Tag>
+                  </Space>
+                ) : l.kind === 'subscription' ? (
+                  <Space size={4}>
+                    {l.name}
+                    <Tag color="cyan">абонемент</Tag>
                   </Space>
                 ) : l.productId ? (
                   <Space size={4} wrap>

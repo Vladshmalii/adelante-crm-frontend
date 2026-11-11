@@ -33,3 +33,4 @@ export {
   validUntilLabel,
   type VisitLine,
 } from './model';
+export { SubscriptionSalePicker } from './SubscriptionSalePicker';
