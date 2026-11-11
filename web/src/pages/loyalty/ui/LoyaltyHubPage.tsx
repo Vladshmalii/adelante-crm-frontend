@@ -42,6 +42,7 @@ const PROGRAMS: Program[] = [
     title: 'Абонементи',
     description:
       'Членство заохочує повторні відвідування та допомагає оптимізувати час персоналу, підвищуючи рівень заповнюваності.',
+    to: '/loyalty/subscriptions',
   },
   {
     key: 'deposits',

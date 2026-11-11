@@ -31,6 +31,7 @@ import { Route as AppLoyaltyIndexRouteImport } from './routes/_app/loyalty/index
 import { Route as AppLoyaltyCardsRouteImport } from './routes/_app/loyalty/cards'
 import { Route as AppLoyaltyCertificatesRouteImport } from './routes/_app/loyalty/certificates'
 import { Route as AppLoyaltyDepositsRouteImport } from './routes/_app/loyalty/deposits'
+import { Route as AppLoyaltySubscriptionsRouteImport } from './routes/_app/loyalty/subscriptions'
 import { Route as BookingSlugIndexRouteImport } from './routes/booking/$slug/index'
 import { Route as BookingSlugReviewRouteImport } from './routes/booking/$slug/review'
 
@@ -143,6 +144,11 @@ const AppLoyaltyDepositsRoute = AppLoyaltyDepositsRouteImport.update({
   path: '/loyalty/deposits',
   getParentRoute: () => AppRoute,
 } as any)
+const AppLoyaltySubscriptionsRoute = AppLoyaltySubscriptionsRouteImport.update({
+  id: '/loyalty/subscriptions',
+  path: '/loyalty/subscriptions',
+  getParentRoute: () => AppRoute,
+} as any)
 const BookingSlugIndexRoute = BookingSlugIndexRouteImport.update({
   id: '/booking/$slug/',
   path: '/booking/$slug/',
@@ -175,6 +181,7 @@ export interface FileRoutesByFullPath {
   '/loyalty/cards': typeof AppLoyaltyCardsRoute
   '/loyalty/certificates': typeof AppLoyaltyCertificatesRoute
   '/loyalty/deposits': typeof AppLoyaltyDepositsRoute
+  '/loyalty/subscriptions': typeof AppLoyaltySubscriptionsRoute
   '/booking/$slug/review': typeof BookingSlugReviewRoute
   '/loyalty/': typeof AppLoyaltyIndexRoute
   '/booking/$slug/': typeof BookingSlugIndexRoute
@@ -200,6 +207,7 @@ export interface FileRoutesByTo {
   '/loyalty/cards': typeof AppLoyaltyCardsRoute
   '/loyalty/certificates': typeof AppLoyaltyCertificatesRoute
   '/loyalty/deposits': typeof AppLoyaltyDepositsRoute
+  '/loyalty/subscriptions': typeof AppLoyaltySubscriptionsRoute
   '/booking/$slug/review': typeof BookingSlugReviewRoute
   '/loyalty': typeof AppLoyaltyIndexRoute
   '/booking/$slug': typeof BookingSlugIndexRoute
@@ -227,6 +235,7 @@ export interface FileRoutesById {
   '/_app/loyalty/cards': typeof AppLoyaltyCardsRoute
   '/_app/loyalty/certificates': typeof AppLoyaltyCertificatesRoute
   '/_app/loyalty/deposits': typeof AppLoyaltyDepositsRoute
+  '/_app/loyalty/subscriptions': typeof AppLoyaltySubscriptionsRoute
   '/booking/$slug/review': typeof BookingSlugReviewRoute
   '/_app/loyalty/': typeof AppLoyaltyIndexRoute
   '/booking/$slug/': typeof BookingSlugIndexRoute
@@ -254,6 +263,7 @@ export interface FileRouteTypes {
     | '/loyalty/cards'
     | '/loyalty/certificates'
     | '/loyalty/deposits'
+    | '/loyalty/subscriptions'
     | '/booking/$slug/review'
     | '/loyalty/'
     | '/booking/$slug/'
@@ -279,6 +289,7 @@ export interface FileRouteTypes {
     | '/loyalty/cards'
     | '/loyalty/certificates'
     | '/loyalty/deposits'
+    | '/loyalty/subscriptions'
     | '/booking/$slug/review'
     | '/loyalty'
     | '/booking/$slug'
@@ -305,6 +316,7 @@ export interface FileRouteTypes {
     | '/_app/loyalty/cards'
     | '/_app/loyalty/certificates'
     | '/_app/loyalty/deposits'
+    | '/_app/loyalty/subscriptions'
     | '/booking/$slug/review'
     | '/_app/loyalty/'
     | '/booking/$slug/'
@@ -476,6 +488,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppLoyaltyDepositsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/loyalty/subscriptions': {
+      id: '/_app/loyalty/subscriptions'
+      path: '/loyalty/subscriptions'
+      fullPath: '/loyalty/subscriptions'
+      preLoaderRoute: typeof AppLoyaltySubscriptionsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/booking/$slug/': {
       id: '/booking/$slug/'
       path: '/booking/$slug'
@@ -510,6 +529,7 @@ interface AppRouteChildren {
   AppLoyaltyCardsRoute: typeof AppLoyaltyCardsRoute
   AppLoyaltyCertificatesRoute: typeof AppLoyaltyCertificatesRoute
   AppLoyaltyDepositsRoute: typeof AppLoyaltyDepositsRoute
+  AppLoyaltySubscriptionsRoute: typeof AppLoyaltySubscriptionsRoute
   AppLoyaltyIndexRoute: typeof AppLoyaltyIndexRoute
 }
 
@@ -530,6 +550,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppLoyaltyCardsRoute: AppLoyaltyCardsRoute,
   AppLoyaltyCertificatesRoute: AppLoyaltyCertificatesRoute,
   AppLoyaltyDepositsRoute: AppLoyaltyDepositsRoute,
+  AppLoyaltySubscriptionsRoute: AppLoyaltySubscriptionsRoute,
   AppLoyaltyIndexRoute: AppLoyaltyIndexRoute,
 }
 
