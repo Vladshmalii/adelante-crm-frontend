@@ -34,6 +34,24 @@ export const salonServicesQueryOptions = (salonId: string) =>
     staleTime: 60_000,
   });
 
+/**
+ * Товары склада другого салона сети: в шаблоне сертификата «на товари» выбираются товары
+ * каждого салона (у салонов свои id). Архивные не нужны — их не продают.
+ */
+export const salonProductsQueryOptions = (salonId: string) =>
+  queryOptions({
+    queryKey: ['inventory', 'by-salon', salonId] as const,
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await api.GET('/api/admin/v1/inventory/products', {
+          headers: { 'X-Salon-Id': salonId },
+          params: { query: { perPage: 500 } },
+          signal,
+        }),
+      ).data,
+    staleTime: 60_000,
+  });
+
 function useInvalidate() {
   const queryClient = useQueryClient();
   return () => queryClient.invalidateQueries({ queryKey: loyaltyKeys.all });

@@ -11,6 +11,7 @@ import { QueryErrorAlert } from '@/shared/ui';
 import {
   CancelCertificateModal,
   CertificateHistory,
+  certificateScopeLabels,
   certificatesRegistryQueryOptions,
   certificateStatusLabels,
   certificateValidity,
@@ -62,7 +63,7 @@ export function CertificatesRegistryTab() {
         <Space orientation="vertical" size={0}>
           {c.name}
           <Typography.Text type="secondary">
-            {c.scope === 'services' ? 'На послуги' : 'На все'} · {certificateValidity(c.expiresAt)}
+            {certificateScopeLabels[c.scope]} · {certificateValidity(c.expiresAt)}
           </Typography.Text>
         </Space>
       ),

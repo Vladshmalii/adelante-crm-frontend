@@ -1,5 +1,5 @@
 import type { Schema } from '@/shared/api';
-import { formatMoney, inSalonTz } from '@/shared/lib';
+import { formatDate, formatMoney, inSalonTz, pluralUk } from '@/shared/lib';
 
 type Certificate = Pick<Schema<'CertificateOut'>, 'code' | 'name' | 'amount' | 'expiresAt'>;
 
@@ -13,6 +13,80 @@ export const certificateStatusLabels: Record<
   expired: { text: 'Термін минув', color: 'orange' },
   cancelled: { text: 'Анульовано', color: 'red' },
 };
+
+type Scope = Schema<'CertificateScope'>;
+type Template = Pick<
+  Schema<'CertificateTemplateOut'>,
+  'isActive' | 'validDays' | 'validUntil' | 'categoryId' | 'sortOrder' | 'name'
+>;
+type Category = Pick<Schema<'CertificateCategoryOut'>, 'id' | 'name' | 'sortOrder'>;
+
+/** Область сертификата (certificates.md, 11.1, решение 14). */
+export const certificateScopeLabels: Record<Scope, string> = {
+  any: 'На все',
+  services: 'На вибрані послуги',
+  products: 'На вибрані товари',
+  services_products: 'На вибрані послуги та товари',
+};
+
+export const scopeHasServices = (scope: Scope) =>
+  scope === 'services' || scope === 'services_products';
+export const scopeHasProducts = (scope: Scope) =>
+  scope === 'products' || scope === 'services_products';
+
+/** Срок шаблона в списке: «Безстроковий», «30 днів», «до 31.03.2024». */
+export function templateValidity(t: Pick<Template, 'validDays' | 'validUntil'>): string {
+  if (t.validUntil) return `до ${formatDate(t.validUntil)}`;
+  if (t.validDays) return `${t.validDays} ${pluralUk(t.validDays, ['день', 'дні', 'днів'])}`;
+  return 'Безстроковий';
+}
+
+/** Сегодня по Киеву, `YYYY-MM-DD`. */
+export const salonToday = (now: Date = new Date()) => inSalonTz(now).format('YYYY-MM-DD');
+
+/**
+ * Шаблон можно продать: активен и дата «до» не прошла (в сам день `validUntil` ещё продаётся,
+ * certificates.md, 13.4, С2). Иначе сервер всё равно ответит 422.
+ */
+export const isTemplateSellable = (t: Template, today: string = salonToday()) =>
+  t.isActive && (!t.validUntil || t.validUntil >= today);
+
+export interface TemplateGroup<T> {
+  /** null — «Без категорії». */
+  id: string | null;
+  name: string;
+  items: T[];
+}
+
+export const NO_CATEGORY = 'Без категорії';
+
+/**
+ * Шаблоны по категориям в порядке `sortOrder` категории (затем названия); «Без категорії» —
+ * последней. Шаблоны в группе — по `sortOrder`, затем названию. Пустые группы не показываем;
+ * шаблон с неизвестной категорией (список категорий ещё грузится) — в «Без категорії».
+ */
+export function groupTemplatesByCategory<T extends Template>(
+  templates: readonly T[],
+  categories: readonly Category[],
+): TemplateGroup<T>[] {
+  const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name, 'uk');
+  const known = new Map(categories.map((c) => [c.id, c]));
+  const groups = [...categories]
+    .sort((a, b) => a.sortOrder - b.sortOrder || byName(a, b))
+    .map<TemplateGroup<T>>((c) => ({ id: c.id, name: c.name, items: [] }));
+  const none: TemplateGroup<T> = { id: null, name: NO_CATEGORY, items: [] };
+  for (const t of templates) {
+    const group =
+      t.categoryId && known.has(t.categoryId) ? groups.find((g) => g.id === t.categoryId) : none;
+    (group ?? none).items.push(t);
+  }
+  return [...groups, none]
+    .filter((g) => g.items.length > 0)
+    .map((g) => ({
+      ...g,
+      items: [...g.items].sort((a, b) => a.sortOrder - b.sortOrder || byName(a, b)),
+    }));
+}
 
 /** Позиция продажи в чеке: шаблон и количество (2 шт. — два сертификата, два кода). */
 export interface CertificateSaleItem {

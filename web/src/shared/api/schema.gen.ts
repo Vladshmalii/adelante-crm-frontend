@@ -193,6 +193,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/v1/certificates/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Categories
+         * @description Категории шаблонов — и администратору: окно продажи группирует по ним шаблоны.
+         */
+        get: operations["list_categories_api_admin_v1_certificates_categories_get"];
+        put?: never;
+        /** Create Category */
+        post: operations["create_category_api_admin_v1_certificates_categories_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/certificates/categories/{category_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Category
+         * @description Удаление категории: её шаблоны остаются «Без категорії» (FK ON DELETE SET NULL).
+         */
+        delete: operations["delete_category_api_admin_v1_certificates_categories__category_id__delete"];
+        options?: never;
+        head?: never;
+        /** Patch Category */
+        patch: operations["patch_category_api_admin_v1_certificates_categories__category_id__patch"];
+        trace?: never;
+    };
     "/api/admin/v1/certificates/lookup": {
         parameters: {
             query?: never;
@@ -225,6 +267,8 @@ export interface paths {
         /**
          * List Templates
          * @description Все шаблоны, включая скрытые: продажа предлагает только активные.
+         *
+         *     С категорией (categoryId) — окно продажи группирует по ней.
          */
         get: operations["list_templates_api_admin_v1_certificates_templates_get"];
         put?: never;
@@ -440,6 +484,29 @@ export interface paths {
          * @description Последние отправки напоминаний клиенту в текущем салоне. Мастеру — 403.
          */
         get: operations["client_reminders_api_admin_v1_clients__client_id__reminders_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/clients/{client_id}/subscriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Client Subscriptions
+         * @description Абонементы клиента, новые сверху (карточка клиента, раздел 9).
+         *
+         *     usableForSalon — только те, которыми сейчас можно оплатить услугу этого салона (окно
+         *     оплаты, раздел 6, п. 1): pending/active, срок не вышел, остаток > 0 на его услугу.
+         */
+        get: operations["client_subscriptions_api_admin_v1_clients__client_id__subscriptions_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -811,6 +878,8 @@ export interface paths {
          *
          *     Чек продажи сертификатов отменяется, только пока ими не расплачивались
          *     (certificates.md, раздел 6); сертификаты аннулирует воркер вместе со сторно.
+         *     Так же чек продажи абонементов — только пока по ним не было списаний
+         *     (subscriptions.md, раздел 5, п. 6); абонементы отменяет воркер (операции cancel).
          *     Проданные товары возвращаются на склад обратными движениями, в том числе удалённые.
          *
          *     Чек читается FOR UPDATE: параллельная отмена ждёт и видит «уже скасовано». Порядок
@@ -1303,6 +1372,7 @@ export interface paths {
          * @description Предпросмотр оплаты визита: карта и уровень, бонусные услуги, скидки, итог, балансы.
          *
          *     bonusRecordServiceIds — строки, отмеченные бесплатными: итог считается с ними.
+         *     subscriptionUses — строки, оплачиваемые абонементами: тоже.
          */
         get: operations["record_checkout_api_admin_v1_records__record_id__checkout_get"];
         put?: never;
@@ -1900,6 +1970,149 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/v1/subscriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Subscriptions
+         * @description Реестр проданных абонементов сети (раздел 9), новые сверху.
+         *
+         *     salonId — салон-продавец; q — название абонемента, имя или телефон клиента.
+         */
+        get: operations["list_subscriptions_api_admin_v1_subscriptions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/subscriptions/{subscription_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Subscription */
+        get: operations["get_subscription_api_admin_v1_subscriptions__subscription_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/subscriptions/{subscription_id}/freeze": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Freeze Subscription
+         * @description Заморозка (раздел 7): один раз; авторазморозка через freezeMaxDays (0 — вручную).
+         */
+        post: operations["freeze_subscription_api_admin_v1_subscriptions__subscription_id__freeze_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/subscriptions/{subscription_id}/operations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Subscription Operations
+         * @description Журнал абонемента, новые сверху: продажа, списания, сторно, сгорание, аннулирование.
+         *
+         *     Заморозка и разморозка остаток не меняют — их нет в журнале (они в аудите).
+         */
+        get: operations["subscription_operations_api_admin_v1_subscriptions__subscription_id__operations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/subscriptions/{subscription_id}/unfreeze": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Unfreeze Subscription
+         * @description Разморозка в любой момент: frozenDays — фактические дни (вверх), срок += дни.
+         */
+        post: operations["unfreeze_subscription_api_admin_v1_subscriptions__subscription_id__unfreeze_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/subscriptions/types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Types
+         * @description Типы абонементов сети; active=true — только продаваемые (окно продажи).
+         */
+        get: operations["list_types_api_admin_v1_subscriptions_types_get"];
+        put?: never;
+        /** Create Type */
+        post: operations["create_type_api_admin_v1_subscriptions_types_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/subscriptions/types/{type_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Type */
+        get: operations["get_type_api_admin_v1_subscriptions_types__type_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Patch Type
+         * @description Действует на следующие продажи; проданные абонементы хранят снимок типа.
+         */
+        patch: operations["patch_type_api_admin_v1_subscriptions_types__type_id__patch"];
+        trace?: never;
+    };
     "/api/admin/v1/uploads": {
         parameters: {
             query?: never;
@@ -2097,10 +2310,39 @@ export interface paths {
         };
         /**
          * Client Loyalty
-         * @description Баланс счёта, карта, кешбэк и уровень клиента — только просмотр. 404 — клиента нет.
+         * @description Баланс счёта, карта, кешбэк, уровень и абонементы клиента — только просмотр.
+         *
+         *     404 — клиента нет.
          */
         get: operations["client_loyalty_api_bot_clients_by_telegram__tg_user_id__loyalty_get"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/bot/clients/by-telegram/{tg_user_id}/reminders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Client Reminders
+         * @description Текущий канал напоминаний клиента. 404 — клиента с таким Telegram нет.
+         */
+        get: operations["client_reminders_api_bot_clients_by_telegram__tg_user_id__reminders_get"];
+        /**
+         * Set Client Reminders
+         * @description Клиент меняет свой канал — только свой: клиент определяется по telegram_user_id.
+         *
+         *     В журнал изменений — с автором «клієнт (бот)» в каждом активном салоне, где у
+         *     клиента есть записи (клиент общий для сети, у бота нет текущего салона).
+         */
+        put: operations["set_client_reminders_api_bot_clients_by_telegram__tg_user_id__reminders_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -2859,6 +3101,8 @@ export interface components {
             count: number;
             /** Revenue */
             revenue: string | null;
+            /** Subscriptionvalue */
+            subscriptionValue?: string | null;
         };
         /** CertificateActivateIn */
         CertificateActivateIn: {
@@ -2873,6 +3117,40 @@ export interface components {
             /** Reason */
             reason: string;
         };
+        /** CertificateCategoryIn */
+        CertificateCategoryIn: {
+            /** Name */
+            name: string;
+            /**
+             * Sortorder
+             * @default 0
+             */
+            sortOrder: number;
+        };
+        /** CertificateCategoryOut */
+        CertificateCategoryOut: {
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Sortorder */
+            sortOrder: number;
+        };
+        /** CertificateCategoryPatchIn */
+        CertificateCategoryPatchIn: {
+            /** Name */
+            name?: string | null;
+            /** Sortorder */
+            sortOrder?: number | null;
+        };
         /** CertificateLookupIn */
         CertificateLookupIn: {
             /** Bonusrecordserviceids */
@@ -2881,8 +3159,12 @@ export interface components {
             clientId?: string | null;
             /** Code */
             code: string;
+            /** Products */
+            products?: components["schemas"]["ProductSaleIn"][];
             /** Recordid */
             recordId?: string | null;
+            /** Subscriptionrecordserviceids */
+            subscriptionRecordServiceIds?: string[];
         };
         /** CertificateLookupOut */
         CertificateLookupOut: {
@@ -2957,7 +3239,7 @@ export interface components {
          * CertificateScope
          * @enum {string}
          */
-        CertificateScope: "any" | "services";
+        CertificateScope: "any" | "services" | "products" | "services_products";
         /**
          * CertificateStatus
          * @enum {string}
@@ -2967,6 +3249,8 @@ export interface components {
         CertificateTemplateIn: {
             /** Amount */
             amount: number | string;
+            /** Categoryid */
+            categoryId?: string | null;
             /**
              * Isactive
              * @default true
@@ -2974,6 +3258,8 @@ export interface components {
             isActive: boolean;
             /** Name */
             name: string;
+            /** Products */
+            products?: components["schemas"]["CertificateTemplateProductRef"][];
             /** @default any */
             scope: components["schemas"]["CertificateScope"];
             /** Services */
@@ -2985,11 +3271,15 @@ export interface components {
             sortOrder: number;
             /** Validdays */
             validDays?: number | null;
+            /** Validuntil */
+            validUntil?: string | null;
         };
         /** CertificateTemplateOut */
         CertificateTemplateOut: {
             /** Amount */
             amount: string;
+            /** Categoryid */
+            categoryId: string | null;
             /**
              * Createdat
              * Format: date-time
@@ -3002,8 +3292,12 @@ export interface components {
             id: string;
             /** Isactive */
             isActive: boolean;
+            /** Issuedcount */
+            issuedCount: number;
             /** Name */
             name: string;
+            /** Products */
+            products: components["schemas"]["CertificateTemplateProductRef"][];
             scope: components["schemas"]["CertificateScope"];
             /** Services */
             services: components["schemas"]["CertificateTemplateServiceRef"][];
@@ -3016,15 +3310,21 @@ export interface components {
             updatedAt: string;
             /** Validdays */
             validDays: number | null;
+            /** Validuntil */
+            validUntil: string | null;
         };
         /** CertificateTemplatePatchIn */
         CertificateTemplatePatchIn: {
             /** Amount */
             amount?: number | string | null;
+            /** Categoryid */
+            categoryId?: string | null;
             /** Isactive */
             isActive?: boolean | null;
             /** Name */
             name?: string | null;
+            /** Products */
+            products?: components["schemas"]["CertificateTemplateProductRef"][] | null;
             scope?: components["schemas"]["CertificateScope"] | null;
             /** Services */
             services?: components["schemas"]["CertificateTemplateServiceRef"][] | null;
@@ -3032,6 +3332,21 @@ export interface components {
             sortOrder?: number | null;
             /** Validdays */
             validDays?: number | null;
+            /** Validuntil */
+            validUntil?: string | null;
+        };
+        /** CertificateTemplateProductRef */
+        CertificateTemplateProductRef: {
+            /**
+             * Productid
+             * Format: uuid
+             */
+            productId: string;
+            /**
+             * Salonid
+             * Format: uuid
+             */
+            salonId: string;
         };
         /** CertificateTemplateServiceRef */
         CertificateTemplateServiceRef: {
@@ -3124,6 +3439,12 @@ export interface components {
             recordServiceId: string | null;
             /** Serviceid */
             serviceId: string | null;
+            /** Subscriptionid */
+            subscriptionId?: string | null;
+            /** Subscriptiontypeid */
+            subscriptionTypeId?: string | null;
+            /** Subscriptionunits */
+            subscriptionUnits?: number | null;
             /** Templateid */
             templateId?: string | null;
             /** Unitprice */
@@ -3150,6 +3471,8 @@ export interface components {
             lines: components["schemas"]["CheckoutLineOut"][];
             /** Sold */
             sold: string;
+            /** Subscriptionusedamount */
+            subscriptionUsedAmount: string;
             /** Total */
             total: string;
         };
@@ -3239,6 +3562,11 @@ export interface components {
             card: components["schemas"]["LoyaltyCardInfo"] | null;
             /** Client Name */
             client_name: string;
+            /**
+             * Subscriptions
+             * @default []
+             */
+            subscriptions: components["schemas"]["SubscriptionInfo"][];
         };
         /** ClientOut */
         ClientOut: {
@@ -3349,6 +3677,14 @@ export interface components {
             name: string;
             /** Phone */
             phone: string;
+        };
+        /** ClientRemindersIn */
+        ClientRemindersIn: {
+            channel: components["schemas"]["ReminderChannel"];
+        };
+        /** ClientRemindersOut */
+        ClientRemindersOut: {
+            channel: components["schemas"]["ReminderChannel"];
         };
         /** ClientsOut */
         ClientsOut: {
@@ -3631,6 +3967,11 @@ export interface components {
             data: components["schemas"]["CashRegisterOut"];
             meta?: components["schemas"]["PageMeta"] | null;
         };
+        /** Envelope[CertificateCategoryOut] */
+        Envelope_CertificateCategoryOut_: {
+            data: components["schemas"]["CertificateCategoryOut"];
+            meta?: components["schemas"]["PageMeta"] | null;
+        };
         /** Envelope[CertificateLookupOut] */
         Envelope_CertificateLookupOut_: {
             data: components["schemas"]["CertificateLookupOut"];
@@ -3729,6 +4070,12 @@ export interface components {
         Envelope_list_CashRegisterOut__: {
             /** Data */
             data: components["schemas"]["CashRegisterOut"][];
+            meta?: components["schemas"]["PageMeta"] | null;
+        };
+        /** Envelope[list[CertificateCategoryOut]] */
+        Envelope_list_CertificateCategoryOut__: {
+            /** Data */
+            data: components["schemas"]["CertificateCategoryOut"][];
             meta?: components["schemas"]["PageMeta"] | null;
         };
         /** Envelope[list[CertificateOut]] */
@@ -3881,6 +4228,24 @@ export interface components {
             data: string[];
             meta?: components["schemas"]["PageMeta"] | null;
         };
+        /** Envelope[list[SubscriptionOperationOut]] */
+        Envelope_list_SubscriptionOperationOut__: {
+            /** Data */
+            data: components["schemas"]["SubscriptionOperationOut"][];
+            meta?: components["schemas"]["PageMeta"] | null;
+        };
+        /** Envelope[list[SubscriptionOut]] */
+        Envelope_list_SubscriptionOut__: {
+            /** Data */
+            data: components["schemas"]["SubscriptionOut"][];
+            meta?: components["schemas"]["PageMeta"] | null;
+        };
+        /** Envelope[list[SubscriptionTypeOut]] */
+        Envelope_list_SubscriptionTypeOut__: {
+            /** Data */
+            data: components["schemas"]["SubscriptionTypeOut"][];
+            meta?: components["schemas"]["PageMeta"] | null;
+        };
         /** Envelope[list[TransactionOut]] */
         Envelope_list_TransactionOut__: {
             /** Data */
@@ -4001,6 +4366,16 @@ export interface components {
         /** Envelope[StaffStatsOut] */
         Envelope_StaffStatsOut_: {
             data: components["schemas"]["StaffStatsOut"];
+            meta?: components["schemas"]["PageMeta"] | null;
+        };
+        /** Envelope[SubscriptionOut] */
+        Envelope_SubscriptionOut_: {
+            data: components["schemas"]["SubscriptionOut"];
+            meta?: components["schemas"]["PageMeta"] | null;
+        };
+        /** Envelope[SubscriptionTypeOut] */
+        Envelope_SubscriptionTypeOut_: {
+            data: components["schemas"]["SubscriptionTypeOut"];
             meta?: components["schemas"]["PageMeta"] | null;
         };
         /** Envelope[SummaryOut] */
@@ -4939,6 +5314,8 @@ export interface components {
             recordId?: string | null;
             /** @default web */
             source: components["schemas"]["ReceiptSource"];
+            /** Subscriptions */
+            subscriptions?: components["schemas"]["SubscriptionSaleIn"][];
             /** Subtotal */
             subtotal?: number | string | null;
         };
@@ -4976,6 +5353,8 @@ export interface components {
             recordId: string | null;
             source: components["schemas"]["ReceiptSource"];
             status: components["schemas"]["ReceiptStatus"];
+            /** Subscriptions */
+            subscriptions: components["schemas"]["ReceiptSubscriptionLineOut"][];
             /** Subtotal */
             subtotal: string;
         };
@@ -5049,6 +5428,27 @@ export interface components {
          * @enum {string}
          */
         ReceiptStatus: "paid" | "partial" | "cancelled";
+        /** ReceiptSubscriptionLineOut */
+        ReceiptSubscriptionLineOut: {
+            /** Amount */
+            amount: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Paidamount */
+            paidAmount: string;
+            /** Subscriptionid */
+            subscriptionId: string | null;
+            /**
+             * Typeid
+             * Format: uuid
+             */
+            typeId: string;
+        };
         /** RecordCreateIn */
         RecordCreateIn: {
             /** Clientid */
@@ -5243,6 +5643,10 @@ export interface components {
             payments?: components["schemas"]["PaymentIn"][];
             /** Products */
             products?: components["schemas"]["ProductSaleIn"][];
+            /** Subscriptions */
+            subscriptions?: components["schemas"]["SubscriptionSaleIn"][];
+            /** Subscriptionuses */
+            subscriptionUses?: components["schemas"]["SubscriptionUseIn"][];
         };
         /** RecordPaymentOut */
         RecordPaymentOut: {
@@ -5268,6 +5672,14 @@ export interface components {
             name: string;
             /** Price */
             price: string;
+            /** Recordserviceid */
+            recordServiceId?: string | null;
+            /** Subscriptionid */
+            subscriptionId?: string | null;
+            /** Subscriptionunits */
+            subscriptionUnits?: number | null;
+            /** Subscriptionunitvalue */
+            subscriptionUnitValue?: string | null;
         };
         /**
          * RecordSource
@@ -5664,6 +6076,8 @@ export interface components {
              * Format: uuid
              */
             serviceId: string;
+            /** Subscriptionvalue */
+            subscriptionValue?: string | null;
         };
         /** ServicesOut */
         ServicesOut: {
@@ -6096,6 +6510,369 @@ export interface components {
          * @enum {string}
          */
         StockStatus: "in_stock" | "low" | "out";
+        /**
+         * SubscriptionActivationMode
+         * @enum {string}
+         */
+        SubscriptionActivationMode: "on_sale" | "first_visit";
+        /**
+         * SubscriptionBalanceMode
+         * @enum {string}
+         */
+        SubscriptionBalanceMode: "shared" | "separate";
+        /**
+         * SubscriptionDurationUnit
+         * @enum {string}
+         */
+        SubscriptionDurationUnit: "day" | "month";
+        /** SubscriptionInfo */
+        SubscriptionInfo: {
+            /** Balance */
+            balance: number;
+            /** Expires At */
+            expires_at: string | null;
+            /** Freeze Until */
+            freeze_until: string | null;
+            /** Name */
+            name: string;
+            /** Services */
+            services: components["schemas"]["SubscriptionServiceInfo"][];
+            /** Shared */
+            shared: boolean;
+            status: components["schemas"]["SubscriptionStatus"];
+            unit_kind: components["schemas"]["SubscriptionUnitKind"];
+        };
+        /** SubscriptionOperationOut */
+        SubscriptionOperationOut: {
+            /** Authorname */
+            authorName: string | null;
+            /** Balanceafter */
+            balanceAfter: number;
+            /**
+             * Balanceid
+             * Format: uuid
+             */
+            balanceId: string;
+            /** Basketsalonid */
+            basketSalonId: string | null;
+            /** Basketserviceid */
+            basketServiceId: string | null;
+            /** Comment */
+            comment: string | null;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Delta */
+            delta: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Receiptid */
+            receiptId: string | null;
+            /** Recordid */
+            recordId: string | null;
+            /** Recordserviceid */
+            recordServiceId: string | null;
+            /** Reversesid */
+            reversesId: string | null;
+            /** Salonid */
+            salonId: string | null;
+            /** Salonname */
+            salonName: string | null;
+            type: components["schemas"]["SubscriptionOperationType"];
+        };
+        /**
+         * SubscriptionOperationType
+         * @enum {string}
+         */
+        SubscriptionOperationType: "issue" | "use" | "reversal" | "expire" | "cancel";
+        /** SubscriptionOut */
+        SubscriptionOut: {
+            /** Activatedat */
+            activatedAt: string | null;
+            activationMode: components["schemas"]["SubscriptionActivationMode"];
+            /** Autoactivateat */
+            autoActivateAt: string | null;
+            /** Balance */
+            balance: number;
+            balanceMode: components["schemas"]["SubscriptionBalanceMode"];
+            /** Cancelledat */
+            cancelledAt: string | null;
+            /** Cancelledbyname */
+            cancelledByName: string | null;
+            /** Cancelreason */
+            cancelReason: string | null;
+            client: components["schemas"]["PersonRef"];
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            durationUnit: components["schemas"]["SubscriptionDurationUnit"];
+            /** Durationvalue */
+            durationValue: number;
+            /** Expiresat */
+            expiresAt: string | null;
+            /** Freezeallowed */
+            freezeAllowed: boolean;
+            /** Freezemaxdays */
+            freezeMaxDays: number;
+            /** Freezeuntil */
+            freezeUntil: string | null;
+            /** Freezeused */
+            freezeUsed: boolean;
+            /** Frozenat */
+            frozenAt: string | null;
+            /** Frozendays */
+            frozenDays: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Paidamount */
+            paidAmount: string;
+            /** Services */
+            services: components["schemas"]["SubscriptionServiceOut"][];
+            /**
+             * Soldat
+             * Format: date-time
+             */
+            soldAt: string;
+            /**
+             * Soldreceiptid
+             * Format: uuid
+             */
+            soldReceiptId: string;
+            /**
+             * Soldsalonid
+             * Format: uuid
+             */
+            soldSalonId: string;
+            /** Soldsalonname */
+            soldSalonName: string | null;
+            status: components["schemas"]["SubscriptionStatus"];
+            /**
+             * Typeid
+             * Format: uuid
+             */
+            typeId: string;
+            /** Unfrozenat */
+            unfrozenAt: string | null;
+            unitKind: components["schemas"]["SubscriptionUnitKind"];
+            /** Unitstotal */
+            unitsTotal: number;
+            /** Unitvalue */
+            unitValue: string;
+        };
+        /**
+         * SubscriptionSaleIn
+         * @description Позиция продажи в чеке: тип абонемента. Одна позиция — один абонемент.
+         */
+        SubscriptionSaleIn: {
+            /**
+             * Typeid
+             * Format: uuid
+             */
+            typeId: string;
+        };
+        /** SubscriptionServiceInfo */
+        SubscriptionServiceInfo: {
+            /** Balance */
+            balance: number;
+            /** Name */
+            name: string | null;
+            /** Salon Name */
+            salon_name: string | null;
+        };
+        /**
+         * SubscriptionServiceOut
+         * @description Услуга абонемента (снимок) и её остаток.
+         */
+        SubscriptionServiceOut: {
+            /** Balance */
+            balance: number;
+            /**
+             * Salonid
+             * Format: uuid
+             */
+            salonId: string;
+            /** Salonname */
+            salonName: string | null;
+            /**
+             * Serviceid
+             * Format: uuid
+             */
+            serviceId: string;
+            /** Servicename */
+            serviceName: string | null;
+            /** Units */
+            units: number | null;
+        };
+        /**
+         * SubscriptionStatus
+         * @enum {string}
+         */
+        SubscriptionStatus: "pending" | "active" | "frozen" | "spent" | "expired" | "cancelled";
+        /** SubscriptionTypeIn */
+        SubscriptionTypeIn: {
+            /** @default on_sale */
+            activationMode: components["schemas"]["SubscriptionActivationMode"];
+            /** Autoactivatedays */
+            autoActivateDays?: number | null;
+            /** @default shared */
+            balanceMode: components["schemas"]["SubscriptionBalanceMode"];
+            /** @default month */
+            durationUnit: components["schemas"]["SubscriptionDurationUnit"];
+            /**
+             * Durationvalue
+             * @default 0
+             */
+            durationValue: number;
+            /**
+             * Freezeallowed
+             * @default false
+             */
+            freezeAllowed: boolean;
+            /**
+             * Freezemaxdays
+             * @default 0
+             */
+            freezeMaxDays: number;
+            /**
+             * Isactive
+             * @default true
+             */
+            isActive: boolean;
+            /** Name */
+            name: string;
+            /** Price */
+            price: number | string;
+            /** Services */
+            services: components["schemas"]["SubscriptionTypeServiceRef"][];
+            /**
+             * Sortorder
+             * @default 0
+             */
+            sortOrder: number;
+            /** Totalunits */
+            totalUnits?: number | null;
+            /** @default visits */
+            unitKind: components["schemas"]["SubscriptionUnitKind"];
+        };
+        /** SubscriptionTypeOut */
+        SubscriptionTypeOut: {
+            activationMode: components["schemas"]["SubscriptionActivationMode"];
+            /** Autoactivatedays */
+            autoActivateDays: number | null;
+            balanceMode: components["schemas"]["SubscriptionBalanceMode"];
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            durationUnit: components["schemas"]["SubscriptionDurationUnit"];
+            /** Durationvalue */
+            durationValue: number;
+            /** Freezeallowed */
+            freezeAllowed: boolean;
+            /** Freezemaxdays */
+            freezeMaxDays: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Isactive */
+            isActive: boolean;
+            /** Issuedcount */
+            issuedCount: number;
+            /** Name */
+            name: string;
+            /** Price */
+            price: string;
+            /** Services */
+            services: components["schemas"]["SubscriptionTypeServiceRef"][];
+            /** Sortorder */
+            sortOrder: number;
+            /** Totalunits */
+            totalUnits: number | null;
+            unitKind: components["schemas"]["SubscriptionUnitKind"];
+            /**
+             * Updatedat
+             * Format: date-time
+             */
+            updatedAt: string;
+        };
+        /** SubscriptionTypePatchIn */
+        SubscriptionTypePatchIn: {
+            activationMode?: components["schemas"]["SubscriptionActivationMode"] | null;
+            /** Autoactivatedays */
+            autoActivateDays?: number | null;
+            balanceMode?: components["schemas"]["SubscriptionBalanceMode"] | null;
+            durationUnit?: components["schemas"]["SubscriptionDurationUnit"] | null;
+            /** Durationvalue */
+            durationValue?: number | null;
+            /** Freezeallowed */
+            freezeAllowed?: boolean | null;
+            /** Freezemaxdays */
+            freezeMaxDays?: number | null;
+            /** Isactive */
+            isActive?: boolean | null;
+            /** Name */
+            name?: string | null;
+            /** Price */
+            price?: number | string | null;
+            /** Services */
+            services?: components["schemas"]["SubscriptionTypeServiceRef"][] | null;
+            /** Sortorder */
+            sortOrder?: number | null;
+            /** Totalunits */
+            totalUnits?: number | null;
+            unitKind?: components["schemas"]["SubscriptionUnitKind"] | null;
+        };
+        /** SubscriptionTypeServiceRef */
+        SubscriptionTypeServiceRef: {
+            /**
+             * Salonid
+             * Format: uuid
+             */
+            salonId: string;
+            /**
+             * Serviceid
+             * Format: uuid
+             */
+            serviceId: string;
+            /** Units */
+            units?: number | null;
+        };
+        /**
+         * SubscriptionUnitKind
+         * @enum {string}
+         */
+        SubscriptionUnitKind: "visits" | "minutes";
+        /**
+         * SubscriptionUseIn
+         * @description Строка услуги записи (record_services.id), оплачиваемая абонементом клиента.
+         */
+        SubscriptionUseIn: {
+            /**
+             * Recordserviceid
+             * Format: uuid
+             */
+            recordServiceId: string;
+            /**
+             * Subscriptionid
+             * Format: uuid
+             */
+            subscriptionId: string;
+        };
         /** SummaryOut */
         SummaryOut: {
             avgCheck: components["schemas"]["MetricOut"] | null;
@@ -6631,6 +7408,132 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_list_CertificateTransactionOut__"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_categories_api_admin_v1_certificates_categories_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_list_CertificateCategoryOut__"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_category_api_admin_v1_certificates_categories_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CertificateCategoryIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_CertificateCategoryOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_category_api_admin_v1_certificates_categories__category_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                category_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_category_api_admin_v1_certificates_categories__category_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                category_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CertificateCategoryPatchIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_CertificateCategoryOut_"];
                 };
             };
             /** @description Validation Error */
@@ -7238,6 +8141,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_list_ReminderDeliveryOut__"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    client_subscriptions_api_admin_v1_clients__client_id__subscriptions_get: {
+        parameters: {
+            query?: {
+                usableForSalon?: string | null;
+            };
+            header?: never;
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_list_SubscriptionOut__"];
                 };
             };
             /** @description Validation Error */
@@ -8120,6 +9056,7 @@ export interface operations {
                 certificateTemplateIds?: string[] | null;
                 clientId?: string | null;
                 products?: string[] | null;
+                subscriptionTypeIds?: string[] | null;
                 subtotal?: number | string | null;
             };
             header?: never;
@@ -9275,6 +10212,8 @@ export interface operations {
                 bonusRecordServiceIds?: string[] | null;
                 certificateTemplateIds?: string[] | null;
                 products?: string[] | null;
+                subscriptionTypeIds?: string[] | null;
+                subscriptionUses?: string[] | null;
             };
             header?: never;
             path: {
@@ -10675,6 +11614,296 @@ export interface operations {
             };
         };
     };
+    list_subscriptions_api_admin_v1_subscriptions_get: {
+        parameters: {
+            query?: {
+                page?: number;
+                perPage?: number;
+                q?: string | null;
+                salonId?: string | null;
+                status?: components["schemas"]["SubscriptionStatus"] | null;
+                typeId?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_list_SubscriptionOut__"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_subscription_api_admin_v1_subscriptions__subscription_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subscription_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_SubscriptionOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    freeze_subscription_api_admin_v1_subscriptions__subscription_id__freeze_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subscription_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_SubscriptionOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    subscription_operations_api_admin_v1_subscriptions__subscription_id__operations_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subscription_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_list_SubscriptionOperationOut__"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unfreeze_subscription_api_admin_v1_subscriptions__subscription_id__unfreeze_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subscription_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_SubscriptionOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_types_api_admin_v1_subscriptions_types_get: {
+        parameters: {
+            query?: {
+                active?: boolean | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_list_SubscriptionTypeOut__"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_type_api_admin_v1_subscriptions_types_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubscriptionTypeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_SubscriptionTypeOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_type_api_admin_v1_subscriptions_types__type_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                type_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_SubscriptionTypeOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_type_api_admin_v1_subscriptions_types__type_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                type_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubscriptionTypePatchIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_SubscriptionTypeOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     upload_file_api_admin_v1_uploads_post: {
         parameters: {
             query?: never;
@@ -11018,6 +12247,76 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ClientLoyaltyOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    client_reminders_api_bot_clients_by_telegram__tg_user_id__reminders_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-API-Key"?: string | null;
+            };
+            path: {
+                tg_user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientRemindersOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_client_reminders_api_bot_clients_by_telegram__tg_user_id__reminders_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-API-Key"?: string | null;
+            };
+            path: {
+                tg_user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClientRemindersIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientRemindersOut"];
                 };
             };
             /** @description Validation Error */

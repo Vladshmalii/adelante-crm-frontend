@@ -13,6 +13,7 @@ export {
 export { saveBlob } from './download';
 export { COLOR_PRESETS, genderLabels, roleLabels, toOptions } from './labels';
 export { formatMoney, formatUnitPrice } from './money';
+export { pluralUk } from './plural';
 export { formatPhone, isValidPhone, normalizePhone } from './phone';
 export {
   formatQuantity,

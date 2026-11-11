@@ -397,8 +397,9 @@ export function ReceiptFormModal({ open, onOpenChange }: ReceiptFormModalProps) 
                             recordId,
                             bonusRecordServiceIds: bonusIds,
                             clientId: preview?.clientId ?? undefined,
+                            products: productsBody(products),
                           }
-                        : { clientId }
+                        : { clientId, products: productsBody(products) }
                     }
                   />
                 </ProForm.Item>

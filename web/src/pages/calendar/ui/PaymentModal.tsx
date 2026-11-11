@@ -231,6 +231,7 @@ export function PaymentModal({
                       recordId: record?.id,
                       bonusRecordServiceIds: bonusIds,
                       clientId: record?.client.id,
+                      products: productsBody(products),
                     }}
                   />
                 </ProForm.Item>

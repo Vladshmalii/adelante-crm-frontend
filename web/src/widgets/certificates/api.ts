@@ -9,6 +9,7 @@ import { api, type Schema, unwrap } from '@/shared/api';
 export const certificateKeys = {
   all: ['certificates'] as const,
   templates: () => [...certificateKeys.all, 'templates'] as const,
+  categories: () => [...certificateKeys.all, 'categories'] as const,
   receipt: (receiptId: string) => [...certificateKeys.all, 'receipt', receiptId] as const,
   client: (clientId: string) => [...certificateKeys.all, 'client', clientId] as const,
   lookup: (body: Schema<'CertificateLookupIn'>) =>
@@ -32,6 +33,57 @@ export const certificateTemplatesQueryOptions = () =>
     queryFn: async ({ signal }) =>
       unwrap(await api.GET('/api/admin/v1/certificates/templates', { signal })).data,
   });
+
+/** Категории шаблонов (certificates.md, 11.1, решение 15): для группировки списка и продажи. */
+export const certificateCategoriesQueryOptions = () =>
+  queryOptions({
+    queryKey: certificateKeys.categories(),
+    queryFn: async ({ signal }) =>
+      unwrap(await api.GET('/api/admin/v1/certificates/categories', { signal })).data,
+  });
+
+/** Категории ведёт суперюзер: создать, переименовать, порядок. */
+export function useSaveCertificateCategory() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      body,
+    }: {
+      id?: string;
+      body: Schema<'CertificateCategoryPatchIn'>;
+    }) =>
+      id
+        ? unwrap(
+            await api.PATCH('/api/admin/v1/certificates/categories/{category_id}', {
+              params: { path: { category_id: id } },
+              body,
+            }),
+          ).data
+        : unwrap(
+            await api.POST('/api/admin/v1/certificates/categories', {
+              body: { name: body.name ?? '', sortOrder: body.sortOrder ?? 0 },
+            }),
+          ).data,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: certificateKeys.categories() }),
+  });
+}
+
+/** Удаление категории: её шаблоны становятся «Без категорії». */
+export function useDeleteCertificateCategory() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      unwrap(
+        await api.DELETE('/api/admin/v1/certificates/categories/{category_id}', {
+          params: { path: { category_id: id } },
+        }),
+      );
+    },
+    // Шаблоны тоже меняются: categoryId → null
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: certificateKeys.all }),
+  });
+}
 
 /** Сертификаты, выпущенные чеком салона: коды для показа, печати и активации. */
 export const receiptCertificatesQueryOptions = (receiptId: string) =>

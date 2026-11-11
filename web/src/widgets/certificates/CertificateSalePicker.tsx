@@ -4,13 +4,19 @@ import { Button, InputNumber, Select, Space, Typography } from 'antd';
 
 import { formatMoney } from '@/shared/lib';
 
-import { certificateTemplatesQueryOptions } from './api';
-import { addCertificate, type CertificateSaleItem, MAX_CERTIFICATE_QUANTITY } from './model';
+import { certificateCategoriesQueryOptions, certificateTemplatesQueryOptions } from './api';
+import {
+  addCertificate,
+  type CertificateSaleItem,
+  groupTemplatesByCategory,
+  isTemplateSellable,
+  MAX_CERTIFICATE_QUANTITY,
+} from './model';
 
 /**
- * «+ Сертифікат» в окне оплаты (certificates.md, раздел 4): шаблоны группой
- * «Сертифікати Мережа Adelante», количество (2 шт. — два кода). Строки-сертификаты не
- * участвуют в скидке и кешбэке, платятся только кассовыми способами — считает сервер.
+ * «+ Сертифікат» в окне оплаты (certificates.md, раздел 4): шаблоны по категориям (раздел 11),
+ * количество (2 шт. — два кода). Шаблоны, у которых прошла дата «до», не предлагаем. Строки-
+ * сертификаты не участвуют в скидке и кешбэке, платятся только кассовыми способами — считает сервер.
  */
 export function CertificateSalePicker({
   value,
@@ -20,7 +26,8 @@ export function CertificateSalePicker({
   onChange: (items: CertificateSaleItem[]) => void;
 }) {
   const templates = useQuery(certificateTemplatesQueryOptions());
-  const active = (templates.data ?? []).filter((t) => t.isActive);
+  const categories = useQuery(certificateCategoriesQueryOptions());
+  const active = (templates.data ?? []).filter((t) => isTemplateSellable(t));
   const byId = new Map((templates.data ?? []).map((t) => [t.id, t]));
   if (!active.length && !value.length) return null;
 
@@ -66,15 +73,13 @@ export function CertificateSalePicker({
           style={{ width: 320 }}
           loading={templates.isPending}
           showSearch={{ optionFilterProp: 'label' }}
-          options={[
-            {
-              label: 'Сертифікати Мережа Adelante',
-              options: active.map((t) => ({
-                value: t.id,
-                label: `${t.name} · ${formatMoney(t.amount)}`,
-              })),
-            },
-          ]}
+          options={groupTemplatesByCategory(active, categories.data ?? []).map((group) => ({
+            label: group.name,
+            options: group.items.map((t) => ({
+              value: t.id,
+              label: `${t.name} · ${formatMoney(t.amount)}`,
+            })),
+          }))}
           onChange={(templateId) => {
             onChange(addCertificate(value, templateId));
           }}
