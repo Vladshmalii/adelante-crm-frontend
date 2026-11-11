@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, redirect } from '@tanstack/react-router';
 
 import {
   dashboardQueryOptions,
@@ -18,7 +18,12 @@ import { requireSection } from '../-lib/guard';
 export const Route = createFileRoute('/_app/finances')({
   validateSearch: financesSearchSchema,
   loaderDeps: ({ search }) => search,
-  beforeLoad: ({ context }) => {
+  beforeLoad: ({ context, search }) => {
+    // Старые ссылки на вкладки, переехавшие в «Лояльність».
+    if (search.tab === 'balances') throw redirect({ to: '/loyalty/deposits', replace: true });
+    if (search.tab === 'certificates') {
+      throw redirect({ to: '/loyalty/certificates', search: { tab: 'issued' }, replace: true });
+    }
     requireSection(context.viewer, 'finances');
   },
   // Предзагрузка данных активной вкладки; «Методи оплат» грузятся в самой вкладке.

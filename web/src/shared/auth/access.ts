@@ -14,6 +14,7 @@ export type Section =
   | 'overview'
   | 'reports'
   | 'finances'
+  | 'loyalty'
   | 'settings';
 
 export interface Viewer {
@@ -49,6 +50,8 @@ const SECTIONS: Record<Section, (v: Viewer) => boolean> = {
   overview: (v) => v.isAdmin,
   reports: (v) => v.isAdmin,
   finances: (v) => v.isSuperuser,
+  // Типы карт, сертификаты, реестр и депозиты сети (frontend-loyalty-page.md, решение 8).
+  loyalty: (v) => v.isSuperuser,
   settings: (v) => v.isAdmin,
 };
 
@@ -95,12 +98,6 @@ export const permissions = (v: Viewer) => ({
     manage: v.isAdmin,
     /** Ручная корректировка особового рахунку и кешбэка. */
     adjust: v.isSuperuser,
-    /** Типы карт, уровни и бонусные правила (Налаштування → Лояльність). */
-    settings: v.isSuperuser,
-  },
-  certificates: {
-    /** Шаблоны подарочных сертификатов (Налаштування → Сертифікати) — один раз на сеть. */
-    settings: v.isSuperuser,
   },
 });
 

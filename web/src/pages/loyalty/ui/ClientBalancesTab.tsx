@@ -9,22 +9,21 @@ import { formatMoney, formatPhone } from '@/shared/lib';
 import { QueryErrorAlert } from '@/shared/ui';
 import { AccountBalance } from '@/widgets/loyalty';
 
-import { financesKeys } from '../api/finances.queries';
-
 type Item = Schema<'ClientBalanceItem'>;
 type Kind = 'all' | 'debt' | 'deposit';
 
 const PER_PAGE = 25;
 
 /**
- * «Залишки на рахунках клієнтів» (суперюзер): сумма депозитов и долгов по всей сети и список
+ * «Лояльність → Депозити» — залишки на рахунках клієнтів (суперюзер): сумма депозитов и долгов по всей сети и список
  * клиентов с ненулевым особовим рахунком. Деньги депозитов не лежат в кассах салонов.
  */
 export function ClientBalancesTab() {
   const [kind, setKind] = useState<Kind>('all');
   const [page, setPage] = useState(1);
   const { data, error, isFetching, refetch } = useQuery({
-    queryKey: [...financesKeys.all, 'client-balances', kind, page],
+    // Ключ под ['finances']: его сбрасывают операции со счётом (widgets/loyalty) и оплата визита.
+    queryKey: ['finances', 'client-balances', kind, page],
     queryFn: async ({ signal }) =>
       unwrap(
         await api.GET('/api/admin/v1/finances/client-balances', {

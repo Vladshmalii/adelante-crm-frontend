@@ -41,6 +41,7 @@ describe('права доступа (docs/ACCESS.md)', () => {
     expect(canAccess(v, 'calendar')).toBe(true);
     expect(canAccess(v, 'shifts')).toBe(true);
     expect(canAccess(v, 'settings')).toBe(false);
+    expect(canAccess(v, 'loyalty')).toBe(false);
     expect(permissions(v).records).toMatchObject({
       manageAll: false,
       pay: false,
@@ -61,6 +62,7 @@ describe('права доступа (docs/ACCESS.md)', () => {
     expect(canAccess(v, 'reports')).toBe(true);
     expect(canAccess(v, 'settings')).toBe(true);
     expect(canAccess(v, 'finances')).toBe(false);
+    expect(canAccess(v, 'loyalty')).toBe(false);
     const can = permissions(v);
     expect(can.inventory.manage).toBe(true);
     expect(can.records).toMatchObject({ manageAll: true, pay: true });
@@ -76,6 +78,7 @@ describe('права доступа (docs/ACCESS.md)', () => {
   it('суперюзер — финансы, выгрузки и управление администраторами', () => {
     const v = toViewer(me('administrator', { isSuperuser: true }));
     expect(canAccess(v, 'finances')).toBe(true);
+    expect(canAccess(v, 'loyalty')).toBe(true);
     const can = permissions(v);
     expect(can.clients.export).toBe(true);
     expect(can.reports.viewMoney).toBe(true);
@@ -86,12 +89,9 @@ describe('права доступа (docs/ACCESS.md)', () => {
     const master = permissions(toViewer(me('master')));
     const admin = permissions(toViewer(me('administrator')));
     const su = permissions(toViewer(me('administrator', { isSuperuser: true })));
-    expect(master.loyalty).toEqual({ manage: false, adjust: false, settings: false });
-    expect(admin.loyalty).toEqual({ manage: true, adjust: false, settings: false });
-    expect(su.loyalty).toEqual({ manage: true, adjust: true, settings: true });
-    expect(master.certificates.settings).toBe(false);
-    expect(admin.certificates.settings).toBe(false);
-    expect(su.certificates.settings).toBe(true);
+    expect(master.loyalty).toEqual({ manage: false, adjust: false });
+    expect(admin.loyalty).toEqual({ manage: true, adjust: false });
+    expect(su.loyalty).toEqual({ manage: true, adjust: true });
   });
 
   it('флаг суперюзера у мастера игнорируется', () => {

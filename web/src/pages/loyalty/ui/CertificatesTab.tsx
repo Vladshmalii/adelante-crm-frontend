@@ -11,8 +11,8 @@ import {
   ProTable,
 } from '@ant-design/pro-components';
 import { useQueries, useQuery } from '@tanstack/react-query';
-import { App, Button, Space, Tag } from 'antd';
-import { useState } from 'react';
+import { App, Button, Input, Segmented, Space, Tag } from 'antd';
+import { useMemo, useState } from 'react';
 
 import { errorMessage, type Schema } from '@/shared/api';
 import { meQueryOptions } from '@/shared/auth';
@@ -33,9 +33,13 @@ const scopeLabels: Record<Scope, string> = {
   services: 'На вибрані послуги',
 };
 
+type View = 'active' | 'archive';
+
 /**
- * Налаштування → Сертифікати (суперюзер): шаблоны подарочных сертификатов сети —
- * номинал (= цена), область «на все» / «на послуги» (услуги по салонам), срок.
+ * Лояльність → Сертифікати → «Типи сертифікатів» (суперюзер): шаблоны подарочных сертификатов
+ * сети — номинал (= цена), область «на все» / «на послуги» (услуги по салонам), срок.
+ * «Архів» — скрытые шаблоны (`isActive = false`); фильтр и поиск по названию — на клиенте,
+ * бекенд отдаёт все шаблоны одним списком.
  * Правка шаблона не меняет уже проданные сертификаты: у них снимок на момент продажи.
  */
 export function CertificatesTab() {
@@ -43,6 +47,14 @@ export function CertificatesTab() {
   const me = useQuery(meQueryOptions);
   const [form, setForm] = useState<{ template?: Template } | null>(null);
   const salonName = (id: string) => me.data?.salons.find((s) => s.id === id)?.name ?? id;
+  const [view, setView] = useState<View>('active');
+  const [query, setQuery] = useState('');
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return (templates.data ?? []).filter(
+      (t) => t.isActive === (view === 'active') && (!q || t.name.toLowerCase().includes(q)),
+    );
+  }, [templates.data, view, query]);
 
   const columns: ProColumns<Template>[] = [
     {
@@ -101,7 +113,7 @@ export function CertificatesTab() {
         headerTitle="Сертифікати Мережа Adelante"
         tooltip="Сертифікат діє в усіх салонах мережі. Зміни шаблону не впливають на продані сертифікати"
         columns={columns}
-        dataSource={templates.data}
+        dataSource={visible}
         loading={templates.isFetching}
         search={false}
         pagination={false}
@@ -109,6 +121,25 @@ export function CertificatesTab() {
         scroll={{ x: 'max-content' }}
         options={{ reload: () => void templates.refetch(), density: true }}
         toolBarRender={() => [
+          <Segmented<View>
+            key="view"
+            value={view}
+            onChange={setView}
+            options={[
+              { value: 'active', label: 'Активні' },
+              { value: 'archive', label: 'Архів' },
+            ]}
+          />,
+          <Input.Search
+            key="search"
+            allowClear
+            placeholder="Пошук за назвою"
+            style={{ width: 220 }}
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+            }}
+          />,
           <Button
             key="create"
             type="primary"

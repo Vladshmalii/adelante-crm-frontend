@@ -2,22 +2,20 @@ import { z } from 'zod';
 
 import { currentMonth, dayRangeToApi } from '@/shared/lib';
 
-export const FINANCE_TABS = [
-  'overview',
-  'operations',
-  'documents',
-  'receipts',
-  'methods',
-  'balances',
-  'certificates',
-] as const;
+export const FINANCE_TABS = ['overview', 'operations', 'documents', 'receipts', 'methods'] as const;
 export type FinanceTab = (typeof FINANCE_TABS)[number];
+
+/**
+ * Вкладки, переехавшие в «Лояльність» (frontend-loyalty-page.md, решение 5). Схема их ещё
+ * принимает, чтобы старые ссылки не падали на валидации: роут редиректит их на новые страницы.
+ */
+export const MOVED_FINANCE_TABS = ['balances', 'certificates'] as const;
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
 /** Состояние «Фінансів» в URL. Период общий для всех вкладок, остальные фильтры — свои. */
 export const financesSearchSchema = z.object({
-  tab: z.enum(FINANCE_TABS).default('overview'),
+  tab: z.enum([...FINANCE_TABS, ...MOVED_FINANCE_TABS]).default('overview'),
   from: day.optional(),
   to: day.optional(),
   page: z.number().int().positive().default(1),

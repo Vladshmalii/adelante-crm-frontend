@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, redirect } from '@tanstack/react-router';
 
 import {
   salonInfoQueryOptions,
@@ -12,10 +12,14 @@ import { requireSection } from '../-lib/guard';
 export const Route = createFileRoute('/_app/settings')({
   validateSearch: settingsSearchSchema,
   loaderDeps: ({ search }) => ({ tab: search.tab }),
-  beforeLoad: ({ context }) => {
+  beforeLoad: ({ context, search }) => {
+    // Старые ссылки на вкладки, переехавшие в «Лояльність».
+    if (search.tab === 'loyalty') throw redirect({ to: '/loyalty/cards', replace: true });
+    if (search.tab === 'certificates') {
+      throw redirect({ to: '/loyalty/certificates', search: { tab: 'types' }, replace: true });
+    }
     requireSection(context.viewer, 'settings');
   },
-  // «Лояльність» грузится в самой вкладке
   loader: ({ context: { queryClient }, deps }) =>
     deps.tab === 'salon'
       ? queryClient.query({ ...salonInfoQueryOptions(), staleTime: 'static' })
