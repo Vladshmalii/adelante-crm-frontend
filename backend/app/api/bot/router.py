@@ -7,7 +7,7 @@ Auth: X-API-Key. Бот не имеет доступа к БД и не явля�
 Бот не создаёт записи (решение от 28.09.2026): клиентам он напоминает о
 визитах и ведёт на сайт записи, мастерам — сообщает о новых, перенесённых и
 отменённых записях и показывает записи на день; клиенту — «Мій баланс»
-(особовий рахунок, карта лояльности, кешбэк и уровень; только просмотр) и
+(особовий рахунок, карта лояльности, кешбэк и уровень, абонементы; только просмотр) и
 «Нагадування» — свой канал напоминаний (backend/docs/sms-reminders.md).
 """
 
@@ -23,6 +23,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app.api.admin.subscriptions import service_names
 from app.api.security import verify_bot_api_key
 from app.config import Settings, get_settings
 from app.models.master import (
@@ -32,6 +33,9 @@ from app.models.master import (
     ReminderChannel,
     Salon,
     SalonStatus,
+    Subscription,
+    SubscriptionStatus,
+    SubscriptionUnitKind,
 )
 from app.models.shard import AuditAction, Record, RecordStatus
 from app.services import ledger, loyalty
@@ -270,16 +274,111 @@ class LoyaltyCardInfo(BaseModel):
     discount_fixed: Decimal
 
 
+class SubscriptionServiceInfo(BaseModel):
+    # null — название недоступно (услугу удалили, салон недоступен)
+    name: str | None
+    salon_name: str | None
+    # Остаток на эту услугу; при общем балансе — общий остаток абонемента
+    balance: int
+
+
+class SubscriptionInfo(BaseModel):
+    name: str
+    status: SubscriptionStatus  # pending | active | frozen
+    unit_kind: SubscriptionUnitKind  # visits | minutes
+    # shared — общий остаток на все услуги; separate — у каждой услуги свой
+    shared: bool
+    balance: int
+    services: list[SubscriptionServiceInfo]
+    # «Діє до»; null — бессрочный или ещё не активирован (pending)
+    expires_at: datetime | None
+    # Заморожен до (авторазморозка); null — без лимита
+    freeze_until: datetime | None
+
+
 class ClientLoyaltyOut(BaseModel):
     client_name: str
     # Особовий рахунок: > 0 — депозит, < 0 — борг
     account_balance: Decimal
     card: LoyaltyCardInfo | None
+    # Действующие абонементы (subscriptions.md, раздел 9): активные, ожидающие, замороженные
+    subscriptions: list[SubscriptionInfo] = []
+
+
+# Какие абонементы показывает бот
+BOT_SUBSCRIPTION_STATUSES = (
+    SubscriptionStatus.ACTIVE,
+    SubscriptionStatus.PENDING,
+    SubscriptionStatus.FROZEN,
+)
+
+
+async def _client_subscriptions(
+    request: Request, master_session: MasterSession, client_id: uuid.UUID
+) -> list[SubscriptionInfo]:
+    items = list(
+        await master_session.scalars(
+            select(Subscription)
+            .where(
+                Subscription.client_id == client_id,
+                Subscription.status.in_(BOT_SUBSCRIPTION_STATUSES),
+            )
+            .order_by(Subscription.created_at)
+        )
+    )
+    pairs = {(s.salon_id, s.service_id) for item in items for s in item.services}
+    names = await service_names(request, pairs) if pairs else {}
+    salon_ids = {salon for salon, _ in pairs}
+    salons = (
+        dict(
+            (
+                await master_session.execute(
+                    select(Salon.id, Salon.name).where(Salon.id.in_(salon_ids))
+                )
+            )
+            .tuples()
+            .all()
+        )
+        if salon_ids
+        else {}
+    )
+    result = []
+    for item in items:
+        services = []
+        for s in item.services:
+            basket = next(b for b in item.balances if b.matches(s.salon_id, s.service_id))
+            services.append(
+                SubscriptionServiceInfo(
+                    name=names.get((s.salon_id, s.service_id)),
+                    salon_name=salons.get(s.salon_id),
+                    balance=basket.balance,
+                )
+            )
+        result.append(
+            SubscriptionInfo(
+                name=item.name,
+                status=item.status,
+                unit_kind=item.unit_kind,
+                shared=all(b.service_id is None for b in item.balances),
+                balance=sum(b.balance for b in item.balances),
+                services=services,
+                expires_at=item.expires_at,
+                freeze_until=(
+                    item.freeze_until if item.status == SubscriptionStatus.FROZEN else None
+                ),
+            )
+        )
+    return result
 
 
 @router.get("/clients/by-telegram/{tg_user_id}/loyalty", response_model=ClientLoyaltyOut)
-async def client_loyalty(tg_user_id: int, master_session: MasterSession) -> ClientLoyaltyOut:
-    """Баланс счёта, карта, кешбэк и уровень клиента — только просмотр. 404 — клиента нет."""
+async def client_loyalty(
+    tg_user_id: int, request: Request, master_session: MasterSession
+) -> ClientLoyaltyOut:
+    """Баланс счёта, карта, кешбэк, уровень и абонементы клиента — только просмотр.
+
+    404 — клиента нет.
+    """
     client = await master_session.scalar(
         select(Client).where(Client.telegram_user_id == tg_user_id, Client.is_active.is_(True))
     )
@@ -307,7 +406,9 @@ async def client_loyalty(tg_user_id: int, master_session: MasterSession) -> Clie
             card=info,
         )
 
-    return await master_session.run_sync(build)
+    out = await master_session.run_sync(build)
+    out.subscriptions = await _client_subscriptions(request, master_session, client.id)
+    return out
 
 
 # --- Нагадування (sms-reminders.md, разделы 8–10) -----------------------------

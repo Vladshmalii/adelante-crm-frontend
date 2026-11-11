@@ -1175,3 +1175,119 @@ def test_spent_reversal_after_term(w: World, eager: None) -> None:
     state = _sub(sub_id)
     assert state["sub"].status.value == "expired"
     assert state["ops"][-2:] == [("reversal", 1, 1), ("expire", -1, 0)]
+
+
+# --- Чтение (раздел 9) ------------------------------------------------------------
+
+
+def test_operations_registry_and_bot(w: World, eager: None) -> None:
+    """Журнал абонемента, реестр (суперюзер), карточка клиента и бот (только просмотр)."""
+    from tests.conftest import BOT_KEY, phone
+
+    p, s = w.place, w.s
+    client_phone = phone()
+    cid = s.api.post(
+        "/clients",
+        token=s.su,
+        salon=s.id,
+        expect=201,
+        json={"firstName": "Ірина", "lastName": "Реєстрова", "phone": client_phone},
+    )["id"]
+    shared = _type(
+        w,
+        name=f"Реєстр {uuid.uuid4().hex[:4]}",
+        price=300,
+        totalUnits=3,
+        freezeAllowed=True,
+        services=[_pair(w, w.massage), _pair(w, w.solarium)],
+    )
+    separate = _type(
+        w,
+        price=200,
+        unitKind="minutes",
+        balanceMode="separate",
+        totalUnits=None,
+        durationValue=0,
+        activationMode="first_visit",
+        services=[_pair(w, w.solarium, 15)],
+    )
+    active = _bought(w, cid, shared)
+    pending = _bought(w, cid, separate)
+    cancelled_receipt = _sell(w, cid, [shared], [("cash", 300)])
+    p.cancel(cancelled_receipt["id"])
+    publish()
+    [cancelled] = _master(cancelled_receipt["id"])
+    rec = p.record(cid, w.massage)
+    visit = _pay_uses(w, rec["id"], [(_line(w, rec["id"], w.massage), active)])
+    p.cancel(visit["receipt"]["id"])
+    publish()
+    rec = p.record(cid, w.massage)
+    _pay_uses(w, rec["id"], [(_line(w, rec["id"], w.massage), active)])
+
+    # Журнал: новые сверху, со салоном и чеком списания
+    ops = s.api.get(f"/subscriptions/{active}/operations", token=w.adm, salon=s.id)
+    assert [o["type"] for o in ops] == ["use", "reversal", "use", "issue"]
+    assert ops[0]["salonId"] == s.id and ops[0]["receiptId"] and ops[0]["recordServiceId"]
+    assert ops[1]["reversesId"] == ops[2]["id"] and ops[1]["delta"] == 1
+    assert ops[0]["basketServiceId"] is None  # shared — одна корзина
+    s.api.get(f"/subscriptions/{uuid.uuid4()}/operations", token=w.adm, salon=s.id, expect=404)
+
+    # Карточка клиента: все абонементы, новые сверху
+    card = s.api.get(f"/clients/{cid}/subscriptions", token=w.adm, salon=s.id)
+    by_id = {x["id"]: x for x in card}
+    assert set(by_id) == {str(active), str(pending), str(cancelled["sub"].id)}
+    one = by_id[str(active)]
+    assert one["status"] == "active" and one["balance"] == 2 and one["unitsTotal"] == 3
+    assert one["client"]["name"] == "Ірина Реєстрова"
+    assert one["soldSalonId"] == s.id and one["soldSalonName"]
+    assert {x["serviceName"] for x in one["services"]} == {"Солярій 3 хв", "Масаж"}
+    assert all(x["balance"] == 2 for x in one["services"])
+    assert by_id[str(pending)]["services"][0]["units"] == 15
+    assert s.api.get(f"/subscriptions/{active}", token=w.adm, salon=s.id)["id"] == str(active)
+
+    # Реестр — только суперюзер; фильтры и поиск по клиенту
+    s.api.get("/subscriptions", token=w.adm, salon=s.id, expect=403)
+    found = s.api.get(
+        "/subscriptions", token=s.su, salon=s.id, params={"q": client_phone[-7:], "perPage": 2}
+    )
+    assert len(found) == 2
+    raw = s.api.client.get(
+        "/api/admin/v1/subscriptions",
+        params={"q": "Реєстрова", "perPage": 2},
+        headers={"Authorization": f"Bearer {s.su}", "X-Salon-Id": s.id},
+    ).json()
+    assert raw["meta"]["total"] == 3 and raw["meta"]["totalPages"] == 2
+    by_status = s.api.get(
+        "/subscriptions",
+        token=s.su,
+        salon=s.id,
+        params={"q": "Реєстрова", "status": "cancelled"},
+    )
+    assert [x["id"] for x in by_status] == [str(cancelled["sub"].id)]
+    by_type = s.api.get(
+        "/subscriptions",
+        token=s.su,
+        salon=s.id,
+        params={"typeId": separate["id"], "salonId": s.id},
+    )
+    assert [x["id"] for x in by_type] == [str(pending)]
+    by_name = s.api.get("/subscriptions", token=s.su, salon=s.id, params={"q": shared["name"]})
+    assert {x["id"] for x in by_name} == {str(active), str(cancelled["sub"].id)}
+
+    # Бот: активные, ожидающие, замороженные; отменённые — нет
+    _freeze(w, active)
+    bot = {"prefix": "/api/bot", "headers": {"X-API-Key": BOT_KEY}}
+    tg = 960_000_000 + int(client_phone[-5:])
+    s.api.post("/link-telegram", **bot, json={"phone": client_phone, "telegram_user_id": tg})
+    data = s.api.get(f"/clients/by-telegram/{tg}/loyalty", **bot)
+    shown = {x["name"]: x for x in data["subscriptions"]}
+    assert set(shown) == {shared["name"], separate["name"]}
+    frozen = shown[shared["name"]]
+    assert frozen["status"] == "frozen" and frozen["shared"] is True and frozen["balance"] == 2
+    assert frozen["expires_at"] is not None
+    waiting = shown[separate["name"]]
+    assert waiting["status"] == "pending" and waiting["unit_kind"] == "minutes"
+    assert waiting["services"] == [
+        {"name": "Солярій 3 хв", "salon_name": waiting["services"][0]["salon_name"], "balance": 15}
+    ]
+    assert waiting["expires_at"] is None

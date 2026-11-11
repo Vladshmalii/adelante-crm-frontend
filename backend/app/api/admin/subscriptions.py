@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 
 from app.api.admin.certificates import check_shard_pairs
 from app.api.admin.deps import Author, CurrentAuthor
-from app.api.schemas import ApiModel, Envelope, PersonRef
+from app.api.schemas import ApiModel, Envelope, PersonRef, page_meta
 from app.api.security import AdminUser, SuperUser, require_salon_access
 from app.models.master import (
     Client,
@@ -32,6 +32,7 @@ from app.models.master import (
     SubscriptionActivationMode,
     SubscriptionBalanceMode,
     SubscriptionDurationUnit,
+    SubscriptionOperationType,
     SubscriptionStatus,
     SubscriptionType,
     SubscriptionTypeService,
@@ -729,4 +730,137 @@ async def unfreeze_subscription(
         data=await _freeze_action(
             subscription_id, request, author, master_session, tenant_session, unfreeze=True
         )
+    )
+
+
+# --- Журнал и реестр (раздел 9) -----------------------------------------------------
+
+
+class SubscriptionOperationOut(ApiModel):
+    id: uuid.UUID
+    type: SubscriptionOperationType
+    # Единицы со знаком: + в корзину, − из корзины
+    delta: int
+    balance_after: int
+    # Корзина: у shared salonId/serviceId корзины — null
+    balance_id: uuid.UUID
+    basket_salon_id: uuid.UUID | None
+    basket_service_id: uuid.UUID | None
+    # Где и по какому чеку (списание, сторно — салон визита)
+    salon_id: uuid.UUID | None
+    salon_name: str | None
+    receipt_id: uuid.UUID | None
+    record_id: uuid.UUID | None
+    record_service_id: uuid.UUID | None
+    reverses_id: uuid.UUID | None
+    comment: str | None
+    author_name: str | None
+    created_at: datetime
+
+
+@router.get(
+    "/subscriptions/{subscription_id}/operations",
+    response_model=Envelope[list[SubscriptionOperationOut]],
+)
+async def subscription_operations(
+    subscription_id: uuid.UUID, _admin: AdminUser, master_session: MasterSession
+) -> Envelope[list[SubscriptionOperationOut]]:
+    """Журнал абонемента, новые сверху: продажа, списания, сторно, сгорание, аннулирование.
+
+    Заморозка и разморозка остаток не меняют — их нет в журнале (они в аудите).
+    """
+    found = await _get_subscription(master_session, subscription_id)
+    ops = await master_session.run_sync(
+        lambda s: subscriptions_service.operations(s, subscription_id)
+    )
+    baskets = {b.id: b for b in found.balances}
+    salon_ids = {op.salon_id for op in ops if op.salon_id}
+    salons = (
+        dict(
+            (
+                await master_session.execute(
+                    select(Salon.id, Salon.name).where(Salon.id.in_(salon_ids))
+                )
+            )
+            .tuples()
+            .all()
+        )
+        if salon_ids
+        else {}
+    )
+    return Envelope(
+        data=[
+            SubscriptionOperationOut(
+                id=op.id,
+                type=op.type,
+                delta=op.delta,
+                balance_after=op.balance_after,
+                balance_id=op.balance_id,
+                basket_salon_id=baskets[op.balance_id].salon_id
+                if op.balance_id in baskets
+                else None,
+                basket_service_id=(
+                    baskets[op.balance_id].service_id if op.balance_id in baskets else None
+                ),
+                salon_id=op.salon_id,
+                salon_name=salons.get(op.salon_id) if op.salon_id else None,
+                receipt_id=op.receipt_id,
+                record_id=op.record_id,
+                record_service_id=op.record_service_id,
+                reverses_id=op.reverses_id,
+                comment=op.comment,
+                author_name=op.author_name,
+                created_at=op.created_at,
+            )
+            for op in ops
+        ]
+    )
+
+
+@router.get("/subscriptions", response_model=Envelope[list[SubscriptionOut]])
+async def list_subscriptions(
+    request: Request,
+    _superuser: SuperUser,
+    master_session: MasterSession,
+    subscription_status: Annotated[SubscriptionStatus | None, Query(alias="status")] = None,
+    type_id: Annotated[uuid.UUID | None, Query(alias="typeId")] = None,
+    salon_id: Annotated[uuid.UUID | None, Query(alias="salonId")] = None,
+    q: Annotated[str | None, Query(max_length=100)] = None,
+    page: Annotated[int, Query(ge=1)] = 1,
+    per_page: Annotated[int, Query(alias="perPage", ge=1, le=200)] = 50,
+) -> Envelope[list[SubscriptionOut]]:
+    """Реестр проданных абонементов сети (раздел 9), новые сверху.
+
+    salonId — салон-продавец; q — название абонемента, имя или телефон клиента.
+    """
+    query = select(Subscription)
+    if subscription_status is not None:
+        query = query.where(Subscription.status == subscription_status)
+    if type_id is not None:
+        query = query.where(Subscription.type_id == type_id)
+    if salon_id is not None:
+        query = query.where(Subscription.sold_salon_id == salon_id)
+    if q and q.strip():
+        pattern = f"%{q.strip()}%"
+        query = query.where(
+            Subscription.name.ilike(pattern)
+            | Subscription.client_id.in_(
+                select(Client.id).where(
+                    Client.first_name.ilike(pattern)
+                    | Client.last_name.ilike(pattern)
+                    | Client.phone.ilike(pattern)
+                )
+            )
+        )
+    total = await master_session.scalar(select(func.count()).select_from(query.subquery()))
+    items = list(
+        await master_session.scalars(
+            query.order_by(Subscription.created_at.desc(), Subscription.id)
+            .offset((page - 1) * per_page)
+            .limit(per_page)
+        )
+    )
+    return Envelope(
+        data=await subscriptions_out(request, master_session, items),
+        meta=page_meta(page, per_page, total or 0),
     )

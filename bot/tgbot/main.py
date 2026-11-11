@@ -6,7 +6,7 @@ Celery-воркер backend'а напрямую в Telegram API — этот п�
 
 Бот не создаёт записи (решение от 28.09.2026):
 - клиенту — ссылки на сайт записи, «Мій баланс» (особовий рахунок, карта
-  лояльности, кешбэк, уровень — только просмотр) и «Нагадування» — выбор канала
+  лояльности, кешбэк, уровень, абонементы — только просмотр) и «Нагадування» — выбор канала
   напоминаний (Telegram / SMS / не надсилати); сами напоминания шлёт воркер;
 - мастеру — его записи на сегодня или на выбранную дату;
 - администратору — только уведомления от воркера.
@@ -286,8 +286,45 @@ def _money(value: str | float) -> str:
     return f"{text} ₴"
 
 
+SUBSCRIPTION_STATUS = {
+    "active": "діє",
+    "pending": "почне діяти з першого візиту",
+    "frozen": "заморожено",
+}
+
+
+def _units(value: int, kind: str) -> str:
+    return f"{value} хв" if kind == "minutes" else f"{value} відв."
+
+
+def _date(value: str) -> str:
+    return datetime.fromisoformat(value).astimezone(TZ).strftime("%d.%m.%Y")
+
+
+def format_subscriptions(items: list[dict[str, Any]]) -> list[str]:
+    """Абонементы: название, статус, «діє до», остатки по услугам (только просмотр)."""
+    lines = []
+    for item in items:
+        status = SUBSCRIPTION_STATUS.get(item["status"], item["status"])
+        if item["status"] == "frozen" and item.get("freeze_until"):
+            status += f" до {_date(item['freeze_until'])}"
+        elif item.get("expires_at"):
+            status += f", до {_date(item['expires_at'])}"
+        lines.append(f"🎟 Абонемент <b>{html.escape(item['name'])}</b> — {status}")
+        kind = item["unit_kind"]
+        if item["shared"]:
+            names = ", ".join(html.escape(s["name"] or "послуга") for s in item["services"])
+            lines.append(f"   Залишок: <b>{_units(item['balance'], kind)}</b> ({names})")
+        else:
+            for service in item["services"]:
+                name = html.escape(service["name"] or "послуга")
+                lines.append(f"   {name}: <b>{_units(service['balance'], kind)}</b>")
+    return lines
+
+
 def format_balance(data: dict[str, Any]) -> str:
-    """«Мій баланс»: особовий рахунок (депозит или борг), карта, кешбэк, уровень и скидка."""
+    """«Мій баланс»: особовий рахунок (депозит или борг), карта, кешбэк, уровень и скидка,
+    абонементы."""
     balance = Decimal(str(data["account_balance"]))
     if balance > 0:
         account = f"депозит <b>{_money(balance)}</b>"
@@ -296,10 +333,11 @@ def format_balance(data: dict[str, Any]) -> str:
     else:
         account = "0 ₴"
     lines = [f"💳 Особовий рахунок: {account}"]
+    subscriptions = format_subscriptions(data.get("subscriptions") or [])
     card = data.get("card")
     if not card:
         lines.append("🎫 Картки лояльності немає — її видають у салоні.")
-        return "\n".join(lines)
+        return "\n".join(lines + subscriptions)
     number = " ".join(card["number"][i : i + 4] for i in range(0, len(card["number"]), 4))
     lines.append(f"🎫 Картка: <code>{number}</code> ({html.escape(card['card_type'])})")
     lines.append(f"💰 Кешбек: <b>{_money(card['cashback'])}</b>")
@@ -316,7 +354,7 @@ def format_balance(data: dict[str, Any]) -> str:
         parts.append("знижка " + " / ".join(discounts))
     if parts:
         lines.append("⭐ Рівень: " + " · ".join(parts))
-    return "\n".join(lines)
+    return "\n".join(lines + subscriptions)
 
 
 @router.message(Command("balance"))

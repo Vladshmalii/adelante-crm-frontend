@@ -22,7 +22,12 @@ def test_client_loyalty_for_bot(new_salon: Salon) -> None:
     api.post("/link-telegram", **BOT, json={"phone": client_phone, "telegram_user_id": tg})
 
     empty = api.get(f"/clients/by-telegram/{tg}/loyalty", **BOT)
-    assert empty == {"client_name": "Олена", "account_balance": "0", "card": None}
+    assert empty == {
+        "client_name": "Олена",
+        "account_balance": "0",
+        "card": None,
+        "subscriptions": [],
+    }
 
     api.post(
         f"/clients/{client['id']}/account/adjustments",
