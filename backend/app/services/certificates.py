@@ -12,7 +12,7 @@
 import secrets
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 from pydantic import BaseModel, Field
@@ -23,6 +23,7 @@ from app.models.master import (
     AccountKind,
     AccountTransaction,
     Certificate,
+    CertificateProduct,
     CertificateScope,
     CertificateService,
     CertificateStatus,
@@ -32,6 +33,7 @@ from app.models.master import (
     TransactionType,
 )
 from app.services import ledger
+from app.timeutils import day_bounds, now_local
 
 # Без похожих символов: 0/O, 1/I/L. 31 символ × 10 = ≈49,5 бит случайности
 CODE_ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
@@ -43,6 +45,10 @@ MAX_QUANTITY = 20
 
 class CertificateError(Exception):
     pass
+
+
+class SaleClosed(CertificateError):
+    """Шаблон «до даты» после этой даты не продаётся (раздел 11.3) — 422."""
 
 
 class CertificateSale(BaseModel):
@@ -63,11 +69,24 @@ class Issue:
     amount: Decimal
     scope: CertificateScope
     valid_days: int | None
-    # Пары (салон, услуга) шаблона «на послуги» на момент продажи
+    # Пары (салон, услуга) и (салон, товар) шаблона на момент продажи
     services: tuple[tuple[uuid.UUID, uuid.UUID], ...] = ()
+    products: tuple[tuple[uuid.UUID, uuid.UUID], ...] = ()
+    # Срок «до даты»: сертификат сгорает в конце этого дня по Киеву
+    valid_until: date | None = None
 
     def key(self, salon_id: uuid.UUID, receipt_id: uuid.UUID) -> str:
         return f"cert:{salon_id}:{receipt_id}:{self.line}:{self.n}"
+
+    def expires_at(self, now: datetime) -> datetime | None:
+        if self.valid_until is not None:
+            return expiry_of(self.valid_until)
+        return now + timedelta(days=self.valid_days) if self.valid_days else None
+
+
+def expiry_of(valid_until: date) -> datetime:
+    """Конец дня valid_until по Киеву — начало следующих суток (истёк при expires_at <= now)."""
+    return day_bounds(valid_until)[1]
 
 
 @dataclass(frozen=True)
@@ -115,6 +134,8 @@ def plan_issues(
                     scope=template.scope,
                     valid_days=template.valid_days,
                     services=tuple((s.salon_id, s.service_id) for s in template.services),
+                    products=tuple((p.salon_id, p.product_id) for p in template.products),
+                    valid_until=template.valid_until,
                 )
             )
     return issues
@@ -136,6 +157,13 @@ def load_templates(
     hidden = next((t for t in templates.values() if not t.is_active), None)
     if hidden is not None:
         raise CertificateError(f"Сертифікат «{hidden.name}» не продається")
+    today = now_local().date()
+    closed = next(
+        (t for t in templates.values() if t.valid_until is not None and t.valid_until < today),
+        None,
+    )
+    if closed is not None:
+        raise SaleClosed(f"Термін продажу сертифіката «{closed.name}» минув")
     return templates
 
 
@@ -188,7 +216,7 @@ def issue(
             name=item.name,
             amount=item.amount,
             scope=item.scope,
-            expires_at=now + timedelta(days=item.valid_days) if item.valid_days else None,
+            expires_at=item.expires_at(now),
             status=CertificateStatus.ISSUED,
             sold_salon_id=salon_id,
             sold_receipt_id=receipt_id,
@@ -198,6 +226,10 @@ def issue(
             services=[
                 CertificateService(salon_id=salon, service_id=service)
                 for salon, service in item.services
+            ],
+            products=[
+                CertificateProduct(salon_id=salon, product_id=product)
+                for salon, product in item.products
             ],
         )
         session.add(certificate)
@@ -352,11 +384,23 @@ def balances(session: Session, certificate_ids: list[uuid.UUID]) -> dict[uuid.UU
 
 
 @dataclass(frozen=True)
-class ServiceAmount:
-    """Строка-услуга чека: сколько за неё платят после скидки (бонусная — 0)."""
+class LineAmount:
+    """Строка чека для области сертификата: услуга или товар и сумма после скидки.
 
-    service_id: uuid.UUID
+    kind — service (item_id = service_id, бонусная — 0 ₴) или product (item_id =
+    product_id строки receipt_product_lines, сумма — её paid_amount).
+    """
+
+    kind: str
+    item_id: uuid.UUID
     amount: Decimal
+
+
+SCOPE_ITEMS = {
+    CertificateScope.SERVICES: "послуги",
+    CertificateScope.PRODUCTS: "товари",
+    CertificateScope.SERVICES_PRODUCTS: "послуги й товари",
+}
 
 
 @dataclass(frozen=True)
@@ -376,13 +420,16 @@ def payment_key(salon_id: uuid.UUID, receipt_id: uuid.UUID, certificate_id: uuid
 
 
 def eligible_amount(
-    certificate: Certificate, salon_id: uuid.UUID, lines: list[ServiceAmount]
+    certificate: Certificate, salon_id: uuid.UUID, lines: list[LineAmount]
 ) -> Decimal | None:
-    """Сколько строк чека покрывает область «на послуги»; None — «на все» (без ограничения)."""
+    """Сколько строк чека покрывает область (услуги и/или товары из снимка).
+
+    None — «на все»: без ограничения по строкам (раздел 11.3).
+    """
     if certificate.scope == CertificateScope.ANY:
         return None
     return sum(
-        (line.amount for line in lines if certificate.covers(salon_id, line.service_id)),
+        (line.amount for line in lines if certificate.covers(salon_id, line.kind, line.item_id)),
         Decimal(0),
     )
 
@@ -419,15 +466,15 @@ def redeem(
     receipt_id: uuid.UUID,
     client_id: uuid.UUID | None,
     redemptions: list[Redemption],
-    lines: list[ServiceAmount],
+    lines: list[LineAmount],
     meta: ledger.Meta,
     now: datetime | None = None,
 ) -> None:
     """Списание с сертификатов в транзакции оплаты. Идемпотентно по ключу на сертификат.
 
     Счета блокируются по id сертификата. Неактивированный сертификат активируется
-    на клиента чека. Область «на послуги»: сумма частей таких сертификатов — не
-    больше строк, которые покрывает хотя бы один из них; товары не оплачиваются.
+    на клиента чека. Области кроме «на все»: сумма частей таких сертификатов — не
+    больше строк (услуг и/или товаров), которые покрывает хотя бы один из них.
     """
     now = now or datetime.now(UTC)
     by_id: dict[uuid.UUID, Decimal] = {}
@@ -460,7 +507,7 @@ def redeem(
             if amount > limit:
                 raise ledger.LedgerError(
                     f"{certificate.code}: сертифікатом «{certificate.name}» можна оплатити "
-                    f"лише його послуги — не більше {limit} ₴"
+                    f"лише його {SCOPE_ITEMS[certificate.scope]} — не більше {limit} ₴"
                 )
             scoped.append(certificate)
             scoped_total += amount
@@ -492,13 +539,14 @@ def redeem(
             (
                 line.amount
                 for line in lines
-                if any(c.covers(salon_id, line.service_id) for c in scoped)
+                if any(c.covers(salon_id, line.kind, line.item_id) for c in scoped)
             ),
             Decimal(0),
         )
         if scoped_total > covered:
             raise ledger.LedgerError(
-                f"Сертифікатами на послуги можна оплатити не більше {covered} ₴ у цьому чеку"
+                "Сертифікатами на послуги чи товари можна оплатити не більше "
+                f"{covered} ₴ у цьому чеку"
             )
     session.flush()
 

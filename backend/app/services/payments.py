@@ -73,9 +73,9 @@ class Charges:
     bonus_lines: tuple[loyalty.BonusLine, ...] = ()
     # Сертификаты, продаваемые чеком: выпуск в той же транзакции Master
     issues: tuple[certificates.Issue, ...] = ()
-    # Части, оплаченные сертификатами, и строки-услуги чека для области «на послуги»
+    # Части, оплаченные сертификатами, и строки чека (услуги, товары) для их областей
     redemptions: tuple[certificates.Redemption, ...] = ()
-    service_lines: tuple[certificates.ServiceAmount, ...] = ()
+    scope_lines: tuple[certificates.LineAmount, ...] = ()
 
     @property
     def needs_client(self) -> bool:
@@ -144,7 +144,7 @@ def charge(
             receipt_id=receipt_id,
             client_id=client_id,
             redemptions=list(charges.redemptions),
-            lines=list(charges.service_lines),
+            lines=list(charges.scope_lines),
             meta=meta,
         )
     issued = certificates.issue(

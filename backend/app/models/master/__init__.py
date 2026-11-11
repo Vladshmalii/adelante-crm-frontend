@@ -7,10 +7,13 @@ from app.models.master.account import (
 )
 from app.models.master.certificate import (
     Certificate,
+    CertificateCategory,
+    CertificateProduct,
     CertificateScope,
     CertificateService,
     CertificateStatus,
     CertificateTemplate,
+    CertificateTemplateProduct,
     CertificateTemplateService,
 )
 from app.models.master.client import (
@@ -48,10 +51,13 @@ __all__ = [
     "BonusOperationKind",
     "CardStatus",
     "Certificate",
+    "CertificateCategory",
+    "CertificateProduct",
     "CertificateScope",
     "CertificateService",
     "CertificateStatus",
     "CertificateTemplate",
+    "CertificateTemplateProduct",
     "CertificateTemplateService",
     "Client",
     "ClientAccount",

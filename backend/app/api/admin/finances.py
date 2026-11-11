@@ -973,6 +973,8 @@ async def create_receipt(
         raise HTTPException(exc.status_code, str(exc))
     except visits_service.StaleCheckout as exc:
         raise HTTPException(409, str(exc))
+    except visits_service.InvalidSale as exc:
+        raise HTTPException(422, str(exc))
     except visits_service.PaymentError as exc:
         raise HTTPException(409 if body.record_id else 422, str(exc))
     return Envelope(data=await _receipt_out(tenant_session, receipt))

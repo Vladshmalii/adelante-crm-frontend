@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 from app.models.master import Client, LoyaltyCard
 from app.models.shard import DiscountSource, ProductSaleMode, Record
 from app.services import certificates, ledger, loyalty
-from app.services.certificates import ServiceAmount
+from app.services.certificates import LineAmount
 from app.services.ledger import money
 
 # Порядок при равных суммах: личная, % карты, фиксированная карты
@@ -89,17 +89,27 @@ class Quote:
         """Итог без сертификатов — часть, которую можно оплатить счётом, кешбэком, сертификатом."""
         return self.total - self.certificates
 
-    def service_amounts(self) -> list[ServiceAmount]:
-        """Строки-услуги после скидки (пропорционально) — база области «на послуги»."""
+    def scope_lines(self) -> list[LineAmount]:
+        """Строки-услуги и товары со склада после скидки — база областей сертификата.
+
+        Услуги — пропорционально скидке, товары — их paid_amount (product_paid_amounts),
+        как в receipt_product_lines (certificates.md, 11.3).
+        """
         base = self.sold - self.bonus_amount - self.certificates
         if base <= 0:
             return []
         factor = (base - self.discount) / base
-        return [
-            ServiceAmount(service_id=line.service_id, amount=money(line.amount * factor))
+        services = [
+            LineAmount(kind="service", item_id=line.service_id, amount=money(line.amount * factor))
             for line in self.lines
             if line.kind == "service" and line.service_id is not None
         ]
+        product_ids = [line.product_id for line in self.lines if line.product_id is not None]
+        products = [
+            LineAmount(kind="product", item_id=product_id, amount=paid)
+            for product_id, paid in zip(product_ids, self.product_paid_amounts(), strict=True)
+        ]
+        return services + products
 
     def product_paid_amounts(self) -> list[Decimal]:
         """Строки товаров со склада после скидки — по той же формуле, что и услуги.

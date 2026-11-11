@@ -768,6 +768,8 @@ async def pay_record(
         )
     except product_sales.ProductSaleError as exc:
         raise HTTPException(exc.status_code, str(exc))
+    except visits_service.InvalidSale as exc:
+        raise HTTPException(422, str(exc))
     except visits_service.PaymentError as exc:
         raise HTTPException(409, str(exc))
     return Envelope(

@@ -191,6 +191,8 @@ async def _issues(
 ) -> list[certificates.Issue]:
     try:
         return await checkout.certificate_issues(master_session, certificate_sales(template_ids))
+    except certificates.SaleClosed as exc:
+        raise HTTPException(422, str(exc))
     except certificates.CertificateError as exc:
         raise HTTPException(409, str(exc))
 

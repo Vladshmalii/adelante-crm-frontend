@@ -66,6 +66,11 @@ class StaleCheckout(PaymentError):
     """expectedTotal не совпал с итогом сервера — предпросмотр устарел."""
 
 
+class InvalidSale(PaymentError):
+    """Продажа невозможна по данным запроса (422): срок продажи сертификата минул,
+    абонемент без клиента в чеке."""
+
+
 class PaymentPart(BaseModel):
     payment_method_id: uuid.UUID
     amount: Decimal
@@ -395,7 +400,7 @@ async def pay_record(
         card_id=card_id,
         total=q.rest,
         issues=tuple(issues),
-        service_lines=tuple(q.service_amounts()),
+        scope_lines=tuple(q.scope_lines()),
         bonus_lines=tuple(
             loyalty.BonusLine(record_service_id=s.id, service_id=s.service_id, is_bonus=True)
             for s in record.services
@@ -514,6 +519,8 @@ async def _certificate_issues(
 ) -> list[certificates.Issue]:
     try:
         return await checkout.certificate_issues(master_session, sales or [])
+    except certificates.SaleClosed as exc:
+        raise InvalidSale(str(exc))
     except certificates.CertificateError as exc:
         raise PaymentError(str(exc))
 
@@ -587,7 +594,7 @@ async def sell(
         card_id=card_id,
         total=q.rest,
         issues=tuple(issues),
-        service_lines=tuple(q.service_amounts()),
+        scope_lines=tuple(q.scope_lines()),
     )
     if client_id is None and charges.redemptions:
         raise PaymentError("Для оплати сертифікатом оберіть клієнта")
