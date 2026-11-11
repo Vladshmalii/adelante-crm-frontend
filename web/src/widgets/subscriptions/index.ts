@@ -40,6 +40,7 @@ export {
   SubscriptionDrawer,
   SubscriptionStatusTag,
 } from './SubscriptionDetails';
+export { RecordServiceSubscription } from './RecordServiceSubscription';
 export { SubscriptionOperations } from './SubscriptionOperations';
 export { SubscriptionSalePicker } from './SubscriptionSalePicker';
 export { SubscriptionUseSelect } from './SubscriptionUseSelect';

@@ -31,6 +31,7 @@ import { RecordConsumables } from '@/widgets/record-consumables';
 
 import { recordQueryOptions } from '../api/overview.queries';
 import { auditActionLabels } from '../model/labels';
+import { RecordServiceSubscription } from '@/widgets/subscriptions';
 
 type RecordItem = Schema<'RecordDetailOut'>;
 
@@ -143,9 +144,13 @@ function Details({ record }: { record: RecordItem }) {
           children: (
             <Space orientation="vertical" size={0}>
               {record.services.map((s) => (
-                <span key={s.id}>
-                  {s.name} · {s.durationMinutes} хв · {formatMoney(s.price)}
-                </span>
+                <Space key={s.id} size={8} wrap>
+                  <span>
+                    {s.name} · {s.durationMinutes} хв · {formatMoney(s.price)}
+                  </span>
+                  {/* Оплачено абонементом; раздел открыт только администратору и суперюзеру */}
+                  <RecordServiceSubscription service={s} />
+                </Space>
               ))}
             </Space>
           ),

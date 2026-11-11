@@ -3,7 +3,19 @@ import { Column, Line, Pie } from '@ant-design/plots';
 import { PageContainer, ProCard, StatisticCard } from '@ant-design/pro-components';
 import { useQuery } from '@tanstack/react-query';
 import { getRouteApi } from '@tanstack/react-router';
-import { App, Button, Col, Empty, Row, Segmented, Space, Table, Tabs, Typography } from 'antd';
+import {
+  App,
+  Button,
+  Col,
+  Empty,
+  Row,
+  Segmented,
+  Space,
+  Table,
+  Tabs,
+  Tooltip,
+  Typography,
+} from 'antd';
 
 import { errorMessage, type Schema } from '@/shared/api';
 import { useViewer } from '@/shared/auth';
@@ -434,6 +446,19 @@ function ServicesBlock({ period }: { period: Period }) {
                       key: 'revenue',
                       align: 'right' as const,
                       render: (_: unknown, s: ServiceRow) => formatMoney(s.revenue),
+                    },
+                    {
+                      title: (
+                        <Tooltip title="Візити, оплачені абонементом: оплачена сума абонемента на одиницю. Грошей у касу ці візити не дають — виручка врахована при продажу абонемента">
+                          Вартість за абонементом
+                        </Tooltip>
+                      ),
+                      key: 'subscriptionValue',
+                      align: 'right' as const,
+                      render: (_: unknown, s: ServiceRow) =>
+                        Number(s.subscriptionValue ?? 0) > 0
+                          ? formatMoney(s.subscriptionValue)
+                          : '—',
                     },
                   ]
                 : []),

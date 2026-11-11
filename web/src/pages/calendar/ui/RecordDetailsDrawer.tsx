@@ -41,6 +41,7 @@ import {
 import { ChangeDetails } from '@/shared/ui';
 import { discountSourceLabels, RecordLoyaltyBlock } from '@/widgets/loyalty';
 import { RecordConsumables } from '@/widgets/record-consumables';
+import { RecordServiceSubscription } from '@/widgets/subscriptions';
 
 import { useSetRecordStatus } from '../api/calendar.mutations';
 import { clientCardQueryOptions, recordQueryOptions } from '../api/calendar.queries';
@@ -267,14 +268,20 @@ function When({ record }: { record: RecordDetail }) {
 }
 
 function Services({ record }: { record: RecordDetail }) {
+  const { can } = useViewer();
   return (
     <Card size="small">
       <Space orientation="vertical" style={{ display: 'flex' }}>
         {record.services.map((s) => (
           <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-            <span>
-              {s.name} <Typography.Text type="secondary">· {s.durationMinutes} хв</Typography.Text>
-            </span>
+            <Space orientation="vertical" size={0}>
+              <span>
+                {s.name}{' '}
+                <Typography.Text type="secondary">· {s.durationMinutes} хв</Typography.Text>
+              </span>
+              {/* Оплачено абонементом (subscriptions.md, раздел 6); мастеру абонементы не показываем */}
+              {can.subscriptions.manage && <RecordServiceSubscription service={s} />}
+            </Space>
             <span>{formatMoney(s.price)}</span>
           </div>
         ))}
