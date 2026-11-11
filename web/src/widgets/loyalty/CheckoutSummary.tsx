@@ -1,4 +1,5 @@
 import { Alert, Checkbox, Descriptions, Space, Table, Tag, Typography } from 'antd';
+import type { ReactNode } from 'react';
 
 import type { Schema } from '@/shared/api';
 import { formatMoney, formatUnitPrice } from '@/shared/lib';
@@ -16,11 +17,14 @@ export function CheckoutSummary({
   checkout,
   bonusIds,
   onBonusChange,
+  lineExtra,
 }: {
   checkout: Checkout;
   bonusIds?: string[];
   /** Нет — строки без чекбоксов (продажа без записи). */
   onBonusChange?: (ids: string[]) => void;
+  /** Под названием строки: выбор «Оплатити абонементом» (subscriptions.md, раздел 6). */
+  lineExtra?: (line: Line) => ReactNode;
 }) {
   const selected = new Set(bonusIds ?? []);
   const toggle = (line: Line, checked: boolean) => {
@@ -48,6 +52,7 @@ export function CheckoutSummary({
       )}
       {checkout.lines.length > 1 ||
       hasBonusColumn ||
+      !!lineExtra ||
       checkout.lines.some((l) => l.kind !== 'service') ? (
         <Table<Line>
           size="small"
@@ -77,43 +82,25 @@ export function CheckoutSummary({
             {
               title: 'Позиція',
               key: 'name',
-              render: (_, l) =>
-                l.isBonus ? (
-                  <Space size={4}>
-                    {l.name}
-                    <Tag color="green">безкоштовно</Tag>
-                  </Space>
-                ) : l.kind === 'certificate' ? (
-                  <Space size={4}>
-                    {l.name}
-                    <Tag color="purple">сертифікат</Tag>
-                  </Space>
-                ) : l.kind === 'subscription' ? (
-                  <Space size={4}>
-                    {l.name}
-                    <Tag color="cyan">абонемент</Tag>
-                  </Space>
-                ) : l.productId ? (
-                  <Space size={4} wrap>
-                    {l.name}
-                    {l.mode === 'package' && <Tag color="blue">пляшка</Tag>}
-                    <Typography.Text type="secondary">
-                      {Number(l.quantity)} × {formatUnitPrice(l.unitPrice)}
-                    </Typography.Text>
-                  </Space>
-                ) : (
-                  l.name
-                ),
+              render: (_, l) => (
+                <Space orientation="vertical" size={4}>
+                  <LineName line={l} />
+                  {lineExtra?.(l)}
+                </Space>
+              ),
             },
             {
               title: 'Ціна',
               key: 'price',
               align: 'right',
               render: (_, l) =>
-                l.isBonus ? (
-                  <Typography.Text delete type="secondary">
-                    {formatMoney(l.price)}
-                  </Typography.Text>
+                l.isBonus || l.subscriptionId ? (
+                  <Space orientation="vertical" size={0} align="end">
+                    <Typography.Text delete type="secondary">
+                      {formatMoney(l.price)}
+                    </Typography.Text>
+                    {l.subscriptionId && formatMoney(0)}
+                  </Space>
                 ) : (
                   formatMoney(l.price)
                 ),
@@ -128,6 +115,14 @@ export function CheckoutSummary({
           { label: 'Продано', children: formatMoney(checkout.sold) },
           ...(Number(checkout.bonusAmount) > 0
             ? [{ label: 'Бонусні послуги', children: `−${formatMoney(checkout.bonusAmount)}` }]
+            : []),
+          ...(Number(checkout.subscriptionUsedAmount) > 0
+            ? [
+                {
+                  label: 'Оплачено абонементом',
+                  children: `−${formatMoney(checkout.subscriptionUsedAmount)}`,
+                },
+              ]
             : []),
           {
             label: 'Знижка',
@@ -155,6 +150,41 @@ export function CheckoutSummary({
         ]}
       />
     </Space>
+  );
+}
+
+/** Название строки с пометками: бонусная, абонемент, сертификат, товар. */
+function LineName({ line: l }: { line: Line }) {
+  return l.isBonus ? (
+    <Space size={4}>
+      {l.name}
+      <Tag color="green">безкоштовно</Tag>
+    </Space>
+  ) : l.subscriptionId ? (
+    <Space size={4}>
+      {l.name}
+      <Tag color="cyan">абонемент</Tag>
+    </Space>
+  ) : l.kind === 'certificate' ? (
+    <Space size={4}>
+      {l.name}
+      <Tag color="purple">сертифікат</Tag>
+    </Space>
+  ) : l.kind === 'subscription' ? (
+    <Space size={4}>
+      {l.name}
+      <Tag color="cyan">абонемент</Tag>
+    </Space>
+  ) : l.productId ? (
+    <Space size={4} wrap>
+      {l.name}
+      {l.mode === 'package' && <Tag color="blue">пляшка</Tag>}
+      <Typography.Text type="secondary">
+        {Number(l.quantity)} × {formatUnitPrice(l.unitPrice)}
+      </Typography.Text>
+    </Space>
+  ) : (
+    l.name
   );
 }
 

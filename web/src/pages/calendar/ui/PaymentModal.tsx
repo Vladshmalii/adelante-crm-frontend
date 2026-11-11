@@ -13,6 +13,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { errorMessage, type Schema } from '@/shared/api';
 import { formatMoney } from '@/shared/lib';
+import { useSessionStore } from '@/shared/session';
 import { QueryErrorAlert } from '@/shared/ui';
 import {
   CertificateCodeField,
@@ -32,10 +33,16 @@ import {
   recordCheckoutQueryOptions,
 } from '@/widgets/loyalty';
 import {
+  clientSubscriptionsQueryOptions,
   type SubscriptionSaleItem,
   SubscriptionSalePicker,
+  setUse,
   subscriptionsBody,
   subscriptionTypeIdsOf,
+  type SubscriptionUse,
+  SubscriptionUseSelect,
+  subscriptionUsesParams,
+  type VisitLine,
 } from '@/widgets/subscriptions';
 import {
   ProductSalePicker,
@@ -59,7 +66,9 @@ interface FormValues {
  * способов, сумма — ровно итог. Недоплата закрывается частью «Особовий рахунок» (в долг —
  * с подтверждением), кешбэк — в пределах максимума чека. «+ Товар» — продажа со склада в том же
  * чеке, «+ Сертифікат» — подарочных сертификатов (после оплаты — окно с кодами), «+ Абонемент» —
- * абонемент клиенту визита (subscriptions.md, раздел 5).
+ * абонемент клиенту визита (subscriptions.md, раздел 5). У строки услуги, которую покрывает
+ * абонемент клиента, — «Оплатити абонементом» (раздел 6): строка идёт по 0 ₴ и списывает
+ * посещение или минуты; отказ (остаток, заморозка, срок) — 422 текстом бекенда.
  */
 export function PaymentModal({
   record,
@@ -76,6 +85,23 @@ export function PaymentModal({
   const [certificates, setCertificates] = useState<CertificateSaleItem[]>([]);
   const [products, setProducts] = useState<ProductSaleItem[]>([]);
   const [subscriptions, setSubscriptions] = useState<SubscriptionSaleItem[]>([]);
+  const [uses, setUses] = useState<SubscriptionUse[]>([]);
+  const salonId = useSessionStore((s) => s.salonId);
+  const clientSubscriptions = useQuery({
+    ...clientSubscriptionsQueryOptions(record?.client.id ?? '', salonId ?? undefined),
+    enabled: !!record && !!salonId,
+  });
+  const visitLines: VisitLine[] = (record?.services ?? []).flatMap((s) =>
+    s.recordServiceId
+      ? [
+          {
+            recordServiceId: s.recordServiceId,
+            serviceId: s.id,
+            durationMinutes: s.durationMinutes,
+          },
+        ]
+      : [],
+  );
   const productParams = useDebouncedProductParams(products);
   const [sold, setSold] = useState<{ receiptId: string; client: { id: string; name: string } }>();
   const [key, setKey] = useState(newOperationKey);
@@ -87,6 +113,7 @@ export function PaymentModal({
       templateIdsOf(certificates),
       productParams,
       subscriptionTypeIdsOf(subscriptions),
+      subscriptionUsesParams(uses),
     ),
     enabled: !!record,
   });
@@ -111,6 +138,16 @@ export function PaymentModal({
     setCertificates([]);
     setProducts([]);
     setSubscriptions([]);
+    setUses([]);
+  };
+  // Строка — либо бонусная, либо по абонементу (иначе 422)
+  const changeBonus = (ids: string[]) => {
+    setBonusIds(ids);
+    setUses((prev) => prev.filter((u) => !ids.includes(u.recordServiceId)));
+  };
+  const changeUse = (recordServiceId: string, subscriptionId: string | undefined) => {
+    setUses((prev) => setUse(prev, recordServiceId, subscriptionId));
+    if (subscriptionId) setBonusIds((prev) => prev.filter((id) => id !== recordServiceId));
   };
 
   return (
@@ -131,7 +168,8 @@ export function PaymentModal({
         initialValues={{ payments: [{}] }}
         submitter={{
           searchConfig: { submitText: 'Оплатити', resetText: 'Скасувати' },
-          submitButtonProps: { disabled: !preview },
+          // Предпросмотр с ошибкой (422 по абонементу или сертификату) — оплатить нельзя
+          submitButtonProps: { disabled: !preview || checkout.isError },
         }}
         onFinish={async (v) => {
           if (!record || !preview) return false;
@@ -156,6 +194,7 @@ export function PaymentModal({
                 certificates,
                 products: productsBody(products),
                 subscriptions: subscriptionsBody(subscriptions),
+                subscriptionUses: uses,
               },
             });
             message.success(`Оплачено, чек № ${receipt.number}`);
@@ -169,7 +208,7 @@ export function PaymentModal({
             return true;
           } catch (error) {
             message.error(errorMessage(error));
-            // Предпросмотр мог устареть (409) — перезапрашиваем
+            // Предпросмотр мог устареть (409) или списание отклонено (422) — перезапрашиваем
             void checkout.refetch();
             return false;
           }
@@ -180,7 +219,28 @@ export function PaymentModal({
         <CertificateSalePicker value={certificates} onChange={setCertificates} />
         <SubscriptionSalePicker value={subscriptions} onChange={setSubscriptions} />
         {preview ? (
-          <CheckoutSummary checkout={preview} bonusIds={bonusIds} onBonusChange={setBonusIds} />
+          <CheckoutSummary
+            checkout={preview}
+            bonusIds={bonusIds}
+            onBonusChange={changeBonus}
+            lineExtra={
+              salonId && clientSubscriptions.data?.length
+                ? (line) =>
+                    line.recordServiceId && (
+                      <SubscriptionUseSelect
+                        line={line}
+                        subscriptions={clientSubscriptions.data}
+                        salonId={salonId}
+                        uses={uses}
+                        lines={visitLines}
+                        onChange={(id) => {
+                          if (line.recordServiceId) changeUse(line.recordServiceId, id);
+                        }}
+                      />
+                    )
+                : undefined
+            }
+          />
         ) : (
           !checkout.isError && <Spin style={{ display: 'block', marginBottom: 16 }} />
         )}
@@ -242,6 +302,7 @@ export function PaymentModal({
                     context={{
                       recordId: record?.id,
                       bonusRecordServiceIds: bonusIds,
+                      subscriptionRecordServiceIds: uses.map((u) => u.recordServiceId),
                       clientId: record?.client.id,
                       products: productsBody(products),
                     }}

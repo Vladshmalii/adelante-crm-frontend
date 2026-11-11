@@ -34,3 +34,4 @@ export {
   type VisitLine,
 } from './model';
 export { SubscriptionSalePicker } from './SubscriptionSalePicker';
+export { SubscriptionUseSelect } from './SubscriptionUseSelect';
