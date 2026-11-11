@@ -28,6 +28,7 @@ import {
   type ReportsSearch,
   type ReportsTab,
 } from '../model/search';
+import { SmsReport } from './SmsReport';
 
 type Metric = Schema<'MetricOut'>;
 
@@ -111,6 +112,11 @@ export function ReportsPage() {
                 <Col xs={24}>
                   <ServicesBlock period={api} />
                 </Col>
+                {can.reports.sms && (
+                  <Col xs={24}>
+                    <SmsReport period={api} />
+                  </Col>
+                )}
               </Row>
             ),
           },

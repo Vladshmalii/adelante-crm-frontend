@@ -5,8 +5,9 @@ Celery-воркер backend'а напрямую в Telegram API — этот п�
 только за интерактивные диалоги.
 
 Бот не создаёт записи (решение от 28.09.2026):
-- клиенту — ссылки на сайт записи и «Мій баланс» (особовий рахунок, карта
-  лояльности, кешбэк, уровень — только просмотр); напоминания о визитах шлёт воркер;
+- клиенту — ссылки на сайт записи, «Мій баланс» (особовий рахунок, карта
+  лояльности, кешбэк, уровень — только просмотр) и «Нагадування» — выбор канала
+  напоминаний (Telegram / SMS / не надсилати); сами напоминания шлёт воркер;
 - мастеру — его записи на сегодня или на выбранную дату;
 - администратору — только уведомления от воркера.
 Узнаёт пользователя по контакту: телефон ищется среди администраторов,
@@ -14,6 +15,7 @@ Celery-воркер backend'а напрямую в Telegram API — этот п�
 """
 
 import asyncio
+import contextlib
 import html
 import logging
 import re
@@ -26,6 +28,7 @@ from zoneinfo import ZoneInfo
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command, CommandStart
 from aiogram.types import (
     CallbackQuery,
@@ -50,6 +53,15 @@ BTN_DATE = "🗓 Записи на дату"
 BTN_BOOK = "✍️ Записатися"
 BTN_CONTACT = "📱 Поділитися контактом"
 BTN_BALANCE = "💳 Мій баланс"
+BTN_REMINDERS = "🔔 Нагадування"
+
+# Канал напоминаний (backend/docs/sms-reminders.md, раздел 10): auto в боте — это Telegram
+REMINDER_CHOICES = [("telegram", "Telegram"), ("sms", "SMS"), ("none", "Не надсилати")]
+REMINDER_TEXT = {
+    "telegram": "сюди, у Telegram (якщо не дійде — SMS)",
+    "sms": "SMS на ваш номер телефону",
+    "none": "не надсилати",
+}
 
 WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд"]
 STATUS_ICONS = {
@@ -72,7 +84,10 @@ CONTACT_KEYBOARD = ReplyKeyboardMarkup(
     resize_keyboard=True,
 )
 CLIENT_KEYBOARD = ReplyKeyboardMarkup(
-    keyboard=[[KeyboardButton(text=BTN_BOOK), KeyboardButton(text=BTN_BALANCE)]],
+    keyboard=[
+        [KeyboardButton(text=BTN_BOOK), KeyboardButton(text=BTN_BALANCE)],
+        [KeyboardButton(text=BTN_REMINDERS)],
+    ],
     resize_keyboard=True,
 )
 
@@ -317,12 +332,74 @@ async def cmd_balance(message: Message, backend: BackendClient) -> None:
     await message.answer(format_balance(data), reply_markup=CLIENT_KEYBOARD)
 
 
+def shown_channel(channel: str) -> str:
+    """auto показываем как Telegram: клиент пишет боту — значит, бот подключён."""
+    return "telegram" if channel == "auto" else channel
+
+
+def format_reminders(channel: str) -> str:
+    return (
+        "🔔 <b>Нагадування про візит</b>\n"
+        f"Зараз: {REMINDER_TEXT[shown_channel(channel)]}.\n"
+        "Оберіть, як вам нагадувати:"
+    )
+
+
+def reminders_keyboard(channel: str) -> InlineKeyboardMarkup:
+    current = shown_channel(channel)
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=f"✅ {label}" if value == current else label,
+                    callback_data=f"rem:{value}",
+                )
+                for value, label in REMINDER_CHOICES
+            ]
+        ]
+    )
+
+
+@router.message(Command("reminders"))
+@router.message(F.text == BTN_REMINDERS)
+async def cmd_reminders(message: Message, backend: BackendClient) -> None:
+    channel = await backend.client_reminders(message.from_user.id)
+    if channel is None:
+        await message.answer(
+            "Не знайшов вас серед клієнтів. Поділіться контактом кнопкою нижче.",
+            reply_markup=CONTACT_KEYBOARD,
+        )
+        return
+    await message.answer(format_reminders(channel), reply_markup=reminders_keyboard(channel))
+
+
+@router.callback_query(F.data.startswith("rem:"))
+async def on_reminders(callback: CallbackQuery, backend: BackendClient) -> None:
+    choice = callback.data.removeprefix("rem:")
+    if choice not in REMINDER_TEXT:
+        await callback.answer()
+        return
+    # Канал меняется только у того, кто нажал: клиент определяется по его Telegram
+    channel = await backend.set_client_reminders(callback.from_user.id, choice)
+    if channel is None:
+        await callback.answer("Не знайшов вас серед клієнтів", show_alert=True)
+        return
+    await callback.answer("Збережено ✅")
+    if isinstance(callback.message, Message):
+        # Повторное нажатие на текущий вариант — «message is not modified», это не ошибка
+        with contextlib.suppress(TelegramBadRequest):
+            await callback.message.edit_text(
+                format_reminders(channel), reply_markup=reminders_keyboard(channel)
+            )
+
+
 @router.message(Command("help"))
 async def cmd_help(message: Message) -> None:
     await message.answer(
         "/start — почати\n"
         "/book — записатися онлайн\n"
         "/balance — мій баланс і картка лояльності\n"
+        "/reminders — як нагадувати про візити\n"
         "/today — мої записи на сьогодні (для майстрів)\n"
         "/date — мої записи на дату (для майстрів)\n"
         "/help — допомога"

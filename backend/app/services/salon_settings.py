@@ -1,21 +1,23 @@
-"""Настройки салона: «Інформація про салон» и «Графік роботи салону».
+"""Настройки салона: «Інформація про салон», «Графік роботи салону», «Нагадування».
 
 Название салона живёт в реестре Master DB (salons.name — его видят бот, сайт
 записи, переключатель салона); остальное — JSON в таблице settings шарда
-под ключами salon_info и salon_schedule.
+под ключами salon_info, salon_schedule и notifications.
 """
 
 from datetime import date, time
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, ValidationError, model_validator
 from pydantic.alias_generators import to_camel
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from app.models.shard import Setting
 
 INFO_KEY = "salon_info"
 SCHEDULE_KEY = "salon_schedule"
+NOTIFICATIONS_KEY = "notifications"
 WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
 
 
@@ -84,3 +86,40 @@ async def load_schedule(session: AsyncSession) -> dict[str, SalonDay] | None:
 
 async def save_schedule(session: AsyncSession, week: dict[str, SalonDay]) -> None:
     await _put(session, SCHEDULE_KEY, {day: week[day].model_dump(mode="json") for day in WEEKDAYS})
+
+
+# --- Нагадування (backend/docs/sms-reminders.md, раздел 4) ---------------------
+
+REMINDER_LEAD_DEFAULT = 30
+REMINDER_LEAD_MIN = 15
+REMINDER_LEAD_MAX = 1440
+
+
+class NotificationSettings(BaseModel):
+    """За сколько минут до визита напоминать клиенту."""
+
+    reminder_lead_minutes: int = Field(
+        default=REMINDER_LEAD_DEFAULT, ge=REMINDER_LEAD_MIN, le=REMINDER_LEAD_MAX
+    )
+
+
+def _notifications(stored: dict[str, Any] | None) -> NotificationSettings:
+    # Нет ключа или он испорчен — значение по умолчанию, напоминания не должны ломаться
+    try:
+        return NotificationSettings.model_validate(stored or {})
+    except ValidationError:
+        return NotificationSettings()
+
+
+async def load_notifications(session: AsyncSession) -> NotificationSettings:
+    return _notifications(await _get(session, NOTIFICATIONS_KEY))
+
+
+async def save_notifications(session: AsyncSession, value: NotificationSettings) -> None:
+    await _put(session, NOTIFICATIONS_KEY, value.model_dump(mode="json"))
+
+
+def load_notifications_sync(session: Session) -> NotificationSettings:
+    """Для воркеров (sync-сессия шарда)."""
+    setting = session.get(Setting, NOTIFICATIONS_KEY)
+    return _notifications(setting.value if setting is not None else None)

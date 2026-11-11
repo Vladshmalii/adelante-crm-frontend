@@ -428,6 +428,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/v1/clients/{client_id}/reminders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Client Reminders
+         * @description Последние отправки напоминаний клиенту в текущем салоне. Мастеру — 403.
+         */
+        get: operations["client_reminders_api_admin_v1_clients__client_id__reminders_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/v1/clients/{client_id}/visits": {
         parameters: {
             query?: never;
@@ -1509,6 +1529,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/v1/reports/sms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Sms Report
+         * @description По салонам: SMS, сегменты, доставлено / не доставлено / ошибки / пропущено, стоимость;
+         *     сколько напоминаний ушло в Telegram. Период — по дате отправки.
+         */
+        get: operations["sms_report_api_admin_v1_reports_sms_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/v1/reports/staff": {
         parameters: {
             query?: never;
@@ -1656,6 +1697,27 @@ export interface paths {
         head?: never;
         /** Rename Category */
         patch: operations["rename_category_api_admin_v1_services_categories__category_id__patch"];
+        trace?: never;
+    };
+    "/api/admin/v1/settings/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Notification Settings */
+        get: operations["get_notification_settings_api_admin_v1_settings_notifications_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Patch Notification Settings
+         * @description Действует на ещё не отправленные напоминания (сканер читает значение каждый тик).
+         */
+        patch: operations["patch_notification_settings_api_admin_v1_settings_notifications_patch"];
         trace?: never;
     };
     "/api/admin/v1/settings/salon": {
@@ -3160,6 +3222,8 @@ export interface components {
             notes?: string | null;
             /** Phone */
             phone: string;
+            /** @default auto */
+            reminderChannel: components["schemas"]["ReminderChannel"];
             /** Source */
             source?: string | null;
         };
@@ -3219,6 +3283,7 @@ export interface components {
             notes: string | null;
             /** Phone */
             phone: string;
+            reminderChannel?: components["schemas"]["ReminderChannel"] | null;
             /**
              * Segment
              * @default new
@@ -3269,6 +3334,7 @@ export interface components {
             notes?: string | null;
             /** Phone */
             phone?: string | null;
+            reminderChannel?: components["schemas"]["ReminderChannel"] | null;
             /** Source */
             source?: string | null;
         };
@@ -3445,6 +3511,11 @@ export interface components {
             /** Workminutes */
             workMinutes: number;
         };
+        /**
+         * DeliveryChannel
+         * @enum {string}
+         */
+        DeliveryChannel: "telegram" | "sms";
         /** DiscountCandidateOut */
         DiscountCandidateOut: {
             /** Amount */
@@ -3768,6 +3839,12 @@ export interface components {
             data: components["schemas"]["RecordOut"][];
             meta?: components["schemas"]["PageMeta"] | null;
         };
+        /** Envelope[list[ReminderDeliveryOut]] */
+        Envelope_list_ReminderDeliveryOut__: {
+            /** Data */
+            data: components["schemas"]["ReminderDeliveryOut"][];
+            meta?: components["schemas"]["PageMeta"] | null;
+        };
         /** Envelope[list[ReviewOut]] */
         Envelope_list_ReviewOut__: {
             /** Data */
@@ -3829,6 +3906,11 @@ export interface components {
         /** Envelope[MovementOut] */
         Envelope_MovementOut_: {
             data: components["schemas"]["MovementOut"];
+            meta?: components["schemas"]["PageMeta"] | null;
+        };
+        /** Envelope[NotificationSettingsOut] */
+        Envelope_NotificationSettingsOut_: {
+            data: components["schemas"]["NotificationSettingsOut"];
             meta?: components["schemas"]["PageMeta"] | null;
         };
         /** Envelope[OperationOut] */
@@ -3904,6 +3986,11 @@ export interface components {
         /** Envelope[ShiftGridOut] */
         Envelope_ShiftGridOut_: {
             data: components["schemas"]["ShiftGridOut"];
+            meta?: components["schemas"]["PageMeta"] | null;
+        };
+        /** Envelope[SmsReportOut] */
+        Envelope_SmsReportOut_: {
+            data: components["schemas"]["SmsReportOut"];
             meta?: components["schemas"]["PageMeta"] | null;
         };
         /** Envelope[StaffOut] */
@@ -4418,6 +4505,16 @@ export interface components {
             remaining: string;
             /** Threshold */
             threshold: string;
+        };
+        /** NotificationSettingsOut */
+        NotificationSettingsOut: {
+            /** Reminderleadminutes */
+            reminderLeadMinutes: number;
+        };
+        /** NotificationSettingsPatchIn */
+        NotificationSettingsPatchIn: {
+            /** Reminderleadminutes */
+            reminderLeadMinutes: number;
         };
         /** OperationCreateIn */
         OperationCreateIn: {
@@ -5194,6 +5291,41 @@ export interface components {
             /** Comment */
             comment?: string | null;
         };
+        /**
+         * ReminderChannel
+         * @description Канал напоминаний о визите (backend/docs/sms-reminders.md, раздел 3).
+         * @enum {string}
+         */
+        ReminderChannel: "auto" | "telegram" | "sms" | "none";
+        /** ReminderDeliveryOut */
+        ReminderDeliveryOut: {
+            channel: components["schemas"]["DeliveryChannel"];
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Error */
+            error: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Isfallback */
+            isFallback: boolean;
+            /**
+             * Recordid
+             * Format: uuid
+             */
+            recordId: string;
+            status: components["schemas"]["ReminderDeliveryStatus"];
+        };
+        /**
+         * ReminderDeliveryStatus
+         * @enum {string}
+         */
+        ReminderDeliveryStatus: "queued" | "sent" | "delivered" | "undelivered" | "failed" | "skipped";
         /** ResetPasswordIn */
         ResetPasswordIn: {
             /** Password */
@@ -5680,6 +5812,74 @@ export interface components {
              * Format: uuid
              */
             staffId: string;
+        };
+        /** SmsReportOut */
+        SmsReportOut: {
+            /** Rows */
+            rows: components["schemas"]["SmsReportRowOut"][];
+            total: components["schemas"]["SmsReportRowOut"];
+        };
+        /** SmsReportRowOut */
+        SmsReportRowOut: {
+            /**
+             * Available
+             * @default true
+             */
+            available: boolean;
+            /**
+             * Cost
+             * @default 0
+             */
+            cost: string;
+            /**
+             * Delivered
+             * @default 0
+             */
+            delivered: number;
+            /**
+             * Failed
+             * @default 0
+             */
+            failed: number;
+            /**
+             * Fallback
+             * @default 0
+             */
+            fallback: number;
+            /**
+             * Pending
+             * @default 0
+             */
+            pending: number;
+            /** Salonid */
+            salonId: string | null;
+            /** Salonname */
+            salonName: string;
+            /**
+             * Segments
+             * @default 0
+             */
+            segments: number;
+            /**
+             * Skipped
+             * @default 0
+             */
+            skipped: number;
+            /**
+             * Sms
+             * @default 0
+             */
+            sms: number;
+            /**
+             * Telegram
+             * @default 0
+             */
+            telegram: number;
+            /**
+             * Undelivered
+             * @default 0
+             */
+            undelivered: number;
         };
         /** StaffCreateIn */
         StaffCreateIn: {
@@ -7004,6 +7204,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_LoyaltyCardOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    client_reminders_api_admin_v1_clients__client_id__reminders_get: {
+        parameters: {
+            query?: {
+                page?: number;
+                perPage?: number;
+            };
+            header?: never;
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_list_ReminderDeliveryOut__"];
                 };
             };
             /** @description Validation Error */
@@ -9471,6 +9705,38 @@ export interface operations {
             };
         };
     };
+    sms_report_api_admin_v1_reports_sms_get: {
+        parameters: {
+            query: {
+                dateFrom: string;
+                dateTo: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_SmsReportOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     staff_report_api_admin_v1_reports_staff_get: {
         parameters: {
             query: {
@@ -9851,6 +10117,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["app__api__schemas__Envelope_CategoryOut___1"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_notification_settings_api_admin_v1_settings_notifications_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_NotificationSettingsOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_notification_settings_api_admin_v1_settings_notifications_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotificationSettingsPatchIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_NotificationSettingsOut_"];
                 };
             };
             /** @description Validation Error */

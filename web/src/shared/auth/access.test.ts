@@ -94,6 +94,14 @@ describe('права доступа (docs/ACCESS.md)', () => {
     expect(su.loyalty).toEqual({ manage: true, adjust: true });
   });
 
+  it('SMS-нагадування: канал и история — администратор, отчёт — суперюзер', () => {
+    const master = permissions(toViewer(me('master')));
+    const admin = permissions(toViewer(me('administrator')));
+    const su = permissions(toViewer(me('administrator', { isSuperuser: true })));
+    expect([master, admin, su].map((p) => p.clients.reminders)).toEqual([false, true, true]);
+    expect([master, admin, su].map((p) => p.reports.sms)).toEqual([false, false, true]);
+  });
+
   it('флаг суперюзера у мастера игнорируется', () => {
     expect(toViewer(me('master', { isSuperuser: true })).isSuperuser).toBe(false);
   });

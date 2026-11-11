@@ -7,9 +7,14 @@
 httpx приглушён, ошибки пересобираются без URL. Повторять имеет смысл только
 временные сбои (сеть, 429, 5xx); на остальные 4xx (бот заблокирован, чат не
 найден, неверный токен) — предупреждение в лог без повторов.
+
+deliver() сообщает вызывающему результат: напоминанию клиента после постоянной
+ошибки нужен запасной SMS (backend/docs/sms-reminders.md, раздел 3).
+send_message() — прежний вызов «отправил и забыл», теперь возвращает bool.
 """
 
 import logging
+from dataclasses import dataclass
 
 import httpx
 
@@ -26,7 +31,18 @@ class TelegramTemporaryError(httpx.HTTPError):
     """Временный сбой Telegram — задача уйдёт на повтор (autoretry_for=httpx.HTTPError)."""
 
 
-def send_message(chat_id: int, text: str) -> None:
+@dataclass(frozen=True)
+class TelegramResult:
+    ok: bool
+    # Для постоянной ошибки: «403 Forbidden: bot was blocked by the user»
+    error: str | None = None
+
+
+def deliver(chat_id: int, text: str) -> TelegramResult:
+    """Отправка с результатом: ok=False — постоянная ошибка 4xx (повторять бессмысленно).
+
+    Временные сбои — TelegramTemporaryError (задача уходит на повтор).
+    """
     settings = get_settings()
     try:
         response = httpx.post(
@@ -41,12 +57,15 @@ def send_message(chat_id: int, text: str) -> None:
         raise TelegramTemporaryError(f"Telegram ответил {response.status_code}")
     if response.status_code >= 400:
         try:
-            description = response.json().get("description", "")
+            description = str(response.json().get("description", ""))
         except ValueError:
             description = ""
-        logger.warning(
-            "Telegram отклонил сообщение для чата %s: %s %s",
-            chat_id,
-            response.status_code,
-            description,
-        )
+        return TelegramResult(ok=False, error=f"{response.status_code} {description}".strip())
+    return TelegramResult(ok=True)
+
+
+def send_message(chat_id: int, text: str) -> bool:
+    result = deliver(chat_id, text)
+    if not result.ok:
+        logger.warning("Telegram отклонил сообщение для чата %s: %s", chat_id, result.error)
+    return result.ok

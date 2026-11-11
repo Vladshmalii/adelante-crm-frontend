@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const SETTINGS_TABS = ['salon', 'schedule'] as const;
+export const SETTINGS_TABS = ['salon', 'schedule', 'notifications'] as const;
 export type SettingsTab = (typeof SETTINGS_TABS)[number];
 
 /**

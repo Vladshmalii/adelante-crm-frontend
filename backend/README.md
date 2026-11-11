@@ -84,7 +84,8 @@ Outbox → Celery (`workers/tasks/outbox.py`) → Telegram / WebSocket:
 
 - мастеру — новая запись к нему, перенос, отмена, передача другому мастеру;
 - администраторам — каждая новая запись; для записей без мастера — ещё перенос и отмена;
-- клиенту — напоминание за 30 минут (`scheduled` и `confirmed`);
+- клиенту — напоминание о визите (`scheduled` и `confirmed`) за N минут, N — настройка
+  салона (по умолчанию 30); Telegram или SMS — см. «SMS-нагадування» ниже;
 - автору изменения уведомление о его же действии не отправляется;
 - WebSocket: мастер получает только события своих записей.
 
@@ -95,6 +96,34 @@ Outbox → Celery (`workers/tasks/outbox.py`) → Telegram / WebSocket:
 Отправка в Telegram (`workers/telegram.py`) повторяется только на временных сбоях
 (сеть, 429, 5xx); остальные 4xx (бот заблокирован, неверный токен) — предупреждение в
 лог. Токен бота в логи не попадает.
+
+## SMS-нагадування
+
+Спецификация и принятые уточнения — `docs/sms-reminders.md` (раздел «Уточнения при реализации»).
+
+- Канал — у клиента (`clients.reminder_channel`: `auto` | `telegram` | `sms` | `none`); меняют
+  администратор в карточке клиента и сам клиент в боте («🔔 Нагадування»). Telegram не доставил
+  (4xx или исчерпаны повторы) — сразу одно запасное SMS.
+- Время — `GET/PATCH /settings/notifications` (`reminderLeadMinutes`, 15…1440, по умолчанию 30).
+- Доставка — `workers/tasks/reminder_delivery.py` (очередь `notifications`); журнал отправок —
+  `reminder_deliveries` в шарде салона, уникален по `(event_id, channel)`. Статусы SMS — опрос
+  TurboSMS раз в 5 минут (`poll_sms_statuses`).
+- Провайдер — `app/notifications/sms/`: `console` (по умолчанию, пишет в лог) и `turbosms`.
+- Переменные окружения:
+
+  | Переменная | По умолчанию | Назначение |
+  |---|---|---|
+  | `ADELANTE_SMS_PROVIDER` | `console` | `console` или `turbosms` |
+  | `ADELANTE_SMS_SENDER` | `ADELANTE` | Альфа-имя, активированное у провайдера |
+  | `ADELANTE_TURBOSMS_TOKEN` | — | Токен HTTP API TurboSMS (секрет, в логи не пишется) |
+  | `ADELANTE_TURBOSMS_API_URL` | `https://api.turbosms.ua` | Адрес API |
+  | `ADELANTE_SMS_PRICE_UAH` | `1.30` | Цена сегмента для отчёта |
+
+- Отчёт — `GET /reports/sms` (суперюзер, по салонам сети); история клиента —
+  `GET /clients/{id}/reminders`; бот — `GET/PUT /api/bot/clients/by-telegram/{tgUserId}/reminders`.
+- Включение на проде: договор и альфа-имя у TurboSMS → `ADELANTE_SMS_PROVIDER=turbosms`,
+  `ADELANTE_TURBOSMS_TOKEN=...` у `worker` → перезапуск. Миграции: Master
+  (`clients.reminder_channel`) и шарды (`reminder_deliveries`), обе expand-only.
 
 ## Склад и отчёты
 

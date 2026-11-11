@@ -6,6 +6,7 @@ import { meQueryOptions } from '@/shared/auth';
 export const settingsKeys = {
   salon: ['settings', 'salon'] as const,
   schedule: ['settings', 'schedule'] as const,
+  notifications: ['settings', 'notifications'] as const,
 };
 
 export const salonInfoQueryOptions = () =>
@@ -49,6 +50,25 @@ export function useSaveSalonSchedule() {
       // Смены и рабочее время мастеров могли измениться.
       void queryClient.invalidateQueries({ queryKey: ['shifts'] });
       void queryClient.invalidateQueries({ queryKey: ['schedule'] });
+    },
+  });
+}
+
+export const notificationSettingsQueryOptions = () =>
+  queryOptions({
+    queryKey: settingsKeys.notifications,
+    queryFn: async ({ signal }) =>
+      unwrap(await api.GET('/api/admin/v1/settings/notifications', { signal })).data,
+  });
+
+/** За сколько минут до визита напоминать клиенту (действует на ещё не отправленные). */
+export function useUpdateNotificationSettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: Schema<'NotificationSettingsPatchIn'>) =>
+      unwrap(await api.PATCH('/api/admin/v1/settings/notifications', { body })).data,
+    onSuccess: (value) => {
+      queryClient.setQueryData(settingsKeys.notifications, value);
     },
   });
 }

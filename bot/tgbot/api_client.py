@@ -56,6 +56,27 @@ class BackendClient:
         response.raise_for_status()
         return response.json()
 
+    async def client_reminders(self, telegram_user_id: int) -> str | None:
+        """Канал напоминаний клиента: auto | telegram | sms | none; None — клиент не найден."""
+        response = await self._client.get(
+            f"/api/bot/clients/by-telegram/{telegram_user_id}/reminders"
+        )
+        if response.status_code == 404:
+            return None
+        response.raise_for_status()
+        return str(response.json()["channel"])
+
+    async def set_client_reminders(self, telegram_user_id: int, channel: str) -> str | None:
+        """Сменить свой канал напоминаний; None — клиент не найден."""
+        response = await self._client.put(
+            f"/api/bot/clients/by-telegram/{telegram_user_id}/reminders",
+            json={"channel": channel},
+        )
+        if response.status_code == 404:
+            return None
+        response.raise_for_status()
+        return str(response.json()["channel"])
+
     async def master_records(self, telegram_user_id: int, day: date) -> dict[str, Any] | None:
         """Записи мастера на день во всех его салонах; None — не мастер."""
         response = await self._client.get(

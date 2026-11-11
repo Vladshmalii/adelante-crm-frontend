@@ -1,4 +1,4 @@
-"""Налаштування салону: інформація про салон и графік роботи салону.
+"""Налаштування салону: інформація про салон, графік роботи салону, нагадування клієнтам.
 
 Права (ACCESS.md): администратор и суперюзер; мастеру — 403.
 Эти же данные (кроме юридического названия) отдаёт публичный сайт записи:
@@ -263,3 +263,53 @@ def _day_text(day: salon_settings.SalonDay) -> str:
     if not day.is_work_day or day.start is None or day.end is None:
         return "вихідний"
     return f"{day.start:%H:%M}–{day.end:%H:%M}"
+
+
+# --- Нагадування клієнтам (backend/docs/sms-reminders.md, раздел 4) ---------------
+
+
+class NotificationSettingsOut(ApiModel):
+    reminder_lead_minutes: int
+
+
+class NotificationSettingsPatchIn(ApiModel):
+    reminder_lead_minutes: int = Field(
+        ge=salon_settings.REMINDER_LEAD_MIN, le=salon_settings.REMINDER_LEAD_MAX
+    )
+
+
+@router.get("/notifications", response_model=Envelope[NotificationSettingsOut])
+async def get_notification_settings(
+    tenant_session: TenantSession,
+) -> Envelope[NotificationSettingsOut]:
+    current = await salon_settings.load_notifications(tenant_session)
+    return Envelope(data=NotificationSettingsOut(**current.model_dump()))
+
+
+@router.patch("/notifications", response_model=Envelope[NotificationSettingsOut])
+async def patch_notification_settings(
+    body: NotificationSettingsPatchIn,
+    author: CurrentAuthor,
+    tenant_session: TenantSession,
+) -> Envelope[NotificationSettingsOut]:
+    """Действует на ещё не отправленные напоминания (сканер читает значение каждый тик)."""
+    current = await salon_settings.load_notifications(tenant_session)
+    new = salon_settings.NotificationSettings(reminder_lead_minutes=body.reminder_lead_minutes)
+    if new != current:
+        await salon_settings.save_notifications(tenant_session, new)
+        write_audit(
+            tenant_session,
+            entity="settings",
+            entity_id="notifications",
+            entity_name="Нагадування клієнтам",
+            action=AuditAction.UPDATED,
+            author_id=author.id,
+            author_name=author.name,
+            details={
+                "reminder_lead_minutes": [
+                    current.reminder_lead_minutes,
+                    new.reminder_lead_minutes,
+                ]
+            },
+        )
+    return Envelope(data=NotificationSettingsOut(**new.model_dump()))

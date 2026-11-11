@@ -79,6 +79,16 @@ export const productsReportQueryOptions = (period: Period) =>
     placeholderData: keepPreviousData,
   });
 
+/** SMS-нагадування по салонам сети — только суперюзеру (администратору — 403). */
+export const smsReportQueryOptions = (period: Period) =>
+  queryOptions({
+    queryKey: reportsKeys.report('sms', period),
+    queryFn: async ({ signal }) =>
+      unwrap(await api.GET('/api/admin/v1/reports/sms', { params: { query: period }, signal }))
+        .data,
+    placeholderData: keepPreviousData,
+  });
+
 /** Все отчёты одним Excel; администратору — без листа «Виручка» и денежных колонок. */
 export function useExportReports() {
   return useMutation({
