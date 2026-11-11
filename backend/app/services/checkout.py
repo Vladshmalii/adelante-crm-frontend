@@ -1,13 +1,14 @@
 """Расчёт итога к оплате на сервере (backend/docs/loyalty-accounts.md, раздел 6, шаги 1–2).
 
 1. Продано — сумма строк (услуги записи или «товар» чека без записи, сертификаты).
-2. Бонусные строки → 0 ₴ (в скидке не участвуют).
+2. Бонусные строки и строки, оплаченные абонементом (subscriptions.md, раздел 6),
+   → 0 ₴ (в скидке и кешбэке не участвуют).
 3. Скидка — одна, наибольшая в гривнах из: личной % клиента, % уровня карты,
    фиксированной уровня карты (не больше суммы). Источник — в discount_source.
    Строки-сертификаты в базу скидки не входят (certificates.md, решение 11),
    строки-товары входят (product-sales.md, раздел 3), строки-абонементы — тоже
    (subscriptions.md, решение 8).
-4. Итог = Продано − бонусные строки − скидка, копейки ROUND_HALF_UP.
+4. Итог = Продано − бонусные строки − строки по абонементу − скидка, копейки ROUND_HALF_UP.
 
 Клиенту не доверяем: итог считается здесь и при предпросмотре, и при оплате.
 """
@@ -41,6 +42,8 @@ class Line:
     template_id: uuid.UUID | None = None
     # Строка-абонемент: тип продажи
     subscription_type_id: uuid.UUID | None = None
+    # Строка услуги, оплачиваемая абонементом клиента (0 ₴ в итоге)
+    subscription_id: uuid.UUID | None = None
     # Строка-товар со склада; у ручной суммы «Товари» (чек без записи) product_id нет
     product_id: uuid.UUID | None = None
     mode: ProductSaleMode | None = None
@@ -56,9 +59,14 @@ class Line:
         return self.kind == "subscription"
 
     @property
+    def is_free(self) -> bool:
+        """Бонусная или оплаченная абонементом — 0 ₴, вне скидки и кешбэка."""
+        return self.is_bonus or self.subscription_id is not None
+
+    @property
     def amount(self) -> Decimal:
-        """Сумма строки до скидки: бонусная — 0 ₴."""
-        return Decimal(0) if self.is_bonus else self.price
+        """Сумма строки до скидки: бонусная и по абонементу — 0 ₴."""
+        return Decimal(0) if self.is_free else self.price
 
     def payload(self) -> dict[str, object]:
         return {
@@ -69,6 +77,7 @@ class Line:
             "price": str(self.price),
             "amount": str(self.amount),
             "is_bonus": self.is_bonus,
+            "subscription_id": str(self.subscription_id) if self.subscription_id else None,
         }
 
 
@@ -90,6 +99,13 @@ class Quote:
     total: Decimal
     # Строки-сертификаты: в итоге, но вне скидки и кешбэка; платятся только кассовыми способами
     certificates: Decimal = Decimal("0.00")
+    # Строки услуг, оплаченные абонементом: цена в «Продано», в итоге 0 ₴
+    subscription_used: Decimal = Decimal("0.00")
+
+    @property
+    def base(self) -> Decimal:
+        """База скидки: Продано без бесплатных строк и сертификатов."""
+        return self.sold - self.bonus_amount - self.subscription_used - self.certificates
 
     @property
     def rest(self) -> Decimal:
@@ -102,7 +118,7 @@ class Quote:
         Услуги — пропорционально скидке, товары — их paid_amount (product_paid_amounts),
         как в receipt_product_lines (certificates.md, 11.3).
         """
-        base = self.sold - self.bonus_amount - self.certificates
+        base = self.base
         if base <= 0:
             return []
         factor = (base - self.discount) / base
@@ -134,7 +150,7 @@ class Quote:
         Копеечный остаток округления уходит на последнюю строку; если он больше неё —
         на предыдущие: строка не может стать отрицательной.
         """
-        base = self.sold - self.bonus_amount - self.certificates
+        base = self.base
         if base <= 0:
             return [Decimal("0.00") for _ in amounts]
         factor = (base - self.discount) / base
@@ -156,8 +172,14 @@ def quote(
 ) -> Quote:
     sold = money(sum((line.price for line in lines), Decimal(0)))
     bonus = money(sum((line.price for line in lines if line.is_bonus), Decimal(0)))
+    used = money(
+        sum(
+            (line.price for line in lines if line.subscription_id and not line.is_bonus),
+            Decimal(0),
+        )
+    )
     certificates = money(sum((line.price for line in lines if line.is_certificate), Decimal(0)))
-    base = sold - bonus - certificates
+    base = sold - bonus - used - certificates
     candidates = []
     if client_percent > 0:
         candidates.append(
@@ -187,10 +209,17 @@ def quote(
         discount=discount,
         total=money(base - discount + certificates),
         certificates=certificates,
+        subscription_used=used,
     )
 
 
-def record_lines(record: Record, bonus_ids: frozenset[uuid.UUID] = frozenset()) -> list[Line]:
+def record_lines(
+    record: Record,
+    bonus_ids: frozenset[uuid.UUID] = frozenset(),
+    uses: dict[uuid.UUID, uuid.UUID] | None = None,
+) -> list[Line]:
+    """Строки услуг записи; uses — record_service_id → абонемент, которым оплачена строка."""
+    uses = uses or {}
     return [
         Line(
             kind="service",
@@ -199,8 +228,24 @@ def record_lines(record: Record, bonus_ids: frozenset[uuid.UUID] = frozenset()) 
             record_service_id=s.id,
             service_id=s.service_id,
             is_bonus=s.id in bonus_ids,
+            subscription_id=uses.get(s.id),
         )
         for s in record.services
+    ]
+
+
+def subscription_uses(record: Record, uses: dict[uuid.UUID, uuid.UUID]) -> list[subscriptions.Use]:
+    """Строки записи, оплачиваемые абонементами: длительность — снимок строки записи."""
+    return [
+        subscriptions.Use(
+            record_service_id=s.id,
+            subscription_id=uses[s.id],
+            service_id=s.service_id,
+            service_name=s.name,
+            duration_minutes=s.duration_minutes,
+        )
+        for s in record.services
+        if s.id in uses
     ]
 
 

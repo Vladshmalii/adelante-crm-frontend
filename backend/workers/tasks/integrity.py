@@ -7,7 +7,7 @@
    между записью в Master и коммитом шарда, или событие отмены чека потерялось.
    Такие списания сторнируются (loyalty-accounts.md, раздел 3), выпущенные
    таким чеком сертификаты (certificates.md, 4.4) и абонементы (subscriptions.md,
-   раздел 5, п. 5) отменяются.
+   раздел 5, п. 5) отменяются, списания абонементами (раздел 6, п. 8) сторнируются.
 3. Оплаченные чеки с картой без факта визита в Master: событие
    loyalty.receipt_paid переотправляется (published_at сбрасывается).
 """
@@ -109,6 +109,8 @@ def reconcile_payments(salon_id: UUID, *, now: datetime | None = None) -> int:
         for receipt_id, record_id in loyalty.hanging_bonus_receipts(
             session, salon_id, border
         ).items():
+            hanging.setdefault(receipt_id, record_id)
+        for receipt_id, record_id in subscriptions.hanging_uses(session, salon_id, border).items():
             hanging.setdefault(receipt_id, record_id)
         for receipt_id in certificates.hanging_receipts(
             session, salon_id, border, now - CERTIFICATE_RECONCILE_WINDOW

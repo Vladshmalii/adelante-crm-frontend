@@ -9,21 +9,24 @@
 записи, выпуск — в app.services.payments.settle (раздел 5).
 """
 
+import logging
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.admin.certificates import check_shard_pairs
 from app.api.admin.deps import CurrentAuthor
-from app.api.schemas import ApiModel, Envelope
+from app.api.schemas import ApiModel, Envelope, PersonRef
 from app.api.security import AdminUser, SuperUser, require_salon_access
 from app.models.master import (
+    Client,
+    Salon,
     Subscription,
     SubscriptionActivationMode,
     SubscriptionBalanceMode,
@@ -37,6 +40,8 @@ from app.models.shard import AuditAction, Service
 from app.services import subscriptions as subscriptions_service
 from app.services.audit import diff_fields, write_audit
 from app.tenancy.deps import MasterSession, TenantSession
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["subscriptions"], dependencies=[Depends(require_salon_access)])
 
@@ -395,3 +400,217 @@ class SubscriptionSaleIn(ApiModel):
 
     def to_sale(self) -> subscriptions_service.SubscriptionSale:
         return subscriptions_service.SubscriptionSale(type_id=self.type_id)
+
+
+# --- Списание (раздел 6) ------------------------------------------------------------
+
+
+class SubscriptionUseIn(ApiModel):
+    """Строка услуги записи (record_services.id), оплачиваемая абонементом клиента."""
+
+    record_service_id: uuid.UUID
+    subscription_id: uuid.UUID
+
+
+def uses_map(uses: list[SubscriptionUseIn]) -> dict[uuid.UUID, uuid.UUID]:
+    """record_service_id → абонемент; одна строка — один абонемент (422)."""
+    result: dict[uuid.UUID, uuid.UUID] = {}
+    for item in uses:
+        if item.record_service_id in result:
+            raise HTTPException(422, "Один рядок — один абонемент")
+        result[item.record_service_id] = item.subscription_id
+    return result
+
+
+# --- Чтение (раздел 9) --------------------------------------------------------------
+
+
+class SubscriptionServiceOut(ApiModel):
+    """Услуга абонемента (снимок) и её остаток."""
+
+    salon_id: uuid.UUID
+    salon_name: str | None
+    service_id: uuid.UUID
+    # Название из каталога салона; null — услугу удалили или салон недоступен
+    service_name: str | None
+    # separate — выдано на эту услугу; shared — null
+    units: int | None
+    # Остаток корзины этой услуги; при shared — общий остаток абонемента
+    balance: int
+
+
+class SubscriptionOut(ApiModel):
+    id: uuid.UUID
+    type_id: uuid.UUID
+    name: str
+    client: PersonRef
+    status: SubscriptionStatus
+    unit_kind: SubscriptionUnitKind
+    balance_mode: SubscriptionBalanceMode
+    # Всего выдано и остаток по всем корзинам, в единицах типа
+    units_total: int
+    balance: int
+    services: list[SubscriptionServiceOut]
+    paid_amount: Decimal
+    unit_value: Decimal
+    # 0 — бессрочный
+    duration_value: int
+    duration_unit: SubscriptionDurationUnit
+    activation_mode: SubscriptionActivationMode
+    auto_activate_at: datetime | None
+    activated_at: datetime | None
+    # null — бессрочный или ещё не активирован
+    expires_at: datetime | None
+    freeze_allowed: bool
+    # 0 — без лимита
+    freeze_max_days: int
+    freeze_used: bool
+    frozen_at: datetime | None
+    # Авторазморозка; null — без лимита
+    freeze_until: datetime | None
+    unfrozen_at: datetime | None
+    frozen_days: int
+    sold_salon_id: uuid.UUID
+    sold_salon_name: str | None
+    sold_receipt_id: uuid.UUID
+    sold_at: datetime
+    cancelled_at: datetime | None
+    cancelled_by_name: str | None
+    cancel_reason: str | None
+    created_at: datetime
+
+
+async def service_names(
+    request: Request, pairs: set[tuple[uuid.UUID, uuid.UUID]]
+) -> dict[tuple[uuid.UUID, uuid.UUID], str]:
+    """Названия услуг из шардов салонов (cross-DB); недоступный салон пропускается."""
+    registry = request.app.state.engine_registry
+    names: dict[tuple[uuid.UUID, uuid.UUID], str] = {}
+    for salon_id in {salon for salon, _ in pairs}:
+        wanted = {service for salon, service in pairs if salon == salon_id}
+        try:
+            factory = await registry.get_sessionmaker(salon_id)
+            async with factory() as shard:
+                rows = await shard.execute(
+                    select(Service.id, Service.name).where(Service.id.in_(wanted))
+                )
+                names.update({(salon_id, sid): name for sid, name in rows.tuples()})
+        except Exception:
+            logger.warning("Назви послуг салону %s недоступні", salon_id, exc_info=True)
+    return names
+
+
+async def subscriptions_out(
+    request: Request, master_session: AsyncSession, items: list[Subscription]
+) -> list[SubscriptionOut]:
+    pairs = {(s.salon_id, s.service_id) for item in items for s in item.services}
+    names = await service_names(request, pairs) if pairs else {}
+    salon_ids = {salon for salon, _ in pairs} | {item.sold_salon_id for item in items}
+    salons: dict[uuid.UUID, str] = {}
+    clients: dict[uuid.UUID, str] = {}
+    if items:
+        salons = dict(
+            (
+                await master_session.execute(
+                    select(Salon.id, Salon.name).where(Salon.id.in_(salon_ids))
+                )
+            )
+            .tuples()
+            .all()
+        )
+        clients = {
+            c.id: c.full_name
+            for c in await master_session.scalars(
+                select(Client).where(Client.id.in_({item.client_id for item in items}))
+            )
+        }
+    result = []
+    for item in items:
+        services = []
+        for s in item.services:
+            basket = next(b for b in item.balances if b.matches(s.salon_id, s.service_id))
+            services.append(
+                SubscriptionServiceOut(
+                    salon_id=s.salon_id,
+                    salon_name=salons.get(s.salon_id),
+                    service_id=s.service_id,
+                    service_name=names.get((s.salon_id, s.service_id)),
+                    units=s.units,
+                    balance=basket.balance,
+                )
+            )
+        result.append(
+            SubscriptionOut(
+                id=item.id,
+                type_id=item.type_id,
+                name=item.name,
+                client=PersonRef(id=str(item.client_id), name=clients.get(item.client_id)),
+                status=item.status,
+                unit_kind=item.unit_kind,
+                balance_mode=item.balance_mode,
+                units_total=sum(b.units for b in item.balances),
+                balance=sum(b.balance for b in item.balances),
+                services=services,
+                paid_amount=item.paid_amount,
+                unit_value=item.unit_value,
+                duration_value=item.duration_value,
+                duration_unit=item.duration_unit,
+                activation_mode=item.activation_mode,
+                auto_activate_at=item.auto_activate_at,
+                activated_at=item.activated_at,
+                expires_at=item.expires_at,
+                freeze_allowed=item.freeze_allowed,
+                freeze_max_days=item.freeze_max_days,
+                freeze_used=item.freeze_used,
+                frozen_at=item.frozen_at,
+                freeze_until=item.freeze_until,
+                unfrozen_at=item.unfrozen_at,
+                frozen_days=item.frozen_days,
+                sold_salon_id=item.sold_salon_id,
+                sold_salon_name=salons.get(item.sold_salon_id),
+                sold_receipt_id=item.sold_receipt_id,
+                sold_at=item.sold_at,
+                cancelled_at=item.cancelled_at,
+                cancelled_by_name=item.cancelled_by_name,
+                cancel_reason=item.cancel_reason,
+                created_at=item.created_at,
+            )
+        )
+    return result
+
+
+def usable_in(item: Subscription, salon_id: uuid.UUID, now: datetime) -> bool:
+    """Подходит для оплаты в салоне: pending/active, срок не вышел, есть остаток на
+    услугу этого салона."""
+    return subscriptions_service.is_usable(item, now) and any(
+        b.balance > 0 and b.matches(s.salon_id, s.service_id)
+        for s in item.services
+        if s.salon_id == salon_id
+        for b in item.balances
+    )
+
+
+@router.get("/clients/{client_id}/subscriptions", response_model=Envelope[list[SubscriptionOut]])
+async def client_subscriptions(
+    client_id: uuid.UUID,
+    request: Request,
+    _admin: AdminUser,
+    master_session: MasterSession,
+    usable_for_salon: Annotated[uuid.UUID | None, Query(alias="usableForSalon")] = None,
+) -> Envelope[list[SubscriptionOut]]:
+    """Абонементы клиента, новые сверху (карточка клиента, раздел 9).
+
+    usableForSalon — только те, которыми сейчас можно оплатить услугу этого салона (окно
+    оплаты, раздел 6, п. 1): pending/active, срок не вышел, остаток > 0 на его услугу.
+    """
+    items = list(
+        await master_session.scalars(
+            select(Subscription)
+            .where(Subscription.client_id == client_id)
+            .order_by(Subscription.created_at.desc())
+        )
+    )
+    if usable_for_salon is not None:
+        now = datetime.now(UTC)
+        items = [item for item in items if usable_in(item, usable_for_salon, now)]
+    return Envelope(data=await subscriptions_out(request, master_session, items))

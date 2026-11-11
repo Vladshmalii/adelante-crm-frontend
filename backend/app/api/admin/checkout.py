@@ -13,6 +13,10 @@ products — товары со склада, повторяемый параме
 
 subscriptionTypeIds — продаваемые абонементы, по одному id на абонемент (subscriptions.md,
 раздел 5): строки в скидке и кешбэке; архивный тип — 422; в продаже без записи нужен clientId.
+
+subscriptionUses — строки записи, оплачиваемые абонементом клиента, повторяемый параметр
+`<recordServiceId>:<subscriptionId>` (раздел 6): строка 0 ₴, вне скидки и кешбэка; чем
+оплатить нельзя (статус, срок, услуга, остаток) — 422. Окончательно — при оплате.
 """
 
 import uuid
@@ -66,6 +70,9 @@ class CheckoutLineOut(ApiModel):
     template_id: uuid.UUID | None = None
     # Строка-абонемент: тип продажи
     subscription_type_id: uuid.UUID | None = None
+    # Строка услуги, оплачиваемая абонементом: какой и сколько единиц спишется
+    subscription_id: uuid.UUID | None = None
+    subscription_units: int | None = None
     # Строка-товар со склада: режим, количество как ввели, цена режима
     product_id: uuid.UUID | None = None
     mode: ProductSaleMode | None = None
@@ -99,6 +106,8 @@ class CheckoutOut(ApiModel):
     total: Decimal
     # Сертификаты в итоге: оплачиваются только кассовыми способами
     certificates_amount: Decimal
+    # Цена строк, оплачиваемых абонементом: в «Продано», в итоге 0 ₴
+    subscription_used_amount: Decimal
     # Особовий рахунок: > 0 — доступно, < 0 — долг. Уход в минус = запись в долг
     account_balance: Decimal
     cashback: CashbackOut | None
@@ -109,8 +118,10 @@ def checkout_out(
     ctx: checkout.Context,
     q: checkout.Quote,
     bonus: dict[uuid.UUID, str] | None = None,
+    used: list[subscriptions.Used] | None = None,
 ) -> CheckoutOut:
     bonus = bonus or {}
+    units = {u.record_service_id: u.units for u in used or []}
     card = ctx.card
     current = ctx.level.current if ctx.level else None
     return CheckoutOut(
@@ -140,6 +151,10 @@ def checkout_out(
                 ),
                 template_id=line.template_id,
                 subscription_type_id=line.subscription_type_id,
+                subscription_id=line.subscription_id,
+                subscription_units=(
+                    units.get(line.record_service_id) if line.record_service_id else None
+                ),
                 product_id=line.product_id,
                 mode=line.mode,
                 quantity=line.quantity,
@@ -162,6 +177,7 @@ def checkout_out(
         discount_amount=q.discount,
         total=q.total,
         certificates_amount=q.certificates,
+        subscription_used_amount=q.subscription_used,
         account_balance=ctx.money_balance,
         cashback=(
             CashbackOut(
@@ -220,6 +236,48 @@ async def _subscription_issues(
         raise HTTPException(422, str(exc))
 
 
+SubscriptionUses = Annotated[list[str] | None, Query(alias="subscriptionUses", max_length=100)]
+
+
+def parse_uses(values: list[str] | None) -> dict[uuid.UUID, uuid.UUID]:
+    """`<recordServiceId>:<subscriptionId>` → строка записи → абонемент."""
+    result: dict[uuid.UUID, uuid.UUID] = {}
+    for value in values or []:
+        try:
+            line, subscription = (uuid.UUID(part) for part in value.split(":"))
+        except ValueError:
+            raise HTTPException(422, "Абонемент: очікується recordServiceId:subscriptionId")
+        if line in result:
+            raise HTTPException(422, "Один рядок — один абонемент")
+        result[line] = subscription
+    return result
+
+
+async def plan_subscription_uses(
+    master_session: MasterSession,
+    record: Record,
+    salon_id: uuid.UUID,
+    bonus_ids: frozenset[uuid.UUID],
+    uses: dict[uuid.UUID, uuid.UUID],
+) -> list[subscriptions.Used]:
+    """Проверка выбранных абонементов без блокировок; нельзя — 422."""
+    try:
+        visits.check_subscription_uses(record, bonus_ids, uses)
+    except visits.InvalidSale as exc:
+        raise HTTPException(422, str(exc))
+    planned = checkout.subscription_uses(record, uses)
+    if not planned:
+        return []
+    try:
+        return await master_session.run_sync(
+            lambda s: subscriptions.plan_uses(
+                s, client_id=record.client_id, salon_id=salon_id, uses=planned
+            )
+        )
+    except subscriptions.UseError as exc:
+        raise HTTPException(422, str(exc))
+
+
 ProductSales = Annotated[
     list[str] | None, Query(alias="products", max_length=product_sales.MAX_LINES)
 ]
@@ -262,10 +320,12 @@ async def record_checkout(
     template_ids: CertificateTemplateIds = None,
     products: ProductSales = None,
     subscription_type_ids: SubscriptionTypeIds = None,
+    subscription_uses: SubscriptionUses = None,
 ) -> Envelope[CheckoutOut]:
     """Предпросмотр оплаты визита: карта и уровень, бонусные услуги, скидки, итог, балансы.
 
     bonusRecordServiceIds — строки, отмеченные бесплатными: итог считается с ними.
+    subscriptionUses — строки, оплачиваемые абонементами: тоже.
     """
     record = await tenant_session.get(Record, record_id)
     if record is None:
@@ -280,16 +340,18 @@ async def record_checkout(
         bonus = await checkout.bonus_options(master_session, ctx, salon_id, record, selected)
     except loyalty.LoyaltyError as exc:
         raise HTTPException(409, str(exc))
+    uses = parse_uses(subscription_uses)
+    used = await plan_subscription_uses(master_session, record, salon_id, selected, uses)
     issues = await _issues(master_session, template_ids)
     sold_subscriptions = await _subscription_issues(master_session, subscription_type_ids)
     planned = await _planned(tenant_session, products)
     q = ctx.quote(
-        checkout.record_lines(record, selected)
+        checkout.record_lines(record, selected, uses)
         + [line.line() for line in planned]
         + checkout.subscription_lines(sold_subscriptions)
         + checkout.certificate_lines(issues)
     )
-    return Envelope(data=checkout_out(record.client_id, ctx, q, bonus))
+    return Envelope(data=checkout_out(record.client_id, ctx, q, bonus, used))
 
 
 @router.get("/finances/receipts/checkout", response_model=Envelope[CheckoutOut])

@@ -162,6 +162,12 @@ class RecordService(ShardBase):
     duration_minutes: Mapped[int]
     # Строка списана как бонусная услуга карты лояльности (цена 0 в итоге)
     is_bonus: Mapped[bool] = mapped_column(default=False, server_default="false")
+    # Строка оплачена абонементом (subscriptions.md, раздел 6): в итоге 0 ₴. Абонемент —
+    # в Master DB (без FK); списано единиц (1 или длительность на момент оплаты) и
+    # стоимость для отчётов = round(unit_value × списано, 2) (решение 10)
+    subscription_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    subscription_units: Mapped[int | None]
+    subscription_unit_value: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
 
     record: Mapped[Record] = relationship(back_populates="services")
 

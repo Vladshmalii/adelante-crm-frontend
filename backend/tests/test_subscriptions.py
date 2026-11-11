@@ -1,5 +1,6 @@
-"""Абонементы (backend/docs/subscriptions.md): типы (раздел 4) и продажа (раздел 5)."""
+"""Абонементы (backend/docs/subscriptions.md): типы, продажа, списание, заморозка, чтение."""
 
+import threading
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -535,32 +536,78 @@ def test_reconciliation_cancels_orphan(w: World) -> None:
     assert fresh["sub"].status.value == "active"
 
 
-def _use(subscription_id: uuid.UUID, units: int = 1) -> uuid.UUID:
-    """Списание (часть 2 ещё не сделана) — прямой записью в журнал под блокировкой."""
+def _line(w: World, record_id: str, service: dict[str, Any]) -> str:
+    """record_services.id строки записи с этой услугой."""
+    record = w.s.api.get(f"/records/{record_id}", token=w.s.su, salon=w.s.id)
+    return next(x["recordServiceId"] for x in record["services"] if x["id"] == service["id"])
+
+
+def _pay_uses(
+    w: World,
+    record_id: str,
+    uses: list[tuple[str, Any]],
+    parts: list[tuple[str, float]] | None = None,
+    *,
+    expect: int = 200,
+    **extra: Any,
+) -> Any:
+    """Оплата визита: uses — [(record_service_id, subscription_id)]."""
+    return w.place.pay(
+        record_id,
+        parts or [],
+        token=w.adm,
+        expect=expect,
+        extra={
+            "subscriptionUses": [
+                {"recordServiceId": line, "subscriptionId": str(sub)} for line, sub in uses
+            ],
+            **extra,
+        },
+    )
+
+
+def _sub(subscription_id: Any) -> dict[str, Any]:
+    """Абонемент в Master: статус, корзины, журнал (по времени)."""
     import cli
-    from app.models.master import SubscriptionOperationType
-    from app.services import ledger, subscriptions
+    from app.models.master import Subscription
+    from app.services import subscriptions
 
     with cli._master_session() as session:
-        sub = subscriptions.lock(session, subscription_id)
-        op = subscriptions.post(
-            session,
-            sub.balances[0],
-            type=SubscriptionOperationType.USE,
-            delta=-units,
-            key=f"test-use:{uuid.uuid4()}",
-            meta=ledger.Meta(),
+        sub = session.get(Subscription, uuid.UUID(str(subscription_id)))
+        assert sub is not None
+        ops = sorted(subscriptions.operations(session, sub.id), key=lambda o: o.created_at)
+        result = {
+            "sub": sub,
+            "balances": sorted(((b.units, b.balance) for b in sub.balances), key=lambda x: x[0]),
+            "ops": [(o.type.value, o.delta, o.balance_after) for o in ops],
+        }
+        session.expunge_all()
+        return result
+
+
+def _set(subscription_id: Any, **values: Any) -> None:
+    """Подправить поля абонемента в Master (сроки, статус) для теста."""
+    import cli
+    from app.models.master import Subscription
+
+    with cli._master_session() as session:
+        session.execute(
+            update(Subscription)
+            .where(Subscription.id == uuid.UUID(str(subscription_id)))
+            .values(**values)
         )
         session.commit()
-        return op.id
+
+
+def _bought(w: World, cid: str, t: dict[str, Any], price: float | None = None) -> Any:
+    """Продать абонемент клиенту — id абонемента."""
+    receipt = _sell(w, cid, [t], [("cash", price if price is not None else t["price"])])
+    [sold] = _master(receipt["id"])
+    return sold["sub"].id
 
 
 def test_cancel_purchase_receipt(w: World, eager: None) -> None:
     """Отмена чека покупки: без использований — cancelled; после — 409, после сторно — можно."""
-    import cli
-    from app.models.master import SubscriptionOperation
-    from app.services import ledger, subscriptions
-
     p, s = w.place, w.s
     cid = _client(w)
     t = _type(w, price=500, totalUnits=5)
@@ -576,22 +623,19 @@ def test_cancel_purchase_receipt(w: World, eager: None) -> None:
 
     used = _sell(w, cid, [t], [("cash", 500)])
     [sold] = _master(used["id"])
-    use_id = _use(sold["sub"].id)
+    rec = p.record(cid, w.massage)
+    visit = _pay_uses(w, rec["id"], [(_line(w, rec["id"], w.massage), sold["sub"].id)])
     s.api.post(f"/finances/receipts/{used['id']}/cancel", token=s.su, salon=s.id, expect=409)
     [sold] = _master(used["id"])
     assert sold["sub"].status.value == "active"
-    # Использование сторнировано — отменять можно
-    with cli._master_session() as session:
-        subscriptions.lock(session, sold["sub"].id)
-        op = session.get(SubscriptionOperation, use_id)
-        assert op is not None
-        subscriptions.reverse(session, op, meta=ledger.Meta())
-        session.commit()
+    # Чек визита отменён — списание сторнировано, отменять покупку можно
+    p.cancel(visit["receipt"]["id"])
+    publish()
     p.cancel(used["id"])
     publish()
     [sold] = _master(used["id"])
     assert sold["sub"].status.value == "cancelled"
-    assert sold["ops"][-1] == ("cancel", -5, 0)
+    assert sold["ops"] == [("issue", 5, 5), ("use", -1, 4), ("reversal", 1, 5), ("cancel", -5, 0)]
 
 
 def test_journal_never_goes_negative(w: World) -> None:
@@ -626,3 +670,316 @@ def test_journal_never_goes_negative(w: World) -> None:
                 meta=ledger.Meta(),
             )
         session.rollback()
+
+
+# --- Списание (раздел 6) ------------------------------------------------------------
+
+
+def test_use_minutes_activates_and_reverses(w: World, eager: None) -> None:
+    """Минуты: 15 − услуга 3 мин = 12; первый визит активирует; сторно возвращает минуты."""
+    p, s = w.place, w.s
+    cid = _client(w)
+    t = _type(
+        w,
+        price=300,
+        unitKind="minutes",
+        totalUnits=15,
+        durationValue=30,
+        durationUnit="day",
+        activationMode="first_visit",
+        services=[_pair(w, w.solarium)],
+    )
+    sub_id = _bought(w, cid, t)
+    usable = s.api.get(
+        f"/clients/{cid}/subscriptions", token=w.adm, salon=s.id, params={"usableForSalon": s.id}
+    )
+    assert [x["id"] for x in usable] == [str(sub_id)]
+    assert usable[0]["status"] == "pending" and usable[0]["balance"] == 15
+    [svc] = usable[0]["services"]
+    assert svc["serviceName"] == "Солярій 3 хв" and svc["balance"] == 15
+    other_salon = s.api.salon_id(s.su, "main")
+    elsewhere = s.api.get(
+        f"/clients/{cid}/subscriptions",
+        token=w.adm,
+        salon=s.id,
+        params={"usableForSalon": other_salon},
+    )
+    assert elsewhere == []
+
+    rec = p.record(cid, w.solarium, w.massage)
+    line = _line(w, rec["id"], w.solarium)
+    preview = s.api.get(
+        f"/records/{rec['id']}/checkout",
+        token=w.adm,
+        salon=s.id,
+        params={"subscriptionUses": [f"{line}:{sub_id}"]},
+    )
+    assert money(preview["sold"]) == 450 and money(preview["total"]) == 400
+    assert money(preview["subscriptionUsedAmount"]) == 50
+    covered = next(x for x in preview["lines"] if x["recordServiceId"] == line)
+    assert covered["subscriptionId"] == str(sub_id) and covered["subscriptionUnits"] == 3
+    assert money(covered["amount"]) == 0
+
+    paid = _pay_uses(w, rec["id"], [(line, sub_id)], [("cash", 400)], expectedTotal="400")
+    state = _sub(sub_id)
+    assert state["balances"] == [(15, 12)]
+    assert state["ops"] == [("issue", 15, 15), ("use", -3, 12)]
+    sub = state["sub"]
+    assert sub.status.value == "active" and sub.activated_at is not None
+    assert sub.expires_at - sub.activated_at >= timedelta(days=29)
+    record = s.api.get(f"/records/{rec['id']}", token=s.su, salon=s.id)
+    row = next(x for x in record["services"] if x["recordServiceId"] == line)
+    assert row["subscriptionId"] == str(sub_id) and row["subscriptionUnits"] == 3
+    assert money(row["subscriptionUnitValue"]) == 60  # 300 / 15 × 3
+    assert money(record["totalAmount"]) == 400
+
+    # Отмена чека визита: минуты вернулись, активация осталась, строка снова по цене
+    p.cancel(paid["receipt"]["id"])
+    publish()
+    state = _sub(sub_id)
+    assert state["balances"] == [(15, 15)]
+    assert state["ops"][-1] == ("reversal", 3, 15)
+    assert state["sub"].status.value == "active" and state["sub"].activated_at is not None
+    record = s.api.get(f"/records/{rec['id']}", token=s.su, salon=s.id)
+    row = next(x for x in record["services"] if x["recordServiceId"] == line)
+    assert row["subscriptionId"] is None and record["paymentStatus"] == "unpaid"
+
+
+def test_use_rejections(w: World) -> None:
+    """Чужой клиент, услуга не из списка, нехватка, frozen, истёкший, бонус+абонемент — 422."""
+    p, s = w.place, w.s
+    cid, stranger = _client(w), _client(w)
+    minutes = _type(
+        w,
+        price=100,
+        unitKind="minutes",
+        totalUnits=5,
+        services=[_pair(w, w.solarium)],
+    )
+    sub_id = _bought(w, cid, minutes)
+    rec = p.record(cid, w.solarium, w.massage)
+    solarium, massage = _line(w, rec["id"], w.solarium), _line(w, rec["id"], w.massage)
+
+    def rejected(uses: list[tuple[str, Any]], parts: list[tuple[str, float]]) -> str:
+        return str(_pay_uses(w, rec["id"], uses, parts, expect=422))
+
+    # Услуга не входит в абонемент
+    assert "не входить" in rejected([(massage, sub_id)], [("cash", 50)])
+    # Чужой абонемент
+    foreign = _bought(w, stranger, minutes)
+    assert "іншому клієнту" in rejected([(solarium, foreign)], [("cash", 400)])
+    # Строка не из записи и строка дважды
+    _pay_uses(w, rec["id"], [(str(uuid.uuid4()), sub_id)], [("cash", 450)], expect=422)
+    _pay_uses(w, rec["id"], [(solarium, sub_id), (solarium, sub_id)], [("cash", 400)], expect=422)
+    # Осталось 2 минуты, услуга на 3 — 422 без частичного списания
+    first = p.record(cid, w.solarium)
+    _pay_uses(w, first["id"], [(_line(w, first["id"], w.solarium), sub_id)])
+    assert _sub(sub_id)["balances"] == [(5, 2)]
+    assert "Недостатньо залишку" in rejected([(solarium, sub_id)], [("cash", 400)])
+    assert _sub(sub_id)["balances"] == [(5, 2)]
+    s.api.get(
+        f"/records/{rec['id']}/checkout",
+        token=w.adm,
+        salon=s.id,
+        expect=422,
+        params={"subscriptionUses": [f"{solarium}:{sub_id}"]},
+    )
+
+    visits = _type(w, price=100, totalUnits=3, services=[_pair(w, w.solarium)])
+    fresh = _bought(w, cid, visits)
+    _set(fresh, status="frozen")
+    assert "заморожено" in rejected([(solarium, fresh)], [("cash", 400)])
+    _set(fresh, status="active", expires_at=datetime.now(UTC) - timedelta(minutes=1))
+    assert "минув" in rejected([(solarium, fresh)], [("cash", 400)])
+    usable = s.api.get(
+        f"/clients/{cid}/subscriptions", token=w.adm, salon=s.id, params={"usableForSalon": s.id}
+    )
+    assert str(fresh) not in [x["id"] for x in usable]
+    assert str(sub_id) in [x["id"] for x in usable]
+    assert len(s.api.get(f"/clients/{cid}/subscriptions", token=w.adm, salon=s.id)) == 2
+
+    # Бонусная и по абонементу одновременно — нельзя
+    _set(fresh, expires_at=None)
+    _pay_uses(
+        w,
+        rec["id"],
+        [(solarium, fresh)],
+        [("cash", 400)],
+        expect=422,
+        bonusRecordServiceIds=[solarium],
+    )
+    # Мастер абонементы клиента не видит
+    _, master_token = s.create_staff(role="master")
+    s.api.get(f"/clients/{cid}/subscriptions", token=master_token, salon=s.id, expect=403)
+
+
+def test_use_separate_spent_and_back(w: World, eager: None) -> None:
+    """separate: своя корзина на услугу; остаток 0 всех корзин — spent; сторно → active.
+
+    Скидка карты и кешбэк на строки по абонементу не действуют; в отчёте по услугам их
+    стоимость — отдельной колонкой, деньги визита достаются оплаченным строкам.
+    """
+    p, s = w.place, w.s
+    cid = _client(w, card=True)
+    other = p.service(200, "Манікюр")
+    massage, solarium = p.service(400), p.service(50)
+    t = _type(
+        w,
+        price=1000,
+        balanceMode="separate",
+        totalUnits=None,
+        services=[_pair(w, massage, 1), _pair(w, solarium, 1)],
+    )
+    receipt = _sell(w, cid, [t], [("cash", 900)])  # −10 % карты
+    [sold] = _master(receipt["id"])
+    sub_id = sold["sub"].id
+    assert sold["sub"].unit_value == Decimal("450.0000")
+    publish()
+    rec = p.record(cid, massage, solarium, other)
+    uses = [(_line(w, rec["id"], massage), sub_id), (_line(w, rec["id"], solarium), sub_id)]
+    paid = _pay_uses(w, rec["id"], uses, [("cash", 180)], expectedTotal="180")
+    state = _sub(sub_id)
+    assert state["sub"].status.value == "spent"
+    assert state["balances"] == [(1, 0), (1, 0)]
+    publish()
+    [card] = s.api.get(f"/clients/{cid}/loyalty-cards", token=s.su, salon=s.id)
+    # Кешбэк 5 % — от 900 за абонемент и 180 за маникюр; строки по абонементу — 0
+    assert money(card["cashbackBalance"]) == 54
+    # «Продано» карты: абонемент 1000 и маникюр 200; цена строк по абонементу не дублируется
+    assert money(card["soldTotal"]) == 1200
+    now = datetime.now(UTC)
+    period = {
+        "dateFrom": (now - timedelta(days=2)).isoformat(),
+        "dateTo": (now + timedelta(days=2)).isoformat(),
+    }
+    report = s.api.get("/reports/services", token=s.su, salon=s.id, params=period)
+    rows = {x["serviceId"]: x for x in report["services"]}
+    assert money(rows[massage["id"]]["subscriptionValue"]) == 450
+    assert money(rows[solarium["id"]]["subscriptionValue"]) == 450
+    assert money(rows[massage["id"]]["revenue"]) == 0
+    assert money(rows[other["id"]]["revenue"]) == 180
+    assert money(rows[other["id"]]["subscriptionValue"]) == 0
+
+    second = p.record(cid, massage)
+    _pay_uses(
+        w,
+        second["id"],
+        [(_line(w, second["id"], massage), sub_id)],
+        expect=422,
+    )
+    p.cancel(paid["receipt"]["id"])
+    publish()
+    state = _sub(sub_id)
+    assert state["sub"].status.value == "active"
+    assert state["balances"] == [(1, 1), (1, 1)]
+
+
+def test_concurrent_last_unit(w: World) -> None:
+    """Последнюю единицу списывают два чека одновременно — проходит один."""
+    p = w.place
+    cid = _client(w)
+    t = _type(w, price=100, totalUnits=1)
+    sub_id = _bought(w, cid, t)
+    records = [p.record(cid, w.massage), p.record(cid, w.massage)]
+    lines = [_line(w, r["id"], w.massage) for r in records]
+    results: list[str] = []
+
+    def pay(record_id: str, line: str) -> None:
+        try:
+            _pay_uses(w, record_id, [(line, sub_id)])
+            results.append("ok")
+        except AssertionError as exc:  # ApiError
+            results.append(str(exc))
+
+    threads = [
+        threading.Thread(target=pay, args=(r["id"], line))
+        for r, line in zip(records, lines, strict=True)
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert "ok" in results and len(results) == 2
+    [failed] = [r for r in results if r != "ok"]
+    assert "422" in failed and "вичерпано" in failed
+    state = _sub(sub_id)
+    assert state["balances"] == [(1, 0)] and state["sub"].status.value == "spent"
+    assert [op for op in state["ops"] if op[0] == "use"] == [("use", -1, 0)]
+
+
+def test_use_reversal_on_cancelled_subscription(w: World, eager: None) -> None:
+    """Гонка 13.4, п. 13: чек покупки отменён после списания — сторно не оживляет единицы."""
+    import cli
+    from app.services import ledger, subscriptions
+
+    p = w.place
+    cid = _client(w)
+    t = _type(w, price=300, totalUnits=3)
+    receipt = _sell(w, cid, [t], [("cash", 300)])
+    [sold] = _master(receipt["id"])
+    sub_id = sold["sub"].id
+    rec = p.record(cid, w.massage)
+    visit = _pay_uses(w, rec["id"], [(_line(w, rec["id"], w.massage), sub_id)])
+    # Отмена покупки «проскочила» проверку was_used — воркер аннулировал абонемент
+    with cli._master_session() as session:
+        subscriptions.cancel_issued(
+            session,
+            salon_id=uuid.UUID(w.s.id),
+            receipt_id=uuid.UUID(receipt["id"]),
+            meta=ledger.Meta(comment="чек скасовано"),
+        )
+        session.commit()
+    p.cancel(visit["receipt"]["id"])
+    publish()
+    state = _sub(sub_id)
+    assert state["sub"].status.value == "cancelled"
+    assert state["balances"] == [(3, 0)]
+    assert state["ops"] == [
+        ("issue", 3, 3),
+        ("use", -1, 2),
+        ("cancel", -2, 0),
+        ("reversal", 1, 1),
+        ("cancel", -1, 0),
+    ]
+
+
+def test_reconciliation_reverses_orphan_use(w: World) -> None:
+    """Списание в Master без чека в шарде — ночная сверка сторнирует его."""
+    from app.models.master import SubscriptionOperation
+    from app.services import ledger, subscriptions
+    from workers import db
+    from workers.tasks import integrity
+
+    cid = _client(w)
+    t = _type(w, price=200, totalUnits=2)
+    sub_id = _bought(w, cid, t)
+    salon_id, receipt_id = uuid.UUID(w.s.id), uuid.uuid4()
+    with db.master_session() as session:
+        subscriptions.use(
+            session,
+            salon_id=salon_id,
+            receipt_id=receipt_id,
+            client_id=uuid.UUID(cid),
+            uses=[
+                subscriptions.Use(
+                    record_service_id=uuid.uuid4(),
+                    subscription_id=sub_id,
+                    service_id=uuid.UUID(w.massage["id"]),
+                    service_name="Масаж",
+                    duration_minutes=30,
+                )
+            ],
+            meta=ledger.Meta(salon_id=salon_id, receipt_id=receipt_id),
+        )
+        session.execute(
+            update(SubscriptionOperation)
+            .where(SubscriptionOperation.receipt_id == receipt_id)
+            .values(created_at=datetime.now(UTC) - timedelta(hours=2))
+        )
+        session.commit()
+    assert _sub(sub_id)["balances"] == [(2, 1)]
+    assert integrity.reconcile_payments(salon_id) >= 1
+    state = _sub(sub_id)
+    assert state["balances"] == [(2, 2)]
+    assert state["ops"][-1] == ("reversal", 1, 2)
+    assert integrity.reconcile_payments(salon_id) == 0

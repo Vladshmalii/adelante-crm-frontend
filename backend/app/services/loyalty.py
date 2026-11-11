@@ -321,7 +321,9 @@ def record_visit(
             BonusLine(
                 record_service_id=uuid.UUID(line["record_service_id"]),
                 service_id=uuid.UUID(line["service_id"]),
-                is_bonus=bool(line.get("is_bonus")),
+                # Строка по абонементу — не оплаченная услуга: прогресс не двигает,
+                # как и бонусная (subscriptions.md, часть 2)
+                is_bonus=bool(line.get("is_bonus")) or bool(line.get("subscription_id")),
             )
             for line in payload["lines"]
             if line["kind"] == "service" and line.get("service_id")

@@ -734,6 +734,8 @@ class CertificateLookupIn(ApiModel):
     # Контекст чека: оплата визита (recordId) или продажа без записи (clientId)
     record_id: uuid.UUID | None = None
     bonus_record_service_ids: list[uuid.UUID] = Field(default_factory=list)
+    # Строки записи, оплачиваемые абонементом (0 ₴ — область сертификата их не покрывает)
+    subscription_record_service_ids: list[uuid.UUID] = Field(default_factory=list)
     client_id: uuid.UUID | None = None
     # Товары со склада в чеке — для областей «на товари» / «на послуги і товари»
     products: list[ProductSaleIn] = Field(default_factory=list, max_length=product_sales.MAX_LINES)
@@ -777,7 +779,11 @@ async def lookup_certificate(
         client_id = record.client_id
         ctx = await checkout.load_context(master_session, client_id, salon_id)
         selected = frozenset(body.bonus_record_service_ids)
-        lines = ctx.quote(checkout.record_lines(record, selected) + product_lines).scope_lines()
+        # Какой именно абонемент — для сумм неважно: строка 0 ₴
+        uses = {line_id: line_id for line_id in body.subscription_record_service_ids}
+        lines = ctx.quote(
+            checkout.record_lines(record, selected, uses) + product_lines
+        ).scope_lines()
     elif product_lines:
         ctx = await checkout.load_context(master_session, client_id, salon_id)
         lines = ctx.quote(product_lines).scope_lines()

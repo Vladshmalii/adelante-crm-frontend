@@ -15,7 +15,9 @@ backend/docs/loyalty-accounts.md, раздел 6, шаг 4:
 На шаге 3 там же списываются части, оплаченные сертификатами (ключ
 `pay:{salon}:{receipt}:certificate:{id}`), и выпускаются проданные чеком
 сертификаты (certificates.md, 4.4 и 5) и абонементы (subscriptions.md, раздел 5,
-ключ `subs:{salon}:{receipt}:{line}`): компенсация и сверка отменяют всё вместе.
+ключ `subs:{salon}:{receipt}:{line}`), списываются строки, оплаченные абонементом
+(раздел 6, ключ `pay:{salon}:{receipt}:subs:{record_service_id}`): компенсация и
+сверка отменяют всё вместе.
 """
 
 import uuid
@@ -42,6 +44,10 @@ RECONCILE_GRACE = timedelta(hours=1)
 
 class PaymentError(Exception):
     pass
+
+
+class InvalidCharge(PaymentError):
+    """Списание невозможно по данным запроса (422): строку нельзя оплатить абонементом."""
 
 
 def receipt_id_for(salon_id: uuid.UUID, idempotency_key: str | None) -> uuid.UUID:
@@ -80,6 +86,8 @@ class Charges:
     scope_lines: tuple[certificates.LineAmount, ...] = ()
     # Абонементы, продаваемые чеком (с оплаченной суммой строки): выпуск там же
     subscriptions: tuple[subscription_service.Issue, ...] = ()
+    # Строки услуг, оплачиваемые абонементами клиента
+    subscription_uses: tuple[subscription_service.Use, ...] = ()
 
     @property
     def needs_client(self) -> bool:
@@ -90,6 +98,7 @@ class Charges:
             or bool(self.bonus_lines)
             or bool(self.redemptions)
             or bool(self.subscriptions)
+            or bool(self.subscription_uses)
         )
 
     @property
@@ -105,12 +114,17 @@ class ChargeResult:
     issued: tuple[certificates.Issued, ...] = ()
     # Выпущенные абонементы: позиция продажи → абонемент
     subscriptions: tuple[subscription_service.Issued, ...] = ()
+    # Списания абонементами по строкам услуг
+    used: tuple[subscription_service.Used, ...] = ()
 
     def certificate_id(self, line: int, n: int) -> uuid.UUID | None:
         return next((i.certificate_id for i in self.issued if i.line == line and i.n == n), None)
 
     def subscription_id(self, line: int) -> uuid.UUID | None:
         return next((i.subscription_id for i in self.subscriptions if i.line == line), None)
+
+    def used_for(self, record_service_id: uuid.UUID) -> subscription_service.Used | None:
+        return next((u for u in self.used if u.record_service_id == record_service_id), None)
 
 
 def charge(
@@ -179,6 +193,17 @@ def charge(
             issues=list(charges.subscriptions),
             meta=meta,
         )
+    used: list[subscription_service.Used] = []
+    if charges.subscription_uses:
+        assert client_id is not None
+        used = subscription_service.use(
+            session,
+            salon_id=salon_id,
+            receipt_id=receipt_id,
+            client_id=client_id,
+            uses=list(charges.subscription_uses),
+            meta=meta,
+        )
     if charges.bonus_lines:
         if charges.card_id is None:
             raise ledger.LedgerError(
@@ -196,6 +221,7 @@ def charge(
         account_balance_before=balance_before,
         issued=tuple(issued),
         subscriptions=tuple(subscriptions_issued),
+        used=tuple(used),
     )
 
 
@@ -271,8 +297,9 @@ def reverse_payments(
     """Сторно всех списаний по чеку (компенсация, отмена чека, сверка). Идемпотентно.
 
     Деньги и кешбэк возвращаются сторно, выпущенные чеком сертификаты и абонементы
-    отменяются, использованные бонусные услуги — в available. Порядок блокировок как
-    при оплате: money-счёт, кешбек, сертификаты, абонементы, прогресс бонусов.
+    отменяются, списания абонементами сторнируются (subscriptions.md, раздел 6, п. 7),
+    использованные бонусные услуги — в available. Порядок блокировок как при оплате:
+    money-счёт, кешбек, сертификаты, абонементы (по id), прогресс бонусов.
     """
     txns = open_payments(session, salon_id=salon_id, receipt_id=receipt_id)
     txns.sort(key=_lock_order)
@@ -282,7 +309,7 @@ def reverse_payments(
     cancelled = certificates.cancel_issued(
         session, salon_id=salon_id, receipt_id=receipt_id, meta=meta
     )
-    cancelled += subscription_service.cancel_issued(
+    cancelled += subscription_service.reverse_receipt(
         session, salon_id=salon_id, receipt_id=receipt_id, meta=meta
     )
     return len(txns) + cancelled + loyalty.reverse_bonus_uses(session, salon_id, receipt_id)
@@ -351,6 +378,9 @@ async def settle(
                 )
             )
             await master_session.commit()
+        except subscription_service.UseError as exc:
+            await master_session.rollback()
+            raise InvalidCharge(str(exc))
         except ledger.LedgerError as exc:
             await master_session.rollback()
             raise PaymentError(str(exc))

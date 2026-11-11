@@ -20,7 +20,7 @@ from app.api.admin.certificates import CertificateSaleIn
 from app.api.admin.deps import CurrentAuthor, ensure_own_record
 from app.api.admin.inventory import ProductSaleIn
 from app.api.admin.services import CategoryRef
-from app.api.admin.subscriptions import SubscriptionSaleIn
+from app.api.admin.subscriptions import SubscriptionSaleIn, SubscriptionUseIn, uses_map
 from app.api.schemas import ApiModel, Envelope, PersonRef, page_meta
 from app.api.security import AdminUser, CurrentUser, forbidden, require_salon_access
 from app.config import get_settings
@@ -63,6 +63,13 @@ class RecordServiceOut(ApiModel):
     duration_minutes: int
     category: CategoryRef | None = None
     color: str | None = None
+    # Строка записи (record_services.id) — для бонусных строк и оплаты абонементом
+    record_service_id: uuid.UUID | None = None
+    # Оплачена абонементом (subscriptions.md, раздел 6): списано единиц и стоимость
+    # услуги для отчётов; null — нет
+    subscription_id: uuid.UUID | None = None
+    subscription_units: int | None = None
+    subscription_unit_value: Decimal | None = None
 
 
 class MasterRef(ApiModel):
@@ -217,6 +224,10 @@ def _record_out(record: Record, refs: _Refs) -> RecordOut:
                     else None
                 ),
                 color=current.color if current else None,
+                record_service_id=item.id,
+                subscription_id=item.subscription_id,
+                subscription_units=item.subscription_units,
+                subscription_unit_value=item.subscription_unit_value,
             )
         )
     return RecordOut(
@@ -717,6 +728,8 @@ class RecordPaymentIn(ApiModel):
     products: list[ProductSaleIn] = Field(default_factory=list, max_length=product_sales.MAX_LINES)
     # Продажа абонементов клиенту записи (subscriptions.md, раздел 5): по позиции на абонемент
     subscriptions: list[SubscriptionSaleIn] = Field(default_factory=list, max_length=20)
+    # Строки услуг, оплачиваемые абонементами клиента (subscriptions.md, раздел 6)
+    subscription_uses: list[SubscriptionUseIn] = Field(default_factory=list, max_length=100)
 
 
 class ReceiptRef(ApiModel):
@@ -769,6 +782,7 @@ async def pay_record(
             certificate_sales=[c.to_sale() for c in body.certificates],
             products=[p.to_sale() for p in body.products],
             subscription_sales=[s.to_sale() for s in body.subscriptions],
+            subscription_uses=uses_map(body.subscription_uses),
         )
     except product_sales.ProductSaleError as exc:
         raise HTTPException(exc.status_code, str(exc))

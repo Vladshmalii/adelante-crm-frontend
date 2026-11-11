@@ -69,7 +69,7 @@ class StaleCheckout(PaymentError):
 
 class InvalidSale(PaymentError):
     """Продажа невозможна по данным запроса (422): срок продажи сертификата минул,
-    абонемент без клиента в чеке."""
+    абонемент без клиента в чеке, строку нельзя оплатить абонементом."""
 
 
 class PaymentPart(BaseModel):
@@ -385,8 +385,13 @@ async def pay_record(
     certificate_sales: list[certificates.CertificateSale] | None = None,
     products: list[product_sales.ProductSale] | None = None,
     subscription_sales: list[subscriptions.SubscriptionSale] | None = None,
+    subscription_uses: dict[uuid.UUID, uuid.UUID] | None = None,
 ) -> Receipt:
     """Оплата визита (раздел 6). Итог считает сервер: бонусные услуги, наибольшая скидка.
+
+    subscription_uses — строки записи (record_service_id), оплачиваемые абонементами
+    клиента (subscriptions.md, раздел 6): в итоге 0 ₴, списание — в Master вместе с
+    остальными; не та услуга, не тот клиент, нехватка остатка — InvalidSale (422).
 
     Части account/bonus списываются в Master до записи чека, там же выпускаются
     проданные сертификаты и абонементы (клиенту записи — она всегда с клиентом).
@@ -411,13 +416,14 @@ async def pay_record(
     bonus_ids = frozenset(bonus_record_service_ids or [])
     if bonus_ids - {s.id for s in record.services}:
         raise PaymentError("Бонусна послуга не належить цьому запису")
+    uses = check_subscription_uses(record, bonus_ids, subscription_uses)
     if bonus_ids and ctx.card is None:
         raise PaymentError("Бонусні послуги доступні лише з карткою, що діє в цьому салоні")
     issues = await _certificate_issues(master_session, certificate_sales)
     subscription_issues = await _subscription_issues(master_session, subscription_sales)
     planned = await product_sales.plan(tenant_session, products or [], lock=True)
     q = ctx.quote(
-        checkout.record_lines(record, bonus_ids)
+        checkout.record_lines(record, bonus_ids, uses)
         + [line.line() for line in planned]
         + checkout.subscription_lines(subscription_issues)
         + checkout.certificate_lines(issues)
@@ -433,6 +439,7 @@ async def pay_record(
         total=q.rest,
         issues=tuple(issues),
         subscriptions=tuple(sold_subscriptions),
+        subscription_uses=tuple(checkout.subscription_uses(record, uses)),
         scope_lines=tuple(q.scope_lines()),
         bonus_lines=tuple(
             loyalty.BonusLine(record_service_id=s.id, service_id=s.service_id, is_bonus=True)
@@ -453,6 +460,10 @@ async def pay_record(
         )
         for item in record.services:
             item.is_bonus = item.id in bonus_ids
+            used = result.used_for(item.id)
+            item.subscription_id = used.subscription_id if used else None
+            item.subscription_units = used.units if used else None
+            item.subscription_unit_value = used.unit_value if used else None
         receipt = await create_receipt(
             tenant_session,
             payments=payments,
@@ -523,8 +534,24 @@ async def pay_record(
             author_name=author_name,
             write_shard=write_shard,
         )
+    except payments_service.InvalidCharge as exc:
+        raise InvalidSale(str(exc))
     except payments_service.PaymentError as exc:
         raise PaymentError(str(exc))
+
+
+def check_subscription_uses(
+    record: Record,
+    bonus_ids: frozenset[uuid.UUID],
+    uses: dict[uuid.UUID, uuid.UUID] | None,
+) -> dict[uuid.UUID, uuid.UUID]:
+    """Строки, оплачиваемые абонементом: из этой записи и не бонусные (422)."""
+    uses = uses or {}
+    if set(uses) - {s.id for s in record.services}:
+        raise InvalidSale("Рядок, оплачений абонементом, не належить цьому запису")
+    if set(uses) & bonus_ids:
+        raise InvalidSale("Рядок не може бути одночасно бонусним і оплаченим абонементом")
+    return uses
 
 
 def check_total(
@@ -754,7 +781,8 @@ def emit_receipt_paid(
             "client_id": str(receipt.client_id),
             "card_id": str(receipt.loyalty_card_id),
             "happened_at": receipt.date.isoformat(),
-            "sold": str(quote.sold - quote.certificates),
+            # Строки по абонементу — без цены: она попала в «Продано» при покупке абонемента
+            "sold": str(quote.sold - quote.certificates - quote.subscription_used),
             "discount": str(quote.discount),
             "total": str(receipt.amount - quote.certificates),
             "parts": {k: str(v) for k, v in parts.items()},
@@ -834,6 +862,9 @@ async def unpay_record_for_receipt(
     record.loyalty_card_id = None
     for item in record.services:
         item.is_bonus = False
+        item.subscription_id = None
+        item.subscription_units = None
+        item.subscription_unit_value = None
     emit_record_updated(
         tenant_session,
         salon_id=salon_id,

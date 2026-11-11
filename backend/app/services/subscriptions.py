@@ -27,7 +27,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.master import (
@@ -235,6 +235,9 @@ def post(
         comment=meta.comment,
         reverses_id=reverses.id if reverses else None,
         idempotency_key=key,
+        # Время строки, а не транзакции: порядок операций одной транзакции (сторно и
+        # сгорание после него) в журнале сохраняется
+        created_at=func.clock_timestamp(),
     )
     session.add(op)
     session.flush()
@@ -459,6 +462,332 @@ def hanging_receipts(
             .distinct()
         )
     )
+
+
+# --- Списание на визите (раздел 6) ---------------------------------------------------
+
+
+class UseError(ledger.LedgerError):
+    """Строку нельзя оплатить абонементом (422): статус, срок, услуга, остаток."""
+
+
+# Чем можно оплачивать строку
+USABLE = (SubscriptionStatus.PENDING, SubscriptionStatus.ACTIVE)
+
+UNUSABLE_REASON = {
+    SubscriptionStatus.FROZEN: "Абонемент «{name}» заморожено",
+    SubscriptionStatus.SPENT: "Абонемент «{name}» вичерпано",
+    SubscriptionStatus.EXPIRED: "Термін дії абонемента «{name}» минув",
+    SubscriptionStatus.CANCELLED: "Абонемент «{name}» анульовано",
+}
+
+
+@dataclass(frozen=True)
+class Use:
+    """Строка услуги визита, оплачиваемая абонементом."""
+
+    record_service_id: uuid.UUID
+    subscription_id: uuid.UUID
+    service_id: uuid.UUID
+    service_name: str
+    duration_minutes: int
+
+
+@dataclass(frozen=True)
+class Used:
+    """Списано по строке: единицы и стоимость услуги для отчётов (решение 10)."""
+
+    record_service_id: uuid.UUID
+    subscription_id: uuid.UUID
+    units: int
+    unit_value: Decimal
+
+
+def use_key(salon_id: uuid.UUID, receipt_id: uuid.UUID, record_service_id: uuid.UUID) -> str:
+    return f"pay:{salon_id}:{receipt_id}:subs:{record_service_id}"
+
+
+def line_value(subscription: Subscription, units: int) -> Decimal:
+    """Стоимость строки для отчётов: round(unit_value × списано, 2)."""
+    return ledger.money(subscription.unit_value * units)
+
+
+def is_usable(subscription: Subscription, now: datetime) -> bool:
+    """Можно ли сейчас оплачивать абонементом (без учёта услуги и остатка)."""
+    return subscription.status in USABLE and (
+        subscription.expires_at is None or subscription.expires_at > now
+    )
+
+
+def _check_use(
+    subscription: Subscription,
+    left: dict[uuid.UUID, int],
+    *,
+    client_id: uuid.UUID,
+    salon_id: uuid.UUID,
+    use: Use,
+    now: datetime,
+) -> tuple[SubscriptionBalance, int]:
+    """Корзина и количество для строки (раздел 6, п. 2). left — остатки корзин сейчас.
+
+    UseError — строку этим абонементом оплатить нельзя. Частичного списания нет.
+    """
+    name = subscription.name
+    if subscription.client_id != client_id:
+        raise UseError(f"Абонемент «{name}» належить іншому клієнту")
+    if subscription.status not in USABLE:
+        raise UseError(UNUSABLE_REASON[subscription.status].format(name=name))
+    if subscription.expires_at is not None and subscription.expires_at <= now:
+        raise UseError(UNUSABLE_REASON[SubscriptionStatus.EXPIRED].format(name=name))
+    if not any(
+        s.salon_id == salon_id and s.service_id == use.service_id for s in subscription.services
+    ):
+        raise UseError(f"Послуга «{use.service_name}» не входить до абонемента «{name}»")
+    basket = next(b for b in subscription.balances if b.matches(salon_id, use.service_id))
+    if subscription.unit_kind == SubscriptionUnitKind.VISITS:
+        units = 1
+    else:
+        units = use.duration_minutes
+        if units <= 0:
+            raise UseError(f"У послуги «{use.service_name}» не задано тривалість")
+    if left[basket.id] < units:
+        raise UseError(
+            f"Недостатньо залишку абонемента «{name}»: залишилось {left[basket.id]}, "
+            f"потрібно {units}"
+        )
+    return basket, units
+
+
+def _ordered(uses: list[Use]) -> list[Use]:
+    seen: set[uuid.UUID] = set()
+    for item in uses:
+        if item.record_service_id in seen:
+            raise UseError("Один рядок — один абонемент")
+        seen.add(item.record_service_id)
+    return sorted(uses, key=lambda u: (u.subscription_id, u.record_service_id))
+
+
+def plan_uses(
+    session: Session,
+    *,
+    client_id: uuid.UUID,
+    salon_id: uuid.UUID,
+    uses: list[Use],
+    now: datetime | None = None,
+) -> list[Used]:
+    """Проверка без блокировок — для предпросмотра оплаты. Окончательно — в `use`."""
+    if not uses:
+        return []
+    now = now or datetime.now(UTC)
+    found = {
+        s.id: s
+        for s in session.scalars(
+            select(Subscription).where(Subscription.id.in_({u.subscription_id for u in uses}))
+        )
+    }
+    left: dict[uuid.UUID, int] = {}
+    result = []
+    for item in _ordered(uses):
+        subscription = found.get(item.subscription_id)
+        if subscription is None:
+            raise UseError("Абонемент не знайдено")
+        for b in subscription.balances:
+            left.setdefault(b.id, b.balance)
+        basket, units = _check_use(
+            subscription, left, client_id=client_id, salon_id=salon_id, use=item, now=now
+        )
+        left[basket.id] -= units
+        result.append(
+            Used(item.record_service_id, subscription.id, units, line_value(subscription, units))
+        )
+    return result
+
+
+def _lock_all(session: Session, ids: set[uuid.UUID]) -> dict[uuid.UUID, Subscription]:
+    """Абонементы под FOR UPDATE по возрастанию id; корзины перечитываются."""
+    locked = {}
+    for subscription_id in sorted(ids):
+        subscription = lock(session, subscription_id)
+        for balance in subscription.balances:
+            session.refresh(balance)
+        locked[subscription_id] = subscription
+    return locked
+
+
+def use(
+    session: Session,
+    *,
+    salon_id: uuid.UUID,
+    receipt_id: uuid.UUID,
+    client_id: uuid.UUID,
+    uses: list[Use],
+    meta: ledger.Meta,
+    now: datetime | None = None,
+) -> list[Used]:
+    """Списание строк визита (раздел 6, пп. 3–5) в транзакции оплаты. Идемпотентно.
+
+    Абонементы блокируются по возрастанию id. Операция use с ключом
+    `pay:{salon}:{receipt}:subs:{record_service_id}`; первое списание pending-абонемента
+    его активирует; нулевой остаток всех корзин — spent. Повтор после сбоя возвращает
+    уже записанное; если ту попытку сторнировали — ошибка, как у остальных списаний.
+    """
+    if not uses:
+        return []
+    now = now or datetime.now(UTC)
+    ordered = _ordered(uses)
+    try:
+        locked = _lock_all(session, {u.subscription_id for u in ordered})
+    except UseError:
+        raise
+    except ledger.LedgerError as exc:
+        raise UseError(str(exc))
+    left = {b.id: b.balance for s in locked.values() for b in s.balances}
+    result = []
+    for item in ordered:
+        subscription = locked[item.subscription_id]
+        key = use_key(salon_id, receipt_id, item.record_service_id)
+        existing = find_by_key(session, key)
+        if existing is not None:
+            if is_reversed(session, existing.id):
+                raise ledger.LedgerError("Попередню спробу оплати скасовано — повторіть оплату")
+            units = -existing.delta
+            result.append(
+                Used(
+                    item.record_service_id, subscription.id, units, line_value(subscription, units)
+                )
+            )
+            continue
+        basket, units = _check_use(
+            subscription, left, client_id=client_id, salon_id=salon_id, use=item, now=now
+        )
+        post(
+            session,
+            basket,
+            type=SubscriptionOperationType.USE,
+            delta=-units,
+            key=key,
+            meta=replace(meta, comment=f"Послуга «{item.service_name}»"),
+            record_service_id=item.record_service_id,
+        )
+        left[basket.id] = basket.balance
+        if subscription.status == SubscriptionStatus.PENDING:
+            # Первый визит запускает срок (раздел 6, п. 4)
+            subscription.status = SubscriptionStatus.ACTIVE
+            subscription.activated_at = now
+            subscription.expires_at = add_duration(
+                now, subscription.duration_value, subscription.duration_unit
+            )
+        result.append(
+            Used(item.record_service_id, subscription.id, units, line_value(subscription, units))
+        )
+    for subscription in locked.values():
+        if subscription.status == SubscriptionStatus.ACTIVE and all(
+            b.balance == 0 for b in subscription.balances
+        ):
+            subscription.status = SubscriptionStatus.SPENT
+    session.flush()
+    return result
+
+
+def _open_uses(
+    session: Session, salon_id: uuid.UUID, receipt_id: uuid.UUID
+) -> list[SubscriptionOperation]:
+    reversed_ids = select(SubscriptionOperation.reverses_id).where(
+        SubscriptionOperation.reverses_id.is_not(None)
+    )
+    return list(
+        session.scalars(
+            select(SubscriptionOperation).where(
+                SubscriptionOperation.salon_id == salon_id,
+                SubscriptionOperation.receipt_id == receipt_id,
+                SubscriptionOperation.type == SubscriptionOperationType.USE,
+                SubscriptionOperation.id.not_in(reversed_ids),
+            )
+        )
+    )
+
+
+# Возвращённое сторно в закрытый абонемент сразу гасится (раздел 6, п. 7; 13.4, п. 13)
+BURN_AFTER_REVERSAL = {
+    SubscriptionStatus.EXPIRED: SubscriptionOperationType.EXPIRE,
+    SubscriptionStatus.CANCELLED: SubscriptionOperationType.CANCEL,
+}
+
+
+def reverse_uses(
+    session: Session, *, salon_id: uuid.UUID, receipt_id: uuid.UUID, meta: ledger.Meta
+) -> int:
+    """Сторно списаний по чеку визита (раздел 6, п. 7). Идемпотентно. Число сторно.
+
+    Единицы возвращаются операцией reversal; статус после сторно:
+    - spent → active. Если срок уже вышел, пользоваться им нельзя (`expires_at <= now`),
+      остаток сожжёт ближайший запуск задачи истечения;
+    - expired — остаётся, возвращённое сразу сгорает операцией expire;
+    - cancelled (чек покупки отменён, пока проходило списание, — 13.4, п. 13) —
+      остаётся, возвращённое сразу аннулируется операцией cancel: единицы
+      отменённого абонемента не оживают;
+    - active и frozen не меняются; pending не бывает — списание активирует.
+    Активацию отмена первого списания не откатывает.
+    """
+    ops = _open_uses(session, salon_id, receipt_id)
+    if not ops:
+        return 0
+    locked = _lock_all(session, {op.subscription_id for op in ops})
+    for op in sorted(ops, key=lambda o: (o.subscription_id, o.id)):
+        subscription = locked[op.subscription_id]
+        reversal = reverse(session, op, meta=meta)
+        burn = BURN_AFTER_REVERSAL.get(subscription.status)
+        if burn is not None:
+            balance = session.get(SubscriptionBalance, op.balance_id)
+            assert balance is not None
+            if balance.balance > 0:
+                post(
+                    session,
+                    balance,
+                    type=burn,
+                    delta=-balance.balance,
+                    key=f"{burn.value}:{reversal.id}",
+                    meta=replace(meta, comment="Повернене сторно згоряє: абонемент закрито"),
+                )
+        elif subscription.status == SubscriptionStatus.SPENT:
+            subscription.status = SubscriptionStatus.ACTIVE
+    session.flush()
+    return len(ops)
+
+
+def reverse_receipt(
+    session: Session, *, salon_id: uuid.UUID, receipt_id: uuid.UUID, meta: ledger.Meta
+) -> int:
+    """Отмена всего, что чек сделал с абонементами: выпуск (cancel) и списания (reversal).
+
+    Все затронутые абонементы блокируются заранее одним проходом по возрастанию id.
+    """
+    ids = {s.id for s in sold_in(session, salon_id, receipt_id)}
+    ids |= {op.subscription_id for op in _open_uses(session, salon_id, receipt_id)}
+    if not ids:
+        return 0
+    _lock_all(session, ids)
+    cancelled = cancel_issued(session, salon_id=salon_id, receipt_id=receipt_id, meta=meta)
+    return cancelled + reverse_uses(session, salon_id=salon_id, receipt_id=receipt_id, meta=meta)
+
+
+def hanging_uses(
+    session: Session, salon_id: uuid.UUID, border: datetime
+) -> dict[uuid.UUID, uuid.UUID | None]:
+    """Чеки салона с несторнированными списаниями старше border: receipt → record."""
+    reversed_ids = select(SubscriptionOperation.reverses_id).where(
+        SubscriptionOperation.reverses_id.is_not(None)
+    )
+    rows = session.execute(
+        select(SubscriptionOperation.receipt_id, SubscriptionOperation.record_id).where(
+            SubscriptionOperation.salon_id == salon_id,
+            SubscriptionOperation.type == SubscriptionOperationType.USE,
+            SubscriptionOperation.receipt_id.is_not(None),
+            SubscriptionOperation.created_at < border,
+            SubscriptionOperation.id.not_in(reversed_ids),
+        )
+    ).tuples()
+    return {receipt_id: record_id for receipt_id, record_id in rows.all() if receipt_id}
 
 
 def operations(session: Session, subscription_id: uuid.UUID) -> list[SubscriptionOperation]:

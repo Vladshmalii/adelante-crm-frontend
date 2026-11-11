@@ -5,6 +5,10 @@
 Receipt.products_amount); выручка записи делится между её услугами пропорционально
 их цене (снапшот в record_services). Отчёт по товарам — по строкам чеков.
 
+Строки, оплаченные абонементом (subscriptions.md, раздел 10), денег визита не получают:
+их стоимость (subscription_unit_value) — отдельной колонкой subscriptionValue в отчёте
+по услугам, не смешивается с деньгами кассы.
+
 Периоды и группировка — по киевским суткам (неделя с понедельника).
 
 Права: раздел — администратор и суперюзер; денежные показатели — только
@@ -512,12 +516,15 @@ class ServiceRowOut(ApiModel):
     category: CategoryRef
     count: int
     revenue: Decimal | None
+    # Услуги по абонементу: стоимость по цене единицы абонемента (решение 10)
+    subscription_value: Decimal | None = None
 
 
 class CategoryRowOut(ApiModel):
     category: CategoryRef
     count: int
     revenue: Decimal | None
+    subscription_value: Decimal | None = None
 
 
 class ServicesOut(ApiModel):
@@ -542,6 +549,7 @@ async def _services(
     ).all()
 
     revenue: dict[uuid.UUID, Decimal] = defaultdict(Decimal)
+    by_subscription: dict[uuid.UUID, Decimal] = defaultdict(Decimal)
     names: dict[uuid.UUID, str] = {service_id: name for service_id, name, _ in counts}
     paid = [r for r in await _paid_receipts(session, date_from, date_to) if r.record_id]
     if show_money and paid:
@@ -552,7 +560,13 @@ async def _services(
             items[item.record_id].append(item)
         for receipt in paid:
             assert receipt.record_id is not None
-            parts = items.get(receipt.record_id, [])
+            lines = items.get(receipt.record_id, [])
+            for line in lines:
+                if line.subscription_unit_value is not None:
+                    by_subscription[line.service_id] += line.subscription_unit_value
+                    names.setdefault(line.service_id, line.name)
+            # Деньги чека делятся только между строками, оплаченными не абонементом
+            parts = [line for line in lines if line.subscription_id is None]
             base = sum((p.price for p in parts), Decimal(0))
             for part in parts:
                 share = part.price / base if base else Decimal(1) / len(parts)
@@ -576,6 +590,7 @@ async def _services(
             category=categories[service_id],
             count=count_by_id.get(service_id, 0),
             revenue=_money(revenue[service_id]) if show_money else None,
+            subscription_value=_money(by_subscription[service_id]) if show_money else None,
         )
         for service_id in service_ids
     ]
@@ -589,6 +604,11 @@ async def _services(
             category=rows[0].category,
             count=sum(s.count for s in rows),
             revenue=_money(sum((s.revenue or Decimal(0) for s in rows), Decimal(0)))
+            if show_money
+            else None,
+            subscription_value=_money(
+                sum((s.subscription_value or Decimal(0) for s in rows), Decimal(0))
+            )
             if show_money
             else None,
         )
