@@ -20,6 +20,7 @@ from app.api.admin.services import router as services_router
 from app.api.admin.settings import router as settings_router
 from app.api.admin.shifts import router as shifts_router
 from app.api.admin.staff import router as staff_router
+from app.api.admin.subscriptions import router as subscriptions_router
 
 router = APIRouter(prefix="/api/admin/v1")
 
@@ -32,6 +33,7 @@ router.include_router(clients_router)
 router.include_router(accounts_router)
 router.include_router(loyalty_router)
 router.include_router(certificates_router)
+router.include_router(subscriptions_router)
 router.include_router(services_router)
 router.include_router(reviews_router)
 router.include_router(audit_router)

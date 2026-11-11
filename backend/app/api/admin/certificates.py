@@ -332,7 +332,7 @@ async def _template_out(
     return template_out(template, counts.get(template.id, 0))
 
 
-async def _check_pairs(
+async def check_shard_pairs(
     request: Request,
     master_session: AsyncSession,
     pairs: set[tuple[uuid.UUID, uuid.UUID]],
@@ -358,7 +358,7 @@ async def _check_services(
     request: Request, master_session: AsyncSession, services: list[CertificateTemplateServiceRef]
 ) -> list[CertificateTemplateService]:
     pairs = {(s.salon_id, s.service_id) for s in services}
-    await _check_pairs(request, master_session, pairs, Service, "Послугу не знайдено в салоні")
+    await check_shard_pairs(request, master_session, pairs, Service, "Послугу не знайдено в салоні")
     return [
         CertificateTemplateService(salon_id=salon, service_id=service) for salon, service in pairs
     ]
@@ -368,7 +368,7 @@ async def _check_products(
     request: Request, master_session: AsyncSession, products: list[CertificateTemplateProductRef]
 ) -> list[CertificateTemplateProduct]:
     pairs = {(p.salon_id, p.product_id) for p in products}
-    await _check_pairs(request, master_session, pairs, Product, "Товар не знайдено в салоні")
+    await check_shard_pairs(request, master_session, pairs, Product, "Товар не знайдено в салоні")
     return [
         CertificateTemplateProduct(salon_id=salon, product_id=product) for salon, product in pairs
     ]
