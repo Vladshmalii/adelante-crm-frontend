@@ -12,6 +12,7 @@ import {
   frozenUntilLabel,
   serviceBalances,
   subscriptionsRegistryQueryOptions,
+  SubscriptionDrawer,
   subscriptionStatusLabels,
   subscriptionTypesQueryOptions,
   validUntilLabel,
@@ -25,6 +26,7 @@ const PER_PAGE = 25;
 /**
  * «Лояльність → Абонементи → Продані абонементи» (суперюзер, frontend-subscriptions.md, 2.1):
  * реестр сети — статус, тип, салон-продавец, поиск по названию, имени или телефону клиента.
+ * Клик по строке — карточка абонемента с журналом и заморозкой.
  */
 export function SubscriptionsRegistryTab() {
   const me = useQuery(meQueryOptions);
@@ -36,6 +38,7 @@ export function SubscriptionsRegistryTab() {
   const [typeId, setTypeId] = useState<string>();
   const [salonId, setSalonId] = useState<string>();
   const [page, setPage] = useState(1);
+  const [opened, setOpened] = useState<string | null>(null);
   const registry = useQuery(
     subscriptionsRegistryQueryOptions({
       q: debouncedQ.trim(),
@@ -106,6 +109,12 @@ export function SubscriptionsRegistryTab() {
         columnEmptyText="—"
         scroll={{ x: 'max-content' }}
         options={{ reload: () => void registry.refetch(), density: true }}
+        onRow={(s) => ({
+          onClick: () => {
+            setOpened(s.id);
+          },
+          style: { cursor: 'pointer' },
+        })}
         toolBarRender={() => [
           <Input.Search
             key="q"
@@ -165,6 +174,14 @@ export function SubscriptionsRegistryTab() {
           total: registry.data?.meta?.total ?? 0,
           showSizeChanger: false,
           onChange: setPage,
+        }}
+      />
+      <SubscriptionDrawer
+        subscriptionId={opened}
+        // Реестр открыт суперюзеру — он же может заморозить
+        canFreeze
+        onClose={() => {
+          setOpened(null);
         }}
       />
     </>

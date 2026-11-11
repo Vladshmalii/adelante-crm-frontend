@@ -33,5 +33,13 @@ export {
   validUntilLabel,
   type VisitLine,
 } from './model';
+export { ClientSubscriptionsBlock } from './ClientSubscriptionsBlock';
+export { FreezeButton } from './FreezeButton';
+export {
+  SubscriptionDetails,
+  SubscriptionDrawer,
+  SubscriptionStatusTag,
+} from './SubscriptionDetails';
+export { SubscriptionOperations } from './SubscriptionOperations';
 export { SubscriptionSalePicker } from './SubscriptionSalePicker';
 export { SubscriptionUseSelect } from './SubscriptionUseSelect';

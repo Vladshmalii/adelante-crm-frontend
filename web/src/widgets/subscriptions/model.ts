@@ -100,9 +100,9 @@ export function validUntilLabel(
   return s.durationValue ? '—' : 'Безстроковий';
 }
 
-/** «Заморожено до»: дата или без лимита; null — не заморожен. */
+/** «до 20.11.2026» или «до розморозки» (без лимита); null — не заморожен. */
 export const frozenUntilLabel = (s: Pick<Subscription, 'status' | 'freezeUntil'>) =>
-  s.status !== 'frozen' ? null : s.freezeUntil ? day(s.freezeUntil) : 'до розморозки';
+  s.status !== 'frozen' ? null : s.freezeUntil ? `до ${day(s.freezeUntil)}` : 'до розморозки';
 
 export interface FreezeState {
   action: 'freeze' | 'unfreeze';

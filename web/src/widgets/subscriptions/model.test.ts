@@ -107,6 +107,9 @@ describe('остаток', () => {
       }),
     ).toBe('Безстроковий');
     expect(frozenUntilLabel({ status: 'frozen', freezeUntil: null })).toBe('до розморозки');
+    expect(frozenUntilLabel({ status: 'frozen', freezeUntil: '2026-11-20T10:00:00Z' })).toBe(
+      'до 20.11.2026',
+    );
     expect(frozenUntilLabel({ status: 'active', freezeUntil: null })).toBeNull();
   });
 });

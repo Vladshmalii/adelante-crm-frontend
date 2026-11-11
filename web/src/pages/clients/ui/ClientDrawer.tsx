@@ -28,6 +28,7 @@ import {
   formatCardNumber,
   LoyaltyCardsBlock,
 } from '@/widgets/loyalty';
+import { ClientSubscriptionsBlock } from '@/widgets/subscriptions';
 
 import { useDeleteClient } from '../api/clients.mutations';
 import {
@@ -133,6 +134,8 @@ export function ClientDrawer({ clientId, onClose, onEdit }: ClientDrawerProps) {
                   <ClientAccountBlock clientId={client.id} />
                   <LoyaltyCardsBlock clientId={client.id} />
                   <ClientCertificatesBlock clientId={client.id} />
+                  {/* Мастеру абонементы не показываем: бекенд отвечает 403 */}
+                  {can.subscriptions.manage && <ClientSubscriptionsBlock clientId={client.id} />}
                 </Space>
               ),
             },
