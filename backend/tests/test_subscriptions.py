@@ -549,14 +549,16 @@ def _pay_uses(
     parts: list[tuple[str, float]] | None = None,
     *,
     expect: int = 200,
+    headers: dict[str, str] | None = None,
     **extra: Any,
 ) -> Any:
-    """Оплата визита: uses — [(record_service_id, subscription_id)]."""
+    """Оплата визита: uses — [(record_service_id, subscription_id)]; extra — поля тела."""
     return w.place.pay(
         record_id,
         parts or [],
         token=w.adm,
         expect=expect,
+        headers=headers or {},
         extra={
             "subscriptionUses": [
                 {"recordServiceId": line, "subscriptionId": str(sub)} for line, sub in uses
@@ -1291,3 +1293,31 @@ def test_operations_registry_and_bot(w: World, eager: None) -> None:
         {"name": "Солярій 3 хв", "salon_name": waiting["services"][0]["salon_name"], "balance": 15}
     ]
     assert waiting["expires_at"] is None
+
+
+def test_shard_failure_reverses_use(w: World, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Чек визита не записался — списание сторнируется; повтор с тем же ключом — отказ."""
+    from app.services import visits
+
+    p = w.place
+    cid = _client(w)
+    t = _type(w, price=400, totalUnits=4, activationMode="first_visit")
+    sub_id = _bought(w, cid, t)
+    rec = p.record(cid, w.massage)
+    uses = [(_line(w, rec["id"], w.massage), sub_id)]
+    key = {"Idempotency-Key": f"use-{uuid.uuid4()}"}
+
+    def boom(*args: Any, **kwargs: Any) -> None:
+        raise RuntimeError("shard down")
+
+    monkeypatch.setattr(visits, "write_receipt_audit", boom)
+    _pay_uses(w, rec["id"], uses, expect=500, headers=key)
+    monkeypatch.undo()
+    state = _sub(sub_id)
+    assert state["balances"] == [(4, 4)]
+    assert state["ops"] == [("issue", 4, 4), ("use", -1, 3), ("reversal", 1, 4)]
+    # Активацию отмена первого списания не откатывает (раздел 6, п. 7)
+    assert state["sub"].status.value == "active"
+    _pay_uses(w, rec["id"], uses, expect=409, headers=key)
+    _pay_uses(w, rec["id"], uses)
+    assert _sub(sub_id)["balances"] == [(4, 3)]
