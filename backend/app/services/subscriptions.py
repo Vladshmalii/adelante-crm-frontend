@@ -799,3 +799,167 @@ def operations(session: Session, subscription_id: uuid.UUID) -> list[Subscriptio
             .order_by(SubscriptionOperation.created_at.desc())
         )
     )
+
+
+# --- Заморозка (раздел 7) ------------------------------------------------------------
+
+
+class FreezeError(Exception):
+    """Заморозить или разморозить нельзя (409)."""
+
+
+DAY = timedelta(days=1)
+
+
+def freeze(
+    session: Session, subscription_id: uuid.UUID, *, now: datetime | None = None
+) -> Subscription:
+    """Заморозка — один раз за жизнь абонемента; авторазморозка через freeze_max_days.
+
+    Только active со сроком (бессрочный замораживать незачем) и не истёкший.
+    """
+    now = now or datetime.now(UTC)
+    subscription = lock(session, subscription_id)
+    if not subscription.freeze_allowed:
+        raise FreezeError("Заморозка для цього абонемента не передбачена")
+    if subscription.freeze_used:
+        raise FreezeError("Абонемент уже заморожували — повторно не можна")
+    if subscription.status != SubscriptionStatus.ACTIVE:
+        raise FreezeError("Заморозити можна лише активний абонемент")
+    if subscription.expires_at is None:
+        raise FreezeError("Безстроковий абонемент заморожувати не потрібно")
+    if subscription.expires_at <= now:
+        raise FreezeError(f"Термін дії абонемента «{subscription.name}» минув")
+    subscription.status = SubscriptionStatus.FROZEN
+    subscription.frozen_at = now
+    subscription.freeze_used = True
+    subscription.freeze_until = (
+        add_duration(now, subscription.freeze_max_days, SubscriptionDurationUnit.DAY)
+        if subscription.freeze_max_days
+        else None
+    )
+    session.flush()
+    return subscription
+
+
+def _thaw(subscription: Subscription, now: datetime) -> None:
+    """Разморозка: фактические дни (неполный — вверх, не больше лимита), срок += дни."""
+    assert subscription.frozen_at is not None
+    end = now
+    if subscription.freeze_until is not None:
+        end = min(end, subscription.freeze_until)
+    elapsed = max(end - subscription.frozen_at, timedelta(0))
+    days = -(-elapsed // DAY)  # вверх
+    if subscription.freeze_max_days:
+        days = min(days, subscription.freeze_max_days)
+    subscription.frozen_days = days
+    subscription.unfrozen_at = end
+    if subscription.expires_at is not None and days:
+        subscription.expires_at = add_duration(
+            subscription.expires_at, days, SubscriptionDurationUnit.DAY
+        )
+    subscription.status = SubscriptionStatus.ACTIVE
+
+
+def unfreeze(
+    session: Session, subscription_id: uuid.UUID, *, now: datetime | None = None
+) -> Subscription:
+    """Ручная разморозка в любой момент (раздел 7)."""
+    subscription = lock(session, subscription_id)
+    if subscription.status != SubscriptionStatus.FROZEN:
+        raise FreezeError("Абонемент не заморожено")
+    _thaw(subscription, now or datetime.now(UTC))
+    session.flush()
+    return subscription
+
+
+# --- Фоновые задачи (раздел 8) -------------------------------------------------------
+
+
+def due_activation(session: Session, now: datetime) -> list[uuid.UUID]:
+    return list(
+        session.scalars(
+            select(Subscription.id).where(
+                Subscription.status == SubscriptionStatus.PENDING,
+                Subscription.auto_activate_at.is_not(None),
+                Subscription.auto_activate_at <= now,
+            )
+        )
+    )
+
+
+def due_unfreeze(session: Session, now: datetime) -> list[uuid.UUID]:
+    return list(
+        session.scalars(
+            select(Subscription.id).where(
+                Subscription.status == SubscriptionStatus.FROZEN,
+                Subscription.freeze_until.is_not(None),
+                Subscription.freeze_until <= now,
+            )
+        )
+    )
+
+
+def due_expiry(session: Session, now: datetime) -> list[uuid.UUID]:
+    return list(
+        session.scalars(
+            select(Subscription.id).where(
+                Subscription.status == SubscriptionStatus.ACTIVE,
+                Subscription.expires_at.is_not(None),
+                Subscription.expires_at <= now,
+            )
+        )
+    )
+
+
+def auto_activate(session: Session, subscription_id: uuid.UUID, now: datetime) -> bool:
+    """pending с наступившим auto_activate_at → active; срок — от auto_activate_at."""
+    subscription = lock(session, subscription_id)
+    at = subscription.auto_activate_at
+    if subscription.status != SubscriptionStatus.PENDING or at is None or at > now:
+        return False
+    subscription.status = SubscriptionStatus.ACTIVE
+    subscription.activated_at = at
+    subscription.expires_at = add_duration(
+        at, subscription.duration_value, subscription.duration_unit
+    )
+    session.flush()
+    return True
+
+
+def auto_unfreeze(session: Session, subscription_id: uuid.UUID, now: datetime) -> bool:
+    """frozen с наступившим freeze_until → как ручная разморозка (дни — по лимиту)."""
+    subscription = lock(session, subscription_id)
+    until = subscription.freeze_until
+    if subscription.status != SubscriptionStatus.FROZEN or until is None or until > now:
+        return False
+    _thaw(subscription, now)
+    session.flush()
+    return True
+
+
+def expire(session: Session, subscription_id: uuid.UUID, now: datetime) -> bool:
+    """active с вышедшим сроком → expired; остаток каждой корзины сгорает (expire в ноль)."""
+    subscription = lock(session, subscription_id)
+    if (
+        subscription.status != SubscriptionStatus.ACTIVE
+        or subscription.expires_at is None
+        or subscription.expires_at > now
+    ):
+        return False
+    for balance in subscription.balances:
+        session.refresh(balance)
+        if balance.balance > 0:
+            post(
+                session,
+                balance,
+                type=SubscriptionOperationType.EXPIRE,
+                delta=-balance.balance,
+                key=f"expire:{subscription.id}:{balance.id}",
+                meta=ledger.Meta(
+                    author_name="Система", comment="Термін дії минув — залишок згорів"
+                ),
+            )
+    subscription.status = SubscriptionStatus.EXPIRED
+    session.flush()
+    return True

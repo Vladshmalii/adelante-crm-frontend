@@ -19,9 +19,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from app.api.admin.certificates import check_shard_pairs
-from app.api.admin.deps import CurrentAuthor
+from app.api.admin.deps import Author, CurrentAuthor
 from app.api.schemas import ApiModel, Envelope, PersonRef
 from app.api.security import AdminUser, SuperUser, require_salon_access
 from app.models.master import (
@@ -614,3 +615,118 @@ async def client_subscriptions(
         now = datetime.now(UTC)
         items = [item for item in items if usable_in(item, usable_for_salon, now)]
     return Envelope(data=await subscriptions_out(request, master_session, items))
+
+
+async def _get_subscription(
+    master_session: AsyncSession, subscription_id: uuid.UUID
+) -> Subscription:
+    found = await master_session.get(Subscription, subscription_id)
+    if found is None:
+        raise HTTPException(404, "Абонемент не знайдено")
+    return found
+
+
+@router.get("/subscriptions/{subscription_id}", response_model=Envelope[SubscriptionOut])
+async def get_subscription(
+    subscription_id: uuid.UUID,
+    request: Request,
+    _admin: AdminUser,
+    master_session: MasterSession,
+) -> Envelope[SubscriptionOut]:
+    found = await _get_subscription(master_session, subscription_id)
+    [out] = await subscriptions_out(request, master_session, [found])
+    return Envelope(data=out)
+
+
+# --- Заморозка (раздел 7) -----------------------------------------------------------
+
+
+def _iso(value: datetime | None) -> str | None:
+    return value.isoformat() if value else None
+
+
+async def _freeze_action(
+    subscription_id: uuid.UUID,
+    request: Request,
+    author: Author,
+    master_session: AsyncSession,
+    tenant_session: AsyncSession,
+    *,
+    unfreeze: bool,
+) -> SubscriptionOut:
+    """Заморозка / разморозка в Master и запись в аудит салона, где действовал автор."""
+    await _get_subscription(master_session, subscription_id)
+    action = subscriptions_service.unfreeze if unfreeze else subscriptions_service.freeze
+
+    def run(session: Session) -> tuple[Subscription, dict[str, list[Any]]]:
+        before = session.get(Subscription, subscription_id)
+        old = (before.status.value, before.expires_at, before.freeze_until) if before else None
+        changed = action(session, subscription_id)
+        assert old is not None
+        details: dict[str, list[Any]]
+        if unfreeze:
+            details = {
+                "status": [old[0], changed.status.value],
+                "frozenDays": [0, changed.frozen_days],
+                "expiresAt": [_iso(old[1]), _iso(changed.expires_at)],
+            }
+        else:
+            details = {
+                "status": [old[0], changed.status.value],
+                "freezeUntil": [None, _iso(changed.freeze_until)],
+            }
+        return changed, details
+
+    try:
+        changed, details = await master_session.run_sync(run)
+        await master_session.commit()
+    except subscriptions_service.FreezeError as exc:
+        await master_session.rollback()
+        raise HTTPException(409, str(exc))
+    await master_session.refresh(changed)
+    write_audit(
+        tenant_session,
+        entity="subscription",
+        entity_id=changed.id,
+        entity_name=f"Абонемент «{changed.name}»",
+        action=AuditAction.UPDATED,
+        author_id=author.id,
+        author_name=author.name,
+        details=details,
+    )
+    [out] = await subscriptions_out(request, master_session, [changed])
+    return out
+
+
+@router.post("/subscriptions/{subscription_id}/freeze", response_model=Envelope[SubscriptionOut])
+async def freeze_subscription(
+    subscription_id: uuid.UUID,
+    request: Request,
+    _admin: AdminUser,
+    author: CurrentAuthor,
+    master_session: MasterSession,
+    tenant_session: TenantSession,
+) -> Envelope[SubscriptionOut]:
+    """Заморозка (раздел 7): один раз; авторазморозка через freezeMaxDays (0 — вручную)."""
+    return Envelope(
+        data=await _freeze_action(
+            subscription_id, request, author, master_session, tenant_session, unfreeze=False
+        )
+    )
+
+
+@router.post("/subscriptions/{subscription_id}/unfreeze", response_model=Envelope[SubscriptionOut])
+async def unfreeze_subscription(
+    subscription_id: uuid.UUID,
+    request: Request,
+    _admin: AdminUser,
+    author: CurrentAuthor,
+    master_session: MasterSession,
+    tenant_session: TenantSession,
+) -> Envelope[SubscriptionOut]:
+    """Разморозка в любой момент: frozenDays — фактические дни (вверх), срок += дни."""
+    return Envelope(
+        data=await _freeze_action(
+            subscription_id, request, author, master_session, tenant_session, unfreeze=True
+        )
+    )

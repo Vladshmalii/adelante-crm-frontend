@@ -983,3 +983,195 @@ def test_reconciliation_reverses_orphan_use(w: World) -> None:
     assert state["balances"] == [(2, 2)]
     assert state["ops"][-1] == ("reversal", 1, 2)
     assert integrity.reconcile_payments(salon_id) == 0
+
+
+# --- Заморозка (раздел 7) и фоновые задачи (раздел 8) ----------------------------
+
+
+def _tick() -> None:
+    from workers.tasks import subscriptions as subscription_tasks
+
+    subscription_tasks.run()
+
+
+def _freeze(w: World, sub_id: Any, *, expect: int = 200, token: str | None = None) -> Any:
+    return w.s.api.post(
+        f"/subscriptions/{sub_id}/freeze", token=token or w.adm, salon=w.s.id, expect=expect
+    )
+
+
+def _unfreeze(w: World, sub_id: Any, *, expect: int = 200) -> Any:
+    return w.s.api.post(
+        f"/subscriptions/{sub_id}/unfreeze", token=w.adm, salon=w.s.id, expect=expect
+    )
+
+
+def test_freeze_once_and_extend(w: World) -> None:
+    """Один раз; фактические дни вверх; expires_at += дни; повторно — нельзя."""
+    p, s = w.place, w.s
+    cid = _client(w)
+    t = _type(w, price=100, totalUnits=3, freezeAllowed=True, freezeMaxDays=14)
+    sub_id = _bought(w, cid, t)
+    before = _sub(sub_id)["sub"]
+    _, master_token = s.create_staff(role="master")
+    _freeze(w, sub_id, token=master_token, expect=403)
+    _unfreeze(w, sub_id, expect=409)  # не заморожен
+
+    frozen = _freeze(w, sub_id)
+    assert frozen["status"] == "frozen" and frozen["freezeUsed"] is True
+    until = datetime.fromisoformat(frozen["freezeUntil"])
+    assert timedelta(days=13, hours=22) < until - datetime.now(UTC) <= timedelta(days=14, hours=1)
+    _freeze(w, sub_id, expect=409)
+    # Замороженным не платят
+    rec = p.record(cid, w.massage)
+    _pay_uses(w, rec["id"], [(_line(w, rec["id"], w.massage), sub_id)], expect=422)
+
+    # 3 суток и 2 часа заморозки — 4 дня
+    _set(sub_id, frozen_at=datetime.now(UTC) - timedelta(days=3, hours=2))
+    thawed = _unfreeze(w, sub_id)
+    assert thawed["status"] == "active" and thawed["frozenDays"] == 4
+    assert thawed["unfrozenAt"] is not None
+    after = datetime.fromisoformat(thawed["expiresAt"])
+    assert before.expires_at is not None
+    assert after - before.expires_at in (
+        timedelta(days=4),
+        timedelta(days=4, hours=1),
+        timedelta(days=4, hours=-1),
+    )
+    # Повторно нельзя, даже если лимит не выбран
+    assert "повторно" in str(_freeze(w, sub_id, expect=409))
+    _pay_uses(w, rec["id"], [(_line(w, rec["id"], w.massage), sub_id)])
+
+    audit = s.api.get(
+        "/audit", token=s.su, salon=s.id, params={"entity": "subscription", "perPage": 100}
+    )
+    mine = [a for a in audit if a["entityId"] == str(sub_id)]
+    assert {tuple(a["details"]["status"]) for a in mine} == {
+        ("active", "frozen"),
+        ("frozen", "active"),
+    }
+    assert all(a["author"]["name"] for a in mine)
+
+
+def test_freeze_not_allowed_cases(w: World) -> None:
+    cid = _client(w)
+    no_freeze = _bought(w, cid, _type(w, price=100))
+    assert "не передбачена" in str(_freeze(w, no_freeze, expect=409))
+    unlimited = _bought(w, cid, _type(w, price=100, durationValue=0, freezeAllowed=True))
+    assert "Безстроковий" in str(_freeze(w, unlimited, expect=409))
+    pending = _bought(w, cid, _type(w, price=100, activationMode="first_visit", freezeAllowed=True))
+    _freeze(w, pending, expect=409)
+    w.s.api.post(f"/subscriptions/{uuid.uuid4()}/freeze", token=w.adm, salon=w.s.id, expect=404)
+
+
+def test_auto_unfreeze_by_limit(w: World) -> None:
+    """Авторазморозка по freeze_until: дней ровно по лимиту, даже если задача опоздала."""
+    cid = _client(w)
+    t = _type(w, price=100, totalUnits=3, freezeAllowed=True, freezeMaxDays=5)
+    sub_id = _bought(w, cid, t)
+    expires = _sub(sub_id)["sub"].expires_at
+    _freeze(w, sub_id)
+    now = datetime.now(UTC)
+    _set(sub_id, frozen_at=now - timedelta(days=6), freeze_until=now - timedelta(days=1))
+    _tick()
+    sub = _sub(sub_id)["sub"]
+    assert sub.status.value == "active" and sub.frozen_days == 5
+    assert sub.unfrozen_at is not None and abs(
+        sub.unfrozen_at - (now - timedelta(days=1))
+    ) < timedelta(seconds=1)
+    assert (
+        timedelta(days=5) - timedelta(hours=1)
+        <= sub.expires_at - expires
+        <= timedelta(days=5, hours=1)
+    )
+    _tick()  # повтор ничего не меняет
+    assert _sub(sub_id)["sub"].expires_at == sub.expires_at
+
+
+def test_background_activation_and_expiry(w: World) -> None:
+    """Автоактивация, истечение со сгоранием; повторный запуск ничего не дублирует."""
+    cid = _client(w)
+    pending_type = _type(
+        w,
+        price=100,
+        totalUnits=4,
+        durationValue=10,
+        durationUnit="day",
+        activationMode="first_visit",
+        autoActivateDays=7,
+    )
+    pending = _bought(w, cid, pending_type)
+    waiting = _bought(w, cid, pending_type)
+    at = datetime.now(UTC) - timedelta(hours=1)
+    _set(pending, auto_activate_at=at)
+    expiring = _bought(w, cid, _type(w, price=100, totalUnits=3))
+    _set(expiring, expires_at=datetime.now(UTC) - timedelta(minutes=5))
+    frozen = _bought(w, cid, _type(w, price=100, totalUnits=3, freezeAllowed=True))
+    _freeze(w, frozen)
+    _set(frozen, expires_at=datetime.now(UTC) - timedelta(minutes=5))
+
+    _tick()
+    activated = _sub(pending)["sub"]
+    assert activated.status.value == "active" and activated.activated_at == at
+    assert activated.expires_at is not None
+    assert (
+        timedelta(days=10) - timedelta(hours=1)
+        <= activated.expires_at - at
+        <= timedelta(days=10, hours=1)
+    )
+    assert _sub(waiting)["sub"].status.value == "pending"  # без активации срок не идёт
+    burnt = _sub(expiring)
+    assert burnt["sub"].status.value == "expired"
+    assert burnt["balances"] == [(3, 0)]
+    assert burnt["ops"] == [("issue", 3, 3), ("expire", -3, 0)]
+    assert _sub(frozen)["sub"].status.value == "frozen"  # замороженный не истекает
+
+    _tick()
+    assert _sub(expiring)["ops"] == burnt["ops"]
+    assert _sub(pending)["sub"].activated_at == at
+
+
+def test_reversal_after_expiry(w: World, eager: None) -> None:
+    """Сторно после истечения: единица возвращается в журнал и сразу сгорает."""
+    p = w.place
+    cid = _client(w)
+    t = _type(w, price=300, totalUnits=3)
+    sub_id = _bought(w, cid, t)
+    rec = p.record(cid, w.massage)
+    visit = _pay_uses(w, rec["id"], [(_line(w, rec["id"], w.massage), sub_id)])
+    _set(sub_id, expires_at=datetime.now(UTC) - timedelta(minutes=1))
+    _tick()
+    p.cancel(visit["receipt"]["id"])
+    publish()
+    state = _sub(sub_id)
+    assert state["sub"].status.value == "expired"
+    assert state["balances"] == [(3, 0)]
+    assert state["ops"] == [
+        ("issue", 3, 3),
+        ("use", -1, 2),
+        ("expire", -2, 0),
+        ("reversal", 1, 1),
+        ("expire", -1, 0),
+    ]
+
+
+def test_spent_reversal_after_term(w: World, eager: None) -> None:
+    """spent со вышедшим сроком: сторно → active, пользоваться нельзя, задача сжигает."""
+    p = w.place
+    cid = _client(w)
+    sub_id = _bought(w, cid, _type(w, price=100, totalUnits=1))
+    rec = p.record(cid, w.massage)
+    visit = _pay_uses(w, rec["id"], [(_line(w, rec["id"], w.massage), sub_id)])
+    assert _sub(sub_id)["sub"].status.value == "spent"
+    _set(sub_id, expires_at=datetime.now(UTC) - timedelta(minutes=1))
+    _tick()
+    assert _sub(sub_id)["sub"].status.value == "spent"  # spent не истекает
+    p.cancel(visit["receipt"]["id"])
+    publish()
+    assert _sub(sub_id)["sub"].status.value == "active"
+    again = p.record(cid, w.massage)
+    _pay_uses(w, again["id"], [(_line(w, again["id"], w.massage), sub_id)], expect=422)
+    _tick()
+    state = _sub(sub_id)
+    assert state["sub"].status.value == "expired"
+    assert state["ops"][-2:] == [("reversal", 1, 1), ("expire", -1, 0)]

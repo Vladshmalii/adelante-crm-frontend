@@ -16,6 +16,7 @@ celery = Celery(
         "workers.tasks.integrity",
         "workers.tasks.mail",
         "workers.tasks.loyalty",
+        "workers.tasks.subscriptions",
     ],
 )
 
@@ -50,6 +51,11 @@ celery.conf.beat_schedule = {
     "burn-expired-certificates": {
         "task": "workers.tasks.loyalty.burn_expired_certificates",
         "schedule": crontab(hour=3, minute=40),
+    },
+    # Абонементы: автоактивация, авторазморозка, истечение (subscriptions.md, раздел 8)
+    "process-subscriptions": {
+        "task": "workers.tasks.subscriptions.process_subscriptions",
+        "schedule": crontab(minute=20),
     },
     "integrity-check": {
         "task": "workers.tasks.integrity.integrity_check",
