@@ -14,7 +14,8 @@ backend/docs/loyalty-accounts.md, раздел 6, шаг 4:
 
 На шаге 3 там же списываются части, оплаченные сертификатами (ключ
 `pay:{salon}:{receipt}:certificate:{id}`), и выпускаются проданные чеком
-сертификаты (certificates.md, 4.4 и 5): компенсация и сверка отменяют всё вместе.
+сертификаты (certificates.md, 4.4 и 5) и абонементы (subscriptions.md, раздел 5,
+ключ `subs:{salon}:{receipt}:{line}`): компенсация и сверка отменяют всё вместе.
 """
 
 import uuid
@@ -30,6 +31,7 @@ from sqlalchemy.orm import Session
 from app.models.master import AccountTransaction, LoyaltyCard, TransactionType
 from app.models.shard import Receipt
 from app.services import certificates, ledger, loyalty
+from app.services import subscriptions as subscription_service
 
 # Пространство имён UUIDv5 для receipt_id из Idempotency-Key
 RECEIPT_NAMESPACE = uuid.UUID("4f1d6a0e-6b1e-4c39-9a51-7c0b3e2f8d11")
@@ -76,12 +78,18 @@ class Charges:
     # Части, оплаченные сертификатами, и строки чека (услуги, товары) для их областей
     redemptions: tuple[certificates.Redemption, ...] = ()
     scope_lines: tuple[certificates.LineAmount, ...] = ()
+    # Абонементы, продаваемые чеком (с оплаченной суммой строки): выпуск там же
+    subscriptions: tuple[subscription_service.Issue, ...] = ()
 
     @property
     def needs_client(self) -> bool:
-        """Списания со счетов клиента; выпуск сертификата клиента не требует."""
+        """Списания со счетов клиента и именные абонементы; сертификату клиент не нужен."""
         return (
-            self.account > 0 or self.bonus > 0 or bool(self.bonus_lines) or bool(self.redemptions)
+            self.account > 0
+            or self.bonus > 0
+            or bool(self.bonus_lines)
+            or bool(self.redemptions)
+            or bool(self.subscriptions)
         )
 
     @property
@@ -95,9 +103,14 @@ class ChargeResult:
     account_balance_before: Decimal | None = None
     # Выпущенные сертификаты: (позиция, штука) → сертификат — для строк чека в шарде
     issued: tuple[certificates.Issued, ...] = ()
+    # Выпущенные абонементы: позиция продажи → абонемент
+    subscriptions: tuple[subscription_service.Issued, ...] = ()
 
     def certificate_id(self, line: int, n: int) -> uuid.UUID | None:
         return next((i.certificate_id for i in self.issued if i.line == line and i.n == n), None)
+
+    def subscription_id(self, line: int) -> uuid.UUID | None:
+        return next((i.subscription_id for i in self.subscriptions if i.line == line), None)
 
 
 def charge(
@@ -109,9 +122,9 @@ def charge(
     charges: Charges,
     meta: ledger.Meta,
 ) -> ChargeResult:
-    """Списания и выпуск сертификатов в одной транзакции Master.
+    """Списания и выпуск сертификатов и абонементов в одной транзакции Master.
 
-    Порядок блокировок: money-счёт → кешбек → сертификаты → прогресс бонусов.
+    Порядок блокировок: money-счёт → кешбек → сертификаты → абонементы → прогресс бонусов.
     """
     balance_before = None
     if charges.needs_client and client_id is None:
@@ -155,6 +168,17 @@ def charge(
         issues=list(charges.issues),
         meta=meta,
     )
+    subscriptions_issued: list[subscription_service.Issued] = []
+    if charges.subscriptions:
+        assert client_id is not None
+        subscriptions_issued = subscription_service.issue(
+            session,
+            salon_id=salon_id,
+            receipt_id=receipt_id,
+            client_id=client_id,
+            issues=list(charges.subscriptions),
+            meta=meta,
+        )
     if charges.bonus_lines:
         if charges.card_id is None:
             raise ledger.LedgerError(
@@ -168,7 +192,11 @@ def charge(
             record_id=meta.record_id,
             lines=list(charges.bonus_lines),
         )
-    return ChargeResult(account_balance_before=balance_before, issued=tuple(issued))
+    return ChargeResult(
+        account_balance_before=balance_before,
+        issued=tuple(issued),
+        subscriptions=tuple(subscriptions_issued),
+    )
 
 
 def _existing_payment(session: Session, key: str) -> AccountTransaction | None:
@@ -242,9 +270,9 @@ def reverse_payments(
 ) -> int:
     """Сторно всех списаний по чеку (компенсация, отмена чека, сверка). Идемпотентно.
 
-    Деньги и кешбэк возвращаются сторно, выпущенные чеком сертификаты отменяются,
-    использованные бонусные услуги — в available. Порядок блокировок как при
-    оплате: money-счёт, кешбек, сертификаты, прогресс бонусов.
+    Деньги и кешбэк возвращаются сторно, выпущенные чеком сертификаты и абонементы
+    отменяются, использованные бонусные услуги — в available. Порядок блокировок как
+    при оплате: money-счёт, кешбек, сертификаты, абонементы, прогресс бонусов.
     """
     txns = open_payments(session, salon_id=salon_id, receipt_id=receipt_id)
     txns.sort(key=_lock_order)
@@ -252,6 +280,9 @@ def reverse_payments(
         ledger.reverse(session, txn, meta=meta)
         certificates.after_reversal(session, ledger.lock_account(session, txn.account_id))
     cancelled = certificates.cancel_issued(
+        session, salon_id=salon_id, receipt_id=receipt_id, meta=meta
+    )
+    cancelled += subscription_service.cancel_issued(
         session, salon_id=salon_id, receipt_id=receipt_id, meta=meta
     )
     return len(txns) + cancelled + loyalty.reverse_bonus_uses(session, salon_id, receipt_id)

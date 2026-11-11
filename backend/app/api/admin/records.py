@@ -20,6 +20,7 @@ from app.api.admin.certificates import CertificateSaleIn
 from app.api.admin.deps import CurrentAuthor, ensure_own_record
 from app.api.admin.inventory import ProductSaleIn
 from app.api.admin.services import CategoryRef
+from app.api.admin.subscriptions import SubscriptionSaleIn
 from app.api.schemas import ApiModel, Envelope, PersonRef, page_meta
 from app.api.security import AdminUser, CurrentUser, forbidden, require_salon_access
 from app.config import get_settings
@@ -714,6 +715,8 @@ class RecordPaymentIn(ApiModel):
     certificates: list[CertificateSaleIn] = Field(default_factory=list, max_length=20)
     # Продажа товаров со склада в том же чеке (product-sales.md, раздел 4)
     products: list[ProductSaleIn] = Field(default_factory=list, max_length=product_sales.MAX_LINES)
+    # Продажа абонементов клиенту записи (subscriptions.md, раздел 5): по позиции на абонемент
+    subscriptions: list[SubscriptionSaleIn] = Field(default_factory=list, max_length=20)
 
 
 class ReceiptRef(ApiModel):
@@ -765,6 +768,7 @@ async def pay_record(
             expected_total=body.expected_total,
             certificate_sales=[c.to_sale() for c in body.certificates],
             products=[p.to_sale() for p in body.products],
+            subscription_sales=[s.to_sale() for s in body.subscriptions],
         )
     except product_sales.ProductSaleError as exc:
         raise HTTPException(exc.status_code, str(exc))

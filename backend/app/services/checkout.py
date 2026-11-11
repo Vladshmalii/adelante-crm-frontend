@@ -5,7 +5,8 @@
 3. Скидка — одна, наибольшая в гривнах из: личной % клиента, % уровня карты,
    фиксированной уровня карты (не больше суммы). Источник — в discount_source.
    Строки-сертификаты в базу скидки не входят (certificates.md, решение 11),
-   строки-товары входят (product-sales.md, раздел 3).
+   строки-товары входят (product-sales.md, раздел 3), строки-абонементы — тоже
+   (subscriptions.md, решение 8).
 4. Итог = Продано − бонусные строки − скидка, копейки ROUND_HALF_UP.
 
 Клиенту не доверяем: итог считается здесь и при предпросмотре, и при оплате.
@@ -20,7 +21,7 @@ from sqlalchemy.orm import Session
 
 from app.models.master import Client, LoyaltyCard
 from app.models.shard import DiscountSource, ProductSaleMode, Record
-from app.services import certificates, ledger, loyalty
+from app.services import certificates, ledger, loyalty, subscriptions
 from app.services.certificates import LineAmount
 from app.services.ledger import money
 
@@ -30,7 +31,7 @@ CANDIDATE_ORDER = (DiscountSource.CLIENT, DiscountSource.CARD_PERCENT, DiscountS
 
 @dataclass(frozen=True)
 class Line:
-    kind: str  # service | product | certificate
+    kind: str  # service | product | certificate | subscription
     name: str
     price: Decimal
     record_service_id: uuid.UUID | None = None
@@ -38,6 +39,8 @@ class Line:
     is_bonus: bool = False
     # Строка-сертификат: шаблон продажи
     template_id: uuid.UUID | None = None
+    # Строка-абонемент: тип продажи
+    subscription_type_id: uuid.UUID | None = None
     # Строка-товар со склада; у ручной суммы «Товари» (чек без записи) product_id нет
     product_id: uuid.UUID | None = None
     mode: ProductSaleMode | None = None
@@ -47,6 +50,10 @@ class Line:
     @property
     def is_certificate(self) -> bool:
         return self.kind == "certificate"
+
+    @property
+    def is_subscription(self) -> bool:
+        return self.kind == "subscription"
 
     @property
     def amount(self) -> Decimal:
@@ -112,12 +119,21 @@ class Quote:
         return services + products
 
     def product_paid_amounts(self) -> list[Decimal]:
-        """Строки товаров со склада после скидки — по той же формуле, что и услуги.
+        """Строки товаров со склада после скидки — по той же формуле, что и услуги."""
+        return self._paid_amounts(
+            [line.price for line in self.lines if line.product_id is not None]
+        )
+
+    def subscription_paid_amounts(self) -> list[Decimal]:
+        """Строки-абонементы после скидки (subscriptions.md, раздел 5, п. 2)."""
+        return self._paid_amounts([line.price for line in self.lines if line.is_subscription])
+
+    def _paid_amounts(self, amounts: list[Decimal]) -> list[Decimal]:
+        """Строки после скидки пропорционально, как у услуг.
 
         Копеечный остаток округления уходит на последнюю строку; если он больше неё —
         на предыдущие: строка не может стать отрицательной.
         """
-        amounts = [line.price for line in self.lines if line.product_id is not None]
         base = self.sold - self.bonus_amount - self.certificates
         if base <= 0:
             return [Decimal("0.00") for _ in amounts]
@@ -212,6 +228,39 @@ async def certificate_issues(
         return certificates.plan_issues(certificates.load_templates(session, sales), sales)
 
     return await master_session.run_sync(build)
+
+
+def subscription_lines(issues: list[subscriptions.Issue]) -> list[Line]:
+    """Строки-абонементы: одна на абонемент, цена типа; в скидке и кешбэке, как обычные."""
+    return [
+        Line(
+            kind="subscription",
+            name=i.name,
+            price=money(i.price),
+            subscription_type_id=i.type_id,
+        )
+        for i in issues
+    ]
+
+
+async def subscription_issues(
+    master_session: AsyncSession, sales: list[subscriptions.SubscriptionSale]
+) -> list[subscriptions.Issue]:
+    """Позиции продажи → выпускаемые абонементы; тип не в архиве."""
+    if not sales:
+        return []
+
+    def build(session: Session) -> list[subscriptions.Issue]:
+        return subscriptions.plan_issues(subscriptions.load_types(session, sales), sales)
+
+    return await master_session.run_sync(build)
+
+
+def with_paid_amounts(issues: list[subscriptions.Issue], q: Quote) -> list[subscriptions.Issue]:
+    """Оплаченная сумма каждой строки-абонемента после скидки — для unit_value и чека."""
+    return [
+        issue.paid(paid) for issue, paid in zip(issues, q.subscription_paid_amounts(), strict=True)
+    ]
 
 
 # --- Контекст клиента из Master DB -------------------------------------------------

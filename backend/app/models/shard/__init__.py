@@ -20,6 +20,7 @@ from app.models.shard.finance import (
     ReceiptProductLine,
     ReceiptSource,
     ReceiptStatus,
+    ReceiptSubscriptionLine,
 )
 from app.models.shard.inventory import (
     InventoryCategory,
@@ -87,6 +88,7 @@ __all__ = [
     "ReceiptProductLine",
     "ReceiptSource",
     "ReceiptStatus",
+    "ReceiptSubscriptionLine",
     "Record",
     "RecordImportance",
     "RecordPhoto",

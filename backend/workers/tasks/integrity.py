@@ -6,7 +6,8 @@
 2. Списания со счетов клиента (Master) без живого чека в шарде: процесс упал
    между записью в Master и коммитом шарда, или событие отмены чека потерялось.
    Такие списания сторнируются (loyalty-accounts.md, раздел 3), выпущенные
-   таким чеком сертификаты отменяются (certificates.md, 4.4).
+   таким чеком сертификаты (certificates.md, 4.4) и абонементы (subscriptions.md,
+   раздел 5, п. 5) отменяются.
 3. Оплаченные чеки с картой без факта визита в Master: событие
    loyalty.receipt_paid переотправляется (published_at сбрасывается).
 """
@@ -20,7 +21,7 @@ from sqlalchemy import select, update
 from app.models.master import Client, LoyaltyCardVisit, Master
 from app.models.shard import OutboxEvent, Receipt, ReceiptStatus, Record, service_masters
 from app.notifications.outbox import LOYALTY_RECEIPT_PAID
-from app.services import certificates, ledger, loyalty, payments
+from app.services import certificates, ledger, loyalty, payments, subscriptions
 from workers import db
 from workers.celery_app import celery
 
@@ -110,6 +111,11 @@ def reconcile_payments(salon_id: UUID, *, now: datetime | None = None) -> int:
         ).items():
             hanging.setdefault(receipt_id, record_id)
         for receipt_id in certificates.hanging_receipts(
+            session, salon_id, border, now - CERTIFICATE_RECONCILE_WINDOW
+        ):
+            hanging.setdefault(receipt_id, None)
+        # Абонементы не сторнируются — то же окно, что у сертификатов
+        for receipt_id in subscriptions.hanging_receipts(
             session, salon_id, border, now - CERTIFICATE_RECONCILE_WINDOW
         ):
             hanging.setdefault(receipt_id, None)

@@ -252,14 +252,18 @@ def paid_amount(payload: dict[str, Any]) -> Decimal:
 
 
 def cashback_base(payload: dict[str, Any], card_type: LoyaltyCardType, paid: Decimal) -> Decimal:
-    """Оплачено, распределённое по строкам пропорционально; только строки включённых типов."""
+    """Оплачено, распределённое по строкам пропорционально; только строки включённых типов.
+
+    Строка-абонемент — предоплата услуг (subscriptions.md, решение 8): идёт в базу вместе
+    с услугами, по флагу cashback_on_services.
+    """
     lines = payload["lines"]
     total = sum((Decimal(line["amount"]) for line in lines), Decimal(0))
     if total <= 0 or paid <= 0:
         return Decimal(0)
-    kinds = set()
+    kinds: set[str] = set()
     if card_type.cashback_on_services:
-        kinds.add("service")
+        kinds.update(("service", "subscription"))
     if card_type.cashback_on_products:
         kinds.add("product")
     eligible = sum((Decimal(line["amount"]) for line in lines if line["kind"] in kinds), Decimal(0))

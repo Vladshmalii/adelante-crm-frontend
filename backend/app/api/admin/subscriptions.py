@@ -34,6 +34,7 @@ from app.models.master import (
     SubscriptionUnitKind,
 )
 from app.models.shard import AuditAction, Service
+from app.services import subscriptions as subscriptions_service
 from app.services.audit import diff_fields, write_audit
 from app.tenancy.deps import MasterSession, TenantSession
 
@@ -382,3 +383,15 @@ async def patch_type(
             details=changes,
         )
     return Envelope(data=await _type_out(master_session, found))
+
+
+# --- Продажа (раздел 5) -------------------------------------------------------------
+
+
+class SubscriptionSaleIn(ApiModel):
+    """Позиция продажи в чеке: тип абонемента. Одна позиция — один абонемент."""
+
+    type_id: uuid.UUID
+
+    def to_sale(self) -> subscriptions_service.SubscriptionSale:
+        return subscriptions_service.SubscriptionSale(type_id=self.type_id)

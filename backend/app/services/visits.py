@@ -38,6 +38,7 @@ from app.models.shard import (
     ReceiptPayment,
     ReceiptSource,
     ReceiptStatus,
+    ReceiptSubscriptionLine,
     Record,
     RecordPhoto,
     RecordStatus,
@@ -47,7 +48,7 @@ from app.notifications.outbox import (
     LOYALTY_RECEIPT_PAID,
     add_outbox_event,
 )
-from app.services import certificates, checkout, loyalty, product_sales
+from app.services import certificates, checkout, loyalty, product_sales, subscriptions
 from app.services import payments as payments_service
 from app.services.audit import write_audit
 from app.services.ledger import money
@@ -211,6 +212,7 @@ async def create_receipt(
     issued: "payments_service.ChargeResult | None" = None,
     issues: "list[certificates.Issue] | None" = None,
     products: "list[product_sales.PlannedLine] | None" = None,
+    sold_subscriptions: "list[subscriptions.Issue] | None" = None,
 ) -> Receipt:
     """Чек + разбивка по способам оплаты + приходные операции по каждой оплате.
 
@@ -231,6 +233,11 @@ async def create_receipt(
     такая часть — операция «sales», остальное — обычная (product-sales.md, раздел 4).
     Часть «Сертифікат» дохода не создаёт, поэтому покрытая ею доля товаров в «sales»
     не попадает: products_amount она не уменьшает.
+
+    Проданные абонементы (sold_subscriptions) — строки receipt_subscription_lines. Их
+    сумма после скидки забирается тем же механизмом из частей, создающих доход (все,
+    кроме «Сертифікат»), после сертификатов и до товаров: операция «subscriptions»
+    (subscriptions.md, раздел 5, п. 4).
     """
     if methods is None:
         methods = await load_methods(tenant_session, payments)
@@ -289,6 +296,21 @@ async def create_receipt(
             author_name=author_name,
         )
     products_left = receipt.products_amount
+    for sold in sold_subscriptions or []:
+        assert sold.paid_amount is not None
+        tenant_session.add(
+            ReceiptSubscriptionLine(
+                receipt_id=receipt.id,
+                type_id=sold.type_id,
+                name=sold.name,
+                amount=sold.price,
+                paid_amount=sold.paid_amount,
+                subscription_id=issued.subscription_id(sold.line) if issued else None,
+            )
+        )
+    subscriptions_left = sum(
+        (i.paid_amount or Decimal(0) for i in sold_subscriptions or []), Decimal(0)
+    )
 
     def income(method: PaymentMethod, amount: Decimal, category: str, description: str) -> None:
         tenant_session.add(
@@ -321,6 +343,11 @@ async def create_receipt(
             certificates_left -= share
             rest -= share
             income(method, share, "certificates", f"Продаж сертифікатів: чек {receipt.number}")
+        if subscriptions_left > 0 and rest > 0:
+            share = min(subscriptions_left, rest)
+            subscriptions_left -= share
+            rest -= share
+            income(method, share, "subscriptions", f"Продаж абонементів: чек {receipt.number}")
         if products_left > 0 and rest > 0:
             share = min(products_left, rest)
             products_left -= share
@@ -357,11 +384,13 @@ async def pay_record(
     expected_total: Decimal | None = None,
     certificate_sales: list[certificates.CertificateSale] | None = None,
     products: list[product_sales.ProductSale] | None = None,
+    subscription_sales: list[subscriptions.SubscriptionSale] | None = None,
 ) -> Receipt:
     """Оплата визита (раздел 6). Итог считает сервер: бонусные услуги, наибольшая скидка.
 
     Части account/bonus списываются в Master до записи чека, там же выпускаются
-    проданные сертификаты. Товары блокируются и проверяются раньше этих списаний.
+    проданные сертификаты и абонементы (клиенту записи — она всегда с клиентом).
+    Товары блокируются и проверяются раньше этих списаний.
     Коммитит обе сессии сама. Повтор с тем же Idempotency-Key возвращает тот же чек.
     """
     receipt_id = payments_service.receipt_id_for(salon_id, idempotency_key)
@@ -385,21 +414,25 @@ async def pay_record(
     if bonus_ids and ctx.card is None:
         raise PaymentError("Бонусні послуги доступні лише з карткою, що діє в цьому салоні")
     issues = await _certificate_issues(master_session, certificate_sales)
+    subscription_issues = await _subscription_issues(master_session, subscription_sales)
     planned = await product_sales.plan(tenant_session, products or [], lock=True)
     q = ctx.quote(
         checkout.record_lines(record, bonus_ids)
         + [line.line() for line in planned]
+        + checkout.subscription_lines(subscription_issues)
         + checkout.certificate_lines(issues)
     )
     check_total(q, payments, expected_total)
     methods = await load_methods(tenant_session, payments)
     check_certificate_parts(q, payments, methods)
+    sold_subscriptions = checkout.with_paid_amounts(subscription_issues, q)
     card_id = ctx.card.id if ctx.card else None
     charges = replace(
         charges_for(payments, methods),
         card_id=card_id,
         total=q.rest,
         issues=tuple(issues),
+        subscriptions=tuple(sold_subscriptions),
         scope_lines=tuple(q.scope_lines()),
         bonus_lines=tuple(
             loyalty.BonusLine(record_service_id=s.id, service_id=s.service_id, is_bonus=True)
@@ -413,7 +446,11 @@ async def pay_record(
         record.discount_source = q.discount_source
         record.loyalty_card_id = card_id
         # Только услуги: сумму записи читают выручка мастера и агрегаты клиента
-        record.total_amount = q.total - sum(q.product_paid_amounts(), Decimal(0))
+        record.total_amount = (
+            q.total
+            - sum(q.product_paid_amounts(), Decimal(0))
+            - sum(q.subscription_paid_amounts(), Decimal(0))
+        )
         for item in record.services:
             item.is_bonus = item.id in bonus_ids
         receipt = await create_receipt(
@@ -433,6 +470,7 @@ async def pay_record(
             issued=result,
             issues=issues,
             products=planned,
+            sold_subscriptions=sold_subscriptions,
         )
         emit_receipt_paid(
             tenant_session,
@@ -507,11 +545,35 @@ def sale_lines(
     subtotal: Decimal,
     issues: list[certificates.Issue],
     products: list[product_sales.PlannedLine] | None = None,
+    subscription_issues: list[subscriptions.Issue] | None = None,
 ) -> list[checkout.Line]:
-    """Строки продажи: ручная сумма «Товари» (если есть), товары со склада и сертификаты."""
+    """Строки продажи: ручная сумма «Товари» (если есть), товары со склада, абонементы
+    и сертификаты."""
     products = products or []
-    manual = checkout.sale_lines(subtotal) if subtotal > 0 or not (issues or products) else []
-    return manual + [line.line() for line in products] + checkout.certificate_lines(issues)
+    subscription_issues = subscription_issues or []
+    manual = (
+        checkout.sale_lines(subtotal)
+        if subtotal > 0 or not (issues or products or subscription_issues)
+        else []
+    )
+    return (
+        manual
+        + [line.line() for line in products]
+        + checkout.subscription_lines(subscription_issues)
+        + checkout.certificate_lines(issues)
+    )
+
+
+async def _subscription_issues(
+    master_session: AsyncSession, sales: list[subscriptions.SubscriptionSale] | None
+) -> list[subscriptions.Issue]:
+    """Архивный или несуществующий тип — 422 (раздел 4: архив не продаётся)."""
+    if sales and len(sales) > subscriptions.MAX_SALES:
+        raise InvalidSale(f"Не більше {subscriptions.MAX_SALES} абонементів в одному чеку")
+    try:
+        return await checkout.subscription_issues(master_session, sales or [])
+    except subscriptions.SubscriptionError as exc:
+        raise InvalidSale(str(exc))
 
 
 async def _certificate_issues(
@@ -560,8 +622,11 @@ async def sell(
     expected_total: Decimal | None = None,
     certificate_sales: list[certificates.CertificateSale] | None = None,
     products: list[product_sales.ProductSale] | None = None,
+    subscription_sales: list[subscriptions.SubscriptionSale] | None = None,
 ) -> Receipt:
     """Чек без записи (продажа товаров) — те же способы оплаты и скидки, что у визита.
+
+    subscription_sales — абонементы: строки в скидке и кешбэке, нужен клиент (422).
 
     products — товары со склада; subtotal — ручная сумма «Продано» (поле API для
     совместимости): скидка считается от них, части оплаты = итог. Ни того, ни другого,
@@ -577,16 +642,21 @@ async def sell(
         if client is None or not client.is_active:
             raise PaymentError("Клієнта не знайдено")
         client_name = client_name or client.full_name
+    if subscription_sales and client_id is None:
+        # Абонемент именной (решение 7): продаётся клиенту чека
+        raise InvalidSale("Абонемент продається клієнту — оберіть клієнта")
     ctx = await checkout.load_context(master_session, client_id, salon_id)
     issues = await _certificate_issues(master_session, certificate_sales)
+    subscription_issues = await _subscription_issues(master_session, subscription_sales)
     planned = await product_sales.plan(tenant_session, products or [], lock=True)
-    if subtotal is None and not issues and not planned:
+    if subtotal is None and not issues and not planned and not subscription_issues:
         q = checkout.quote(checkout.sale_lines(sum((p.amount for p in payments), Decimal(0))))
     else:
-        q = ctx.quote(sale_lines(subtotal or Decimal(0), issues, planned))
+        q = ctx.quote(sale_lines(subtotal or Decimal(0), issues, planned, subscription_issues))
     check_total(q, payments, expected_total)
     methods = await load_methods(tenant_session, payments)
     check_certificate_parts(q, payments, methods)
+    sold_subscriptions = checkout.with_paid_amounts(subscription_issues, q)
     # Чек из одних сертификатов карту не затрагивает: ни скидки, ни кешбэка, ни факта визита
     card_id = ctx.card.id if ctx.card and q.rest > 0 else None
     charges = replace(
@@ -594,6 +664,7 @@ async def sell(
         card_id=card_id,
         total=q.rest,
         issues=tuple(issues),
+        subscriptions=tuple(sold_subscriptions),
         scope_lines=tuple(q.scope_lines()),
     )
     if client_id is None and charges.redemptions:
@@ -618,6 +689,7 @@ async def sell(
             issued=result,
             issues=issues,
             products=planned,
+            sold_subscriptions=sold_subscriptions,
         )
         emit_receipt_paid(
             tenant_session,

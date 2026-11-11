@@ -268,6 +268,25 @@ class ReceiptCertificateLine(ShardBase):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class ReceiptSubscriptionLine(ShardBase):
+    """Строка чека — проданный абонемент (subscriptions.md, 3.2). Одна строка — один абонемент.
+
+    Тип и абонемент живут в Master DB — ссылки без FK; subscription_id заполняется
+    выпуском при оплате чека. amount — цена типа, paid_amount — после скидки.
+    """
+
+    __tablename__ = "receipt_subscription_lines"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    receipt_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("receipts.id"), index=True)
+    type_id: Mapped[uuid.UUID] = mapped_column(Uuid)
+    name: Mapped[str] = mapped_column(String(255))
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    paid_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    subscription_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class ReceiptProductLine(ShardBase):
     """Строка чека — товар со склада в одном режиме (product-sales.md, раздел 2).
 

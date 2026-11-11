@@ -19,6 +19,7 @@ from sqlalchemy import Select, case, func, literal, select, union_all, update
 from app.api.admin.certificates import CertificateSaleIn
 from app.api.admin.deps import CurrentAuthor
 from app.api.admin.inventory import ProductSaleIn
+from app.api.admin.subscriptions import SubscriptionSaleIn
 from app.api.schemas import ApiModel, Envelope, PersonRef, page_meta
 from app.api.security import require_admin, require_superuser
 from app.models.master import AccountKind, Client, ClientAccount
@@ -46,12 +47,14 @@ from app.models.shard import (
     ReceiptProductLine,
     ReceiptSource,
     ReceiptStatus,
+    ReceiptSubscriptionLine,
     Record,
     RecordService,
     RecordStatus,
 )
 from app.services import certificates as certificates_service
 from app.services import product_sales as product_sales_service
+from app.services import subscriptions as subscriptions_service
 from app.services import visits as visits_service
 from app.services.audit import diff_fields, write_audit
 from app.services.text import uk_sort_key
@@ -743,6 +746,17 @@ class ReceiptProductLineOut(ApiModel):
     paid_amount: Decimal
 
 
+class ReceiptSubscriptionLineOut(ApiModel):
+    id: uuid.UUID
+    type_id: uuid.UUID
+    name: str
+    # Цена типа и сумма после скидки
+    amount: Decimal
+    paid_amount: Decimal
+    # null — выпуск не прошёл (чек без абонемента не записывается, поле — на всякий случай)
+    subscription_id: uuid.UUID | None
+
+
 class ReceiptOut(ApiModel):
     id: uuid.UUID
     number: str
@@ -760,6 +774,8 @@ class ReceiptOut(ApiModel):
     # Товары в amount и строки товаров
     products_amount: Decimal
     products: list[ReceiptProductLineOut]
+    # Проданные абонементы (subscriptions.md, раздел 5)
+    subscriptions: list[ReceiptSubscriptionLineOut]
     payments: list[ReceiptPaymentOut]
     status: ReceiptStatus
     source: ReceiptSource
@@ -786,6 +802,11 @@ async def _receipt_out(tenant_session, receipt: Receipt) -> ReceiptOut:
         select(ReceiptProductLine)
         .where(ReceiptProductLine.receipt_id == receipt.id)
         .order_by(ReceiptProductLine.name, ReceiptProductLine.mode)
+    )
+    sold_subscriptions = await tenant_session.scalars(
+        select(ReceiptSubscriptionLine)
+        .where(ReceiptSubscriptionLine.receipt_id == receipt.id)
+        .order_by(ReceiptSubscriptionLine.created_at, ReceiptSubscriptionLine.name)
     )
     return ReceiptOut(
         id=receipt.id,
@@ -826,6 +847,9 @@ async def _receipt_out(tenant_session, receipt: Receipt) -> ReceiptOut:
                 paid_amount=line.paid_amount,
             )
             for line in products
+        ],
+        subscriptions=[
+            ReceiptSubscriptionLineOut.model_validate(line) for line in sold_subscriptions
         ],
         payments=payments,
         status=receipt.status,
@@ -900,6 +924,10 @@ class ReceiptCreateIn(ApiModel):
     products: list[ProductSaleIn] = Field(
         default_factory=list, max_length=product_sales_service.MAX_LINES
     )
+    # Абонементы (subscriptions.md, раздел 5): нужен клиент — clientId или запись
+    subscriptions: list[SubscriptionSaleIn] = Field(
+        default_factory=list, max_length=subscriptions_service.MAX_SALES
+    )
 
 
 @sales_router.post(
@@ -928,6 +956,7 @@ async def create_receipt(
     ]
     certificate_sales = [c.to_sale() for c in body.certificates]
     products = [p.to_sale() for p in body.products]
+    subscription_sales = [s.to_sale() for s in body.subscriptions]
     try:
         if body.record_id is not None:
             record = await tenant_session.get(Record, body.record_id)
@@ -948,6 +977,7 @@ async def create_receipt(
                 expected_total=body.expected_total,
                 certificate_sales=certificate_sales,
                 products=products,
+                subscription_sales=subscription_sales,
             )
         else:
             if not body.payments and not body.subtotal and not products:
@@ -968,6 +998,7 @@ async def create_receipt(
                 expected_total=body.expected_total,
                 certificate_sales=certificate_sales,
                 products=products,
+                subscription_sales=subscription_sales,
             )
     except product_sales_service.ProductSaleError as exc:
         raise HTTPException(exc.status_code, str(exc))
@@ -992,6 +1023,8 @@ async def cancel_receipt(
 
     Чек продажи сертификатов отменяется, только пока ими не расплачивались
     (certificates.md, раздел 6); сертификаты аннулирует воркер вместе со сторно.
+    Так же чек продажи абонементов — только пока по ним не было списаний
+    (subscriptions.md, раздел 5, п. 6); абонементы отменяет воркер (операции cancel).
     Проданные товары возвращаются на склад обратными движениями, в том числе удалённые.
 
     Чек читается FOR UPDATE: параллельная отмена ждёт и видит «уже скасовано». Порядок
@@ -1023,6 +1056,21 @@ async def cancel_receipt(
         raise HTTPException(
             409, "Сертифікатом із цього чека вже розраховувались — скасувати чек не можна"
         )
+    # Абонементы чека покупки — только без использований (subscriptions.md, раздел 5, п. 6)
+    sold_subscriptions = [
+        s
+        for s in await tenant_session.scalars(
+            select(ReceiptSubscriptionLine.subscription_id).where(
+                ReceiptSubscriptionLine.receipt_id == receipt_id
+            )
+        )
+        if s is not None
+    ]
+    used = bool(sold_subscriptions) and await master_session.run_sync(
+        lambda s: subscriptions_service.was_used(s, sold_subscriptions)
+    )
+    if used:
+        raise HTTPException(409, "Абонементом вже користувалися — скасувати чек не можна")
 
     receipt.status = ReceiptStatus.CANCELLED
     operations = await tenant_session.scalars(

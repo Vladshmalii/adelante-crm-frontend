@@ -10,6 +10,9 @@ certificateTemplateIds — продаваемые в чеке сертифика
 
 products — товары со склада, повторяемый параметр `<productId>:<mode>:<quantity>`
 (product-sales.md, раздел 4): строки в скидке и кешбэке. Нехватка остатка — 409.
+
+subscriptionTypeIds — продаваемые абонементы, по одному id на абонемент (subscriptions.md,
+раздел 5): строки в скидке и кешбэке; архивный тип — 422; в продаже без записи нужен clientId.
 """
 
 import uuid
@@ -28,7 +31,7 @@ from app.models.shard import (
     Record,
     RecordStatus,
 )
-from app.services import certificates, checkout, loyalty, product_sales, visits
+from app.services import certificates, checkout, loyalty, product_sales, subscriptions, visits
 from app.tenancy.deps import MasterSession, SalonId, TenantSession
 
 router = APIRouter(tags=["checkout"], dependencies=[Depends(require_salon_access)])
@@ -49,7 +52,7 @@ class CheckoutCardOut(ApiModel):
 
 
 class CheckoutLineOut(ApiModel):
-    kind: str  # service | product | certificate
+    kind: str  # service | product | certificate | subscription
     record_service_id: uuid.UUID | None
     service_id: uuid.UUID | None
     name: str
@@ -61,6 +64,8 @@ class CheckoutLineOut(ApiModel):
     bonus_rule_name: str | None = None
     # Строка-сертификат: шаблон продажи
     template_id: uuid.UUID | None = None
+    # Строка-абонемент: тип продажи
+    subscription_type_id: uuid.UUID | None = None
     # Строка-товар со склада: режим, количество как ввели, цена режима
     product_id: uuid.UUID | None = None
     mode: ProductSaleMode | None = None
@@ -134,6 +139,7 @@ def checkout_out(
                     bonus.get(line.record_service_id) if line.record_service_id else None
                 ),
                 template_id=line.template_id,
+                subscription_type_id=line.subscription_type_id,
                 product_id=line.product_id,
                 mode=line.mode,
                 quantity=line.quantity,
@@ -197,6 +203,23 @@ async def _issues(
         raise HTTPException(409, str(exc))
 
 
+SubscriptionTypeIds = Annotated[
+    list[uuid.UUID] | None,
+    Query(alias="subscriptionTypeIds", max_length=subscriptions.MAX_SALES),
+]
+
+
+async def _subscription_issues(
+    master_session: MasterSession, type_ids: list[uuid.UUID] | None
+) -> list[subscriptions.Issue]:
+    try:
+        return await checkout.subscription_issues(
+            master_session, [subscriptions.SubscriptionSale(type_id=t) for t in type_ids or []]
+        )
+    except subscriptions.SubscriptionError as exc:
+        raise HTTPException(422, str(exc))
+
+
 ProductSales = Annotated[
     list[str] | None, Query(alias="products", max_length=product_sales.MAX_LINES)
 ]
@@ -238,6 +261,7 @@ async def record_checkout(
     bonus_ids: Annotated[list[uuid.UUID] | None, Query(alias="bonusRecordServiceIds")] = None,
     template_ids: CertificateTemplateIds = None,
     products: ProductSales = None,
+    subscription_type_ids: SubscriptionTypeIds = None,
 ) -> Envelope[CheckoutOut]:
     """Предпросмотр оплаты визита: карта и уровень, бонусные услуги, скидки, итог, балансы.
 
@@ -257,10 +281,12 @@ async def record_checkout(
     except loyalty.LoyaltyError as exc:
         raise HTTPException(409, str(exc))
     issues = await _issues(master_session, template_ids)
+    sold_subscriptions = await _subscription_issues(master_session, subscription_type_ids)
     planned = await _planned(tenant_session, products)
     q = ctx.quote(
         checkout.record_lines(record, selected)
         + [line.line() for line in planned]
+        + checkout.subscription_lines(sold_subscriptions)
         + checkout.certificate_lines(issues)
     )
     return Envelope(data=checkout_out(record.client_id, ctx, q, bonus))
@@ -276,17 +302,21 @@ async def sale_checkout(
     client_id: Annotated[uuid.UUID | None, Query(alias="clientId")] = None,
     template_ids: CertificateTemplateIds = None,
     products: ProductSales = None,
+    subscription_type_ids: SubscriptionTypeIds = None,
 ) -> Envelope[CheckoutOut]:
     """Предпросмотр продажи без записи: товары со склада и/или ручная сумма subtotal.
 
     Скидка — наибольшая. Без товаров и сертификатов subtotal обязателен.
     """
-    if subtotal is None and not products and not template_ids:
+    if subtotal is None and not products and not template_ids and not subscription_type_ids:
         raise HTTPException(422, "Вкажіть товари або суму")
+    if subscription_type_ids and client_id is None:
+        raise HTTPException(422, "Абонемент продається клієнту — оберіть клієнта")
     ctx = await checkout.load_context(master_session, client_id, salon_id)
     if client_id is not None and (ctx.client is None or not ctx.client.is_active):
         raise HTTPException(404, "Клієнта не знайдено")
     issues = await _issues(master_session, template_ids)
+    sold_subscriptions = await _subscription_issues(master_session, subscription_type_ids)
     planned = await _planned(tenant_session, products)
-    q = ctx.quote(visits.sale_lines(subtotal or Decimal(0), issues, planned))
+    q = ctx.quote(visits.sale_lines(subtotal or Decimal(0), issues, planned, sold_subscriptions))
     return Envelope(data=checkout_out(client_id, ctx, q))
