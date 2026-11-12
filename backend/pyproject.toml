@@ -21,6 +21,8 @@ dependencies = [
     "websockets>=17",
     "python-multipart>=0.0.20",
     "openpyxl>=3.1",
+    # kombu 5.7 импортирует packaging, но не объявляет его в зависимостях — без него падают worker/beat
+    "packaging>=24",
 ]
 
 [project.optional-dependencies]
