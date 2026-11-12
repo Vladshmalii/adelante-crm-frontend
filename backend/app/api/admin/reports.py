@@ -870,8 +870,8 @@ async def _sms_row(session: AsyncSession, date_from: datetime, date_to: datetime
             continue
         if status in _SMS_ACCEPTED:
             row["sms"] += count
-            row["segments"] += int(segments)
-            row["cost"] += Decimal(cost)
+            row["segments"] += int(segments or 0)
+            row["cost"] += Decimal(cost or 0)
             if is_fallback:
                 row["fallback"] += count
         if status == ReminderDeliveryStatus.DELIVERED:
